@@ -63,6 +63,19 @@ IACR ePrint version ([Cryptology ePrint Archive](https://ia.cr/2023/049)):
 }
 ```
 
+If you are exploring BFV optimizations, please also cite the following paper:
+
+```
+@misc{cryptoeprint:2023/1429,
+      author = {Shiyu Shen and Hao Yang and Wangchen Dai and Lu Zhou and Zhe Liu and Yunlei Zhao},
+      title = {Leveraging GPU in Homomorphic Encryption: Framework Design and Analysis of BFV Variants},
+      howpublished = {Cryptology ePrint Archive, Paper 2023/1429},
+      year = {2023},
+      note = {\url{https://eprint.iacr.org/2023/1429}},
+      url = {https://eprint.iacr.org/2023/1429}
+}
+```
+
 ## Roadmap
 
 We are planning to support the following features in the future:
