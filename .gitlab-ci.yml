@@ -1,0 +1,91 @@
+stages:
+  - build
+  - test
+  - bench
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+build:
+  stage: build
+  tags:
+    - gpu, a100
+  script:
+    - cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=80-real
+    - cmake --build build -j
+  artifacts:
+    paths:
+      - build/bin
+      - build/lib
+
+test BFV:
+  stage: test
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/example_context 1
+  dependencies:
+    - build
+
+test BGV:
+  stage: test
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/example_context 2
+  dependencies:
+    - build
+
+test CKKS:
+  stage: test
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/example_context 3
+  dependencies:
+    - build
+
+bench BFV:
+  stage: bench
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/bfv_bench
+  dependencies:
+    - build
+
+bench BGV:
+  stage: bench
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/bgv_bench
+  dependencies:
+    - build
+
+bench CKKS:
+  stage: bench
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/ckks_bench
+  dependencies:
+    - build
+
+bench NWT:
+  stage: bench
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/nwt_bench
+  dependencies:
+    - build
+
+bench KeySwitch:
+  stage: bench
+  tags:
+    - gpu, a100
+  script:
+    - ./build/bin/keyswitch_bench
+  dependencies:
+    - build
