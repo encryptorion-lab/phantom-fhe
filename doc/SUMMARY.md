@@ -1,3 +1,3 @@
 # Table of contents
 
-* [Introduction to PhantomFHE](README.md)
+* [PhantomFHE](README.md)
