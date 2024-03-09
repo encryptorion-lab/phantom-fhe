@@ -5,6 +5,7 @@
 
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 template<size_t BLOCK_TILE_SIZE_X, size_t BLOCK_TILE_SIZE_Y, size_t BLOCK_TILE_SIZE_K, size_t NUM_THREADS,
          size_t BLOCK_TILE_SKEW_SIZE_X = 0U, size_t BLOCK_TILE_SKEW_SIZE_K = 0U>

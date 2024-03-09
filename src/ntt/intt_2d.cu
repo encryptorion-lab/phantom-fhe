@@ -4,6 +4,7 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 __global__ static void
 inplace_inwt_radix8_phase1(uint64_t *inout,

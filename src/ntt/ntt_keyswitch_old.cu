@@ -4,6 +4,7 @@
 
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 // use in key switching mod up
 __global__ static void

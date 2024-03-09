@@ -1,5 +1,7 @@
 #include "fft.h"
 
+using namespace phantom::arith;
+
 /** Computer one butterfly in forward FFT
  * x[0] = x[0] + pow * x[1]
  * x[1] = x[0] - pow * x[1]

@@ -3,22 +3,22 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
-__global__ void bit_reverse_and_zero_padding(cuDoubleComplex *dst, cuDoubleComplex *src, uint64_t in_size,
+__global__ void bit_reverse_and_zero_padding(cuDoubleComplex* dst, cuDoubleComplex* src, uint64_t in_size,
                                              uint32_t slots, uint32_t logn) {
     for (uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
          tid < slots;
          tid += blockDim.x * gridDim.x) {
         if (tid < uint32_t(in_size)) {
             dst[reverse_bits_uint32(tid, logn)] = src[tid];
-        }
-        else {
+        } else {
             dst[reverse_bits_uint32(tid, logn)] = (cuDoubleComplex){0.0, 0.0};
         }
     }
 }
 
-__global__ void bit_reverse(cuDoubleComplex *dst, cuDoubleComplex *src, uint32_t slots, uint32_t logn) {
+__global__ void bit_reverse(cuDoubleComplex* dst, cuDoubleComplex* src, uint32_t slots, uint32_t logn) {
     for (uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
          tid < slots;
          tid += blockDim.x * gridDim.x) {
@@ -26,11 +26,11 @@ __global__ void bit_reverse(cuDoubleComplex *dst, cuDoubleComplex *src, uint32_t
     }
 }
 
-PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) // : context_(context)
+PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext& context) // : context_(context)
 {
-    auto &context_data = context.get_context_data(first_chain_index_);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
+    auto& context_data = context.get_context_data(first_chain_index_);
+    auto& parms = context_data.parms();
+    auto& coeff_modulus = parms.coeff_modulus();
     std::size_t coeff_modulus_size = coeff_modulus.size();
     std::size_t coeff_count = parms.poly_modulus_degree();
 
@@ -64,8 +64,7 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) // : conte
         for (size_t i = 0; i < m; i++) {
             root_powers_[i] = complex_roots_->get_root(i);
         }
-    }
-    else if (m == 4) {
+    } else if (m == 4) {
         root_powers_[0] = {1, 0};
         root_powers_[1] = {0, 1};
         root_powers_[2] = {-1, 0};
@@ -86,13 +85,13 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) // : conte
     // auto &small_ntt_tables = context.get_context_data(0).small_ntt_tables();
 }
 
-void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cuDoubleComplex *values,
+void PhantomCKKSEncoder::encode_internal(const PhantomContext& context, const cuDoubleComplex* values,
                                          size_t values_size, size_t chain_index, double scale,
-                                         PhantomPlaintext &destination) {
-    auto &context_data = context.get_context_data(chain_index);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    auto &rns_tool = context_data.gpu_rns_tool();
+                                         PhantomPlaintext& destination) {
+    auto& context_data = context.get_context_data(chain_index);
+    auto& parms = context_data.parms();
+    auto& coeff_modulus = parms.coeff_modulus();
+    auto& rns_tool = context_data.gpu_rns_tool();
     std::size_t coeff_modulus_size = coeff_modulus.size();
     std::size_t coeff_count = parms.poly_modulus_degree();
 
@@ -113,8 +112,7 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
     if (sparse_slots_ == 0) {
         uint32_t log_sparse_slots = ceil(log2(values_size));
         sparse_slots_ = 1 << log_sparse_slots;
-    }
-    else {
+    } else {
         if (values_size > sparse_slots_) {
             throw std::invalid_argument("values_size exceeds previous message length");
         }
@@ -139,7 +137,7 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
 
     double fix = scale / static_cast<double>(sparse_slots_);
 
-    special_fft_backward(&gpu_ckks_msg_vec_, (uint32_t)1, fix);
+    special_fft_backward(&gpu_ckks_msg_vec_, (uint32_t) 1, fix);
     // we calculate max_coeff_bit_count at cpu side
     // CUDA_CHECK(cudaStreamAttachMemAsync(NULL, gpu_ckks_msg_vec_.in(), 0, cudaMemAttachGlobal));
 
@@ -173,7 +171,7 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
 
     // we can in fact find all coeff_modulus in DNTTTable structure....
     rns_tool.base_Ql().decompose_array(destination.data(), gpu_ckks_msg_vec_.in(), sparse_slots_ << 1,
-                                      (uint32_t)slots_ / sparse_slots_, max_coeff_bit_count);
+                                       (uint32_t) slots_ / sparse_slots_, max_coeff_bit_count);
     // CUDA_CHECK(cudaStreamAttachMemAsync(NULL, destination.data(), 0, cudaMemAttachGlobal));
 
     nwt_2d_radix8_forward_inplace(destination.data(), context.gpu_rns_tables(), coeff_modulus_size, 0);
@@ -182,12 +180,12 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
     destination.scale() = scale;
 }
 
-void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, double value, size_t chain_index, double scale,
-                                         PhantomPlaintext &destination) {
-    auto &context_data = context.get_context_data(chain_index);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    auto &rns_tool = context_data.gpu_rns_tool();
+void PhantomCKKSEncoder::encode_internal(const PhantomContext& context, double value, size_t chain_index, double scale,
+                                         PhantomPlaintext& destination) {
+    auto& context_data = context.get_context_data(chain_index);
+    auto& parms = context_data.parms();
+    auto& coeff_modulus = parms.coeff_modulus();
+    auto& rns_tool = context_data.gpu_rns_tool();
     const std::size_t coeff_modulus_size = coeff_modulus.size();
     const std::size_t coeff_count = parms.poly_modulus_degree();
 
@@ -223,12 +221,12 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, double v
     destination.scale() = scale;
 }
 
-void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, int64_t value, size_t chain_index,
-                                         PhantomPlaintext &destination) {
-    auto &context_data = context.get_context_data(chain_index);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    auto &rns_tool = context_data.gpu_rns_tool();
+void PhantomCKKSEncoder::encode_internal(const PhantomContext& context, int64_t value, size_t chain_index,
+                                         PhantomPlaintext& destination) {
+    auto& context_data = context.get_context_data(chain_index);
+    auto& parms = context_data.parms();
+    auto& coeff_modulus = parms.coeff_modulus();
+    auto& rns_tool = context_data.gpu_rns_tool();
     const std::size_t coeff_modulus_size = coeff_modulus.size();
     const std::size_t coeff_count = parms.poly_modulus_degree();
 
@@ -254,8 +252,8 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, int64_t 
     destination.scale() = 1.0;
 }
 
-void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const PhantomPlaintext &plain,
-                                         cuDoubleComplex *destination) {
+void PhantomCKKSEncoder::decode_internal(const PhantomContext& context, const PhantomPlaintext& plain,
+                                         cuDoubleComplex* destination) {
     if (!plain.is_ntt_form()) {
         throw std::invalid_argument("plain is not in NTT form");
     }
@@ -263,10 +261,10 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
         throw std::invalid_argument("destination cannot be null");
     }
 
-    auto &context_data = context.get_context_data(plain.chain_index_);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    auto &rns_tool = context_data.gpu_rns_tool();
+    auto& context_data = context.get_context_data(plain.chain_index_);
+    auto& parms = context_data.parms();
+    auto& coeff_modulus = parms.coeff_modulus();
+    auto& rns_tool = context_data.gpu_rns_tool();
     const std::size_t coeff_modulus_size = coeff_modulus.size();
     const std::size_t coeff_count = parms.poly_modulus_degree();
     const std::size_t rns_poly_uint64_count = coeff_count * coeff_modulus_size;
@@ -308,9 +306,9 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
 
     // CRT-compose the polynomial
     rns_tool.base_Ql().compose_array(gpu_ckks_msg_vec().in(), plain_copy.get(), gpu_upper_half_threshold.get(),
-                                    inv_scale, coeff_count, sparse_slots_ << 1, slots_ / sparse_slots_);
+                                     inv_scale, coeff_count, sparse_slots_ << 1, slots_ / sparse_slots_);
 
-    special_fft_forward(&gpu_ckks_msg_vec_, (uint32_t)1);
+    special_fft_forward(&gpu_ckks_msg_vec_, (uint32_t) 1);
     // CUDA_CHECK(cudaStreamAttachMemAsync(NULL, gpu_ckks_msg_vec_.in(), 0, cudaMemAttachGlobal));
 
     // finally, bit-reverse and output

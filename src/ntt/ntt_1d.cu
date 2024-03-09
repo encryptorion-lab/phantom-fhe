@@ -2,6 +2,8 @@
 #include "butterfly.cuh"
 #include "uintmodmath.cuh"
 
+using namespace phantom::arith;
+
 /** forward NTT transformation, with N (num of operands) up to 2048,
  * to ensure all operation completed in one block.
  * @param[inout] inout The value to operate and the returned result

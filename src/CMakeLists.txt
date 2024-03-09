@@ -17,7 +17,6 @@ ADD_LIBRARY(Phantom SHARED
         galois.cu
         eval_key_switch.cu
 
-        ntt/bired_ntt.cu
         ntt/fntt_2d.cu
         ntt/ntt_1d.cu
         ntt/ntt_keyswitch_old.cu

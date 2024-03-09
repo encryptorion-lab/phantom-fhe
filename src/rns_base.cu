@@ -6,8 +6,9 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
-void DRNSBase::init(const RNSBase &cpu_rns_base) {
+void DRNSBase::init(const RNSBase& cpu_rns_base) {
     size_ = cpu_rns_base.size();
 
     base_.acquire(allocate<DModulus>(global_pool(), size_));
@@ -43,7 +44,7 @@ void DRNSBase::init(const RNSBase &cpu_rns_base) {
 
 template<typename T>
 // T = double or uint64_t
-__global__ void decompose_uint64(std::uint64_t *dst, const T coefft, const bool is_negative, const DModulus *modulus,
+__global__ void decompose_uint64(std::uint64_t* dst, const T coefft, const bool is_negative, const DModulus* modulus,
                                  const uint32_t poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
@@ -61,15 +62,17 @@ __global__ void decompose_uint64(std::uint64_t *dst, const T coefft, const bool 
     }
 }
 
-__global__ void decompose_uint128(std::uint64_t *dst, const double coeffd, const bool is_negative,
-                                  const DModulus *modulus, const uint32_t poly_degree, const uint32_t coeff_mod_size) {
+__global__ void decompose_uint128(std::uint64_t* dst, const double coeffd, const bool is_negative,
+                                  const DModulus* modulus, const uint32_t poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
         size_t twr = tid / poly_degree;
         DModulus mod = modulus[twr];
 
-        uint64_t coeffu[2] = {static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
-                              static_cast<uint64_t>(coeffd / two_pow_64_dev)};
+        uint64_t coeffu[2] = {
+            static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
+            static_cast<uint64_t>(coeffd / two_pow_64_dev)
+        };
 
         uint64_t temp = barrett_reduce_uint128_uint64({coeffu[1], coeffu[0]}, mod.value(), mod.const_ratio());
         if (is_negative) {
@@ -79,7 +82,7 @@ __global__ void decompose_uint128(std::uint64_t *dst, const double coeffd, const
     }
 }
 
-__global__ void decompose_uint(uint64_t *dst, const uint64_t *coeffu, const bool is_negative, const DModulus *modulus,
+__global__ void decompose_uint(uint64_t* dst, const uint64_t* coeffu, const bool is_negative, const DModulus* modulus,
                                const uint32_t poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
@@ -102,7 +105,7 @@ __global__ void decompose_uint(uint64_t *dst, const uint64_t *coeffu, const bool
     }
 }
 
-__global__ void decompose_array_uint64(uint64_t *dst, const cuDoubleComplex *src, const DModulus *modulus,
+__global__ void decompose_array_uint64(uint64_t* dst, const cuDoubleComplex* src, const DModulus* modulus,
                                        const uint32_t sparse_poly_degree, const uint32_t sparse_ratio,
                                        const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree * coeff_mod_size;
@@ -114,8 +117,7 @@ __global__ void decompose_array_uint64(uint64_t *dst, const cuDoubleComplex *src
         double coeffd;
         if (coeff_id < sparse_poly_degree >> 1) {
             coeffd = round(cuCreal(src[coeff_id]));
-        }
-        else {
+        } else {
             coeffd = round(cuCimag(src[coeff_id - (sparse_poly_degree >> 1)]));
         }
         bool is_negative = static_cast<bool>(signbit(coeffd));
@@ -136,7 +138,7 @@ __global__ void decompose_array_uint64(uint64_t *dst, const cuDoubleComplex *src
     }
 }
 
-__global__ void decompose_array_uint128(uint64_t *dst, const cuDoubleComplex *src, const DModulus *modulus,
+__global__ void decompose_array_uint128(uint64_t* dst, const cuDoubleComplex* src, const DModulus* modulus,
                                         const uint32_t sparse_poly_degree, const uint32_t sparse_ratio,
                                         const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree * coeff_mod_size;
@@ -148,14 +150,15 @@ __global__ void decompose_array_uint128(uint64_t *dst, const cuDoubleComplex *sr
         double coeffd;
         if (coeff_id < sparse_poly_degree >> 1) {
             coeffd = round(cuCreal(src[coeff_id]));
-        }
-        else {
+        } else {
             coeffd = round(cuCimag(src[coeff_id - (sparse_poly_degree >> 1)]));
         }
         bool is_negative = static_cast<bool>(signbit(coeffd));
         coeffd = fabs(coeffd);
-        uint64_t coeffu[2] = {static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
-                              static_cast<uint64_t>(coeffd / two_pow_64_dev)};
+        uint64_t coeffu[2] = {
+            static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
+            static_cast<uint64_t>(coeffd / two_pow_64_dev)
+        };
         uint32_t index = tid * sparse_ratio;
 
         uint64_t temp = barrett_reduce_uint128_uint64({coeffu[1], coeffu[0]}, mod.value(), mod.const_ratio());
@@ -172,7 +175,7 @@ __global__ void decompose_array_uint128(uint64_t *dst, const cuDoubleComplex *sr
     }
 }
 
-__global__ void decompose_array_uint_slow_first_part(uint64_t *dst, const cuDoubleComplex *src,
+__global__ void decompose_array_uint_slow_first_part(uint64_t* dst, const cuDoubleComplex* src,
                                                      const uint32_t sparse_poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree; tid += blockDim.x * gridDim.x) {
         double coeffd;
@@ -188,15 +191,14 @@ __global__ void decompose_array_uint_slow_first_part(uint64_t *dst, const cuDoub
             if (coeffd >= 1) {
                 dst[coeff_id + i] = static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev));
                 coeffd /= two_pow_64_dev;
-            }
-            else {
+            } else {
                 dst[coeff_id + i] = 0;
             }
         }
     }
 }
 
-__global__ void decompose_array_uint_slow_second_part(uint64_t *dst, const uint64_t *src, const DModulus *modulus,
+__global__ void decompose_array_uint_slow_second_part(uint64_t* dst, const uint64_t* src, const DModulus* modulus,
                                                       const uint32_t sparse_poly_degree, const uint32_t sparse_ratio,
                                                       const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree * coeff_mod_size;
@@ -226,7 +228,7 @@ __global__ void decompose_array_uint_slow_second_part(uint64_t *dst, const uint6
     }
 }
 
-void DRNSBase::decompose(uint64_t *dst, const double value, const uint32_t poly_degree,
+void DRNSBase::decompose(uint64_t* dst, const double value, const uint32_t poly_degree,
                          const uint32_t coeff_bit_count) const {
     double coeffd = round(value);
     bool is_negative = signbit(coeffd);
@@ -235,19 +237,16 @@ void DRNSBase::decompose(uint64_t *dst, const double value, const uint32_t poly_
 
     if (coeff_bit_count <= 64) {
         decompose_uint64<<<gridDimGlb, blockDimGlb>>>(dst, coeffd, is_negative, base(), poly_degree, size());
-    }
-    else if (coeff_bit_count <= 128) {
+    } else if (coeff_bit_count <= 128) {
         decompose_uint128<<<gridDimGlb, blockDimGlb>>>(dst, coeffd, is_negative, base(), poly_degree, size());
-    }
-    else {
+    } else {
         Pointer<uint64_t> coeffu;
         coeffu.acquire(allocate<uint64_t>(global_pool(), size()));
         for (uint32_t i = 0; i < size(); i++) {
             if (coeffd >= 1) {
                 coeffu.get()[i] = static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev));
                 coeffd /= two_pow_64_dev;
-            }
-            else {
+            } else {
                 coeffu.get()[i] = 0;
             }
         }
@@ -256,7 +255,7 @@ void DRNSBase::decompose(uint64_t *dst, const double value, const uint32_t poly_
     }
 }
 
-void DRNSBase::decompose(uint64_t *dst, const int64_t value, const uint32_t poly_degree,
+void DRNSBase::decompose(uint64_t* dst, const int64_t value, const uint32_t poly_degree,
                          const uint32_t coeff_bit_count) const {
     bool is_negative = signbit(value);
     uint64_t coeffu = fabs(value);
@@ -264,17 +263,15 @@ void DRNSBase::decompose(uint64_t *dst, const int64_t value, const uint32_t poly
     decompose_uint64<<<gridDimGlb, blockDimGlb>>>(dst, coeffu, is_negative, base(), poly_degree, size());
 }
 
-void DRNSBase::decompose_array(uint64_t *dst, const cuDoubleComplex *src, const uint32_t sparse_poly_degree,
+void DRNSBase::decompose_array(uint64_t* dst, const cuDoubleComplex* src, const uint32_t sparse_poly_degree,
                                const uint32_t sparse_ratio, const uint32_t max_coeff_bit_count) const {
     uint64_t gridDimGlb = sparse_poly_degree * size() / blockDimGlb.x;
     if (max_coeff_bit_count <= 64) {
         decompose_array_uint64<<<gridDimGlb, blockDimGlb>>>(dst, src, base(), sparse_poly_degree, sparse_ratio, size());
-    }
-    else if (max_coeff_bit_count <= 128) {
+    } else if (max_coeff_bit_count <= 128) {
         decompose_array_uint128<<<gridDimGlb, blockDimGlb>>>(dst, src, base(), sparse_poly_degree, sparse_ratio,
                                                              size());
-    }
-    else {
+    } else {
         Pointer<uint64_t> coeffu;
         coeffu.acquire(allocate<uint64_t>(global_pool(), sparse_poly_degree * (size() + 1)));
         decompose_array_uint_slow_first_part<<<gridDimGlb, blockDimGlb>>>(coeffu.get(), src, sparse_poly_degree,
@@ -284,12 +281,12 @@ void DRNSBase::decompose_array(uint64_t *dst, const cuDoubleComplex *src, const 
     }
 }
 
-__global__ void compose_kernel(cuDoubleComplex *dst, uint64_t *temp_prod_array, uint64_t *acc_mod_array,
-                               const uint64_t *src, const uint32_t size, const DModulus *base_q,
-                               const uint64_t *base_prod, const uint64_t *punctured_prod_array,
-                               const uint64_t *inv_punctured_prod_mod_base_array,
-                               const uint64_t *inv_punctured_prod_mod_base_array_shoup,
-                               const uint64_t *upper_half_threshold, const double inv_scale, const uint32_t coeff_count,
+__global__ void compose_kernel(cuDoubleComplex* dst, uint64_t* temp_prod_array, uint64_t* acc_mod_array,
+                               const uint64_t* src, const uint32_t size, const DModulus* base_q,
+                               const uint64_t* base_prod, const uint64_t* punctured_prod_array,
+                               const uint64_t* inv_punctured_prod_mod_base_array,
+                               const uint64_t* inv_punctured_prod_mod_base_array_shoup,
+                               const uint64_t* upper_half_threshold, const double inv_scale, const uint32_t coeff_count,
                                const uint32_t sparse_coeff_count, const uint32_t sparse_ratio) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_coeff_count; tid += blockDim.x * gridDim.x) {
         if (size > 1) {
@@ -310,8 +307,7 @@ __global__ void compose_kernel(cuDoubleComplex *dst, uint64_t *temp_prod_array, 
                 add_uint_uint_mod(temp_prod_array + tid * size, acc_mod_array + tid * size, base_prod, size,
                                   acc_mod_array + tid * size);
             }
-        }
-        else {
+        } else {
             acc_mod_array[tid] = src[tid * sparse_ratio];
         }
 
@@ -329,14 +325,12 @@ __global__ void compose_kernel(cuDoubleComplex *dst, uint64_t *temp_prod_array, 
                 if (acc_mod_array[tid * size + i] > base_prod[i]) {
                     diff = acc_mod_array[tid * size + i] - base_prod[i];
                     res += diff ? static_cast<double>(diff) * scaled_two_pow_64 : 0.0;
-                }
-                else {
+                } else {
                     diff = base_prod[i] - acc_mod_array[tid * size + i];
                     res -= diff ? static_cast<double>(diff) * scaled_two_pow_64 : 0.0;
                 }
             }
-        }
-        else {
+        } else {
             for (size_t i = 0; i < size; i++, scaled_two_pow_64 *= two_pow_64_dev) {
                 diff = acc_mod_array[tid * size + i];
                 res += diff ? static_cast<double>(diff) * scaled_two_pow_64 : 0.0;
@@ -350,7 +344,7 @@ __global__ void compose_kernel(cuDoubleComplex *dst, uint64_t *temp_prod_array, 
     }
 }
 
-void DRNSBase::compose_array(cuDoubleComplex *dst, const uint64_t *src, const uint64_t *upper_half_threshold,
+void DRNSBase::compose_array(cuDoubleComplex* dst, const uint64_t* src, const uint64_t* upper_half_threshold,
                              const double inv_scale, const uint32_t coeff_count, const uint32_t sparse_coeff_count,
                              const uint32_t sparse_ratio) const {
     if (!src) {
@@ -377,13 +371,12 @@ void DRNSBase::compose_array(cuDoubleComplex *dst, const uint64_t *src, const ui
  @param[in]: mod, the modulus
  @ret: result
  */
-__forceinline__ __device__ uint64_t decompose_uint(const uint64_t *value, const size_t coeff_mod_size,
+__forceinline__ __device__ uint64_t decompose_uint(const uint64_t* value, const size_t coeff_mod_size,
                                                    const DModulus modulus) {
     if (coeff_mod_size == 1) {
         // pi < t, which is impossible
         return barrett_reduce_uint64_uint64(*value, modulus.value(), modulus.const_ratio()[1]);
-    }
-    else if (coeff_mod_size == 2) {
+    } else if (coeff_mod_size == 2) {
         return barrett_reduce_uint128_uint64({value[1], value[0]}, modulus.value(), modulus.const_ratio());
     }
 
@@ -397,17 +390,16 @@ __forceinline__ __device__ uint64_t decompose_uint(const uint64_t *value, const 
     return temp.hi;
 }
 
-__global__ void decompose_array_uint_kernel(uint64_t *dst, uint64_t *temp_data, const uint64_t *plain_data,
-                                            const DModulus *modulus, const size_t poly_degree,
-                                            const size_t coeff_mod_size, const uint64_t *plain_upper_half_increment,
+__global__ void decompose_array_uint_kernel(uint64_t* dst, uint64_t* temp_data, const uint64_t* plain_data,
+                                            const DModulus* modulus, const size_t poly_degree,
+                                            const size_t coeff_mod_size, const uint64_t* plain_upper_half_increment,
                                             const uint64_t plain_upper_half_threshold) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree; tid += blockDim.x * gridDim.x) {
         uint64_t pt = plain_data[tid];
 
         if (pt >= plain_upper_half_threshold) {
             add_uint_uint64(plain_upper_half_increment, coeff_mod_size, pt, temp_data + tid * coeff_mod_size);
-        }
-        else {
+        } else {
             temp_data[tid * coeff_mod_size] = pt;
         }
         // TODO: optimize?
@@ -418,8 +410,8 @@ __global__ void decompose_array_uint_kernel(uint64_t *dst, uint64_t *temp_data, 
     }
 }
 
-void DRNSBase::decompose_array(uint64_t *dst, const uint64_t *src, const DModulus *modulus, const size_t poly_degree,
-                               const uint64_t *plain_upper_half_increment,
+void DRNSBase::decompose_array(uint64_t* dst, const uint64_t* src, const DModulus* modulus, const size_t poly_degree,
+                               const uint64_t* plain_upper_half_increment,
                                const uint64_t plain_upper_half_threshold) const {
     Pointer<uint64_t> temp;
     temp.acquire(allocate<uint64_t>(global_pool(), poly_degree * size()));

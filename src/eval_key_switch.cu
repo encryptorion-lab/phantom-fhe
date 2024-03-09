@@ -9,6 +9,7 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 __global__ void key_switch_inner_prod_c2_and_evk(uint64_t *dst, const uint64_t *c2, const uint64_t *const *evks,
                                                  const DModulus *modulus, size_t n, size_t size_QP, size_t size_QP_n,

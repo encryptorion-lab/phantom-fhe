@@ -6,6 +6,7 @@
 //#include <thrust/reduce.h>
 
 using namespace phantom::util;
+using namespace phantom::arith;
 
 /**  res = - operand % coeff_mod
  * @param[in] operand Operand1

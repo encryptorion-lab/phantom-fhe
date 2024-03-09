@@ -7,6 +7,7 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 /**
  * generic base conversion phase 1
