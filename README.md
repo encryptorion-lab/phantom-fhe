@@ -26,7 +26,7 @@
 
 ## Documentation
 
-Work-in-progress, host at [https://encryptorion-lab.gitbook.io/phantomfhe/](https://encryptorion-lab.gitbook.io/phantomfhe/).
+Work-in-progress, host at [https://encryptorion-lab.gitbook.io/phantomfhe/](https://encryptorion-lab.gitbook.io/phantom-fhe/).
 
 ## License
 
