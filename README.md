@@ -24,6 +24,10 @@
 3. Look into build/bin and execute binaries
 4. (Optional) Use python bindings (See `python/` directory for details)
 
+## Documentation
+
+Work-in-progress, host at [https://encryptorion-lab.gitbook.io/phantomfhe/](https://encryptorion-lab.gitbook.io/phantomfhe/).
+
 ## License
 
 This project (Phantom) is released under GPLv3 license. See [COPYING](COPYING) for more information.
