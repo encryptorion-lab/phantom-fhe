@@ -350,13 +350,6 @@ typedef struct PhantomCiphertext {
         poly_modulus_degree_ = poly_modulus_degree;
     }
 
-    [[nodiscard]] bool is_transparent() const {
-        uint64_t *c1 = data() + poly_modulus_degree_ * coeff_modulus_size_;
-        // CUDA_CHECK(cudaMemset(c1, 0, poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t)));
-        return zero_coeff_count_poly(c1, coeff_modulus_size_, poly_modulus_degree_) ==
-               poly_modulus_degree_ * coeff_modulus_size_;
-    }
-
     /**
     * Get the degree of the scaling factor for the encrypted message.
     */

@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 
 project(Phantom LANGUAGES CXX CUDA VERSION 1.3 DESCRIPTION "CUDA-Accelerated Homomorphic Encryption Library")
 
-# [option] PHANTOM_BENCH (default: OFF)
-option(PHANTOM_BENCH "Profiling mode" OFF)
-message(STATUS "Profiling mode: ${PHANTOM_BENCH}")
-if (PHANTOM_BENCH)
-    add_compile_definitions(PHANTOM_BENCH)
+# [option] PHANTOM_USE_CUDA_PTX (default: ON)
+option(PHANTOM_USE_CUDA_PTX "Use CUDA PTX Assembly" ON)
+message(STATUS "Use CUDA PTX Assembly: ${PHANTOM_USE_CUDA_PTX}")
+if (PHANTOM_USE_CUDA_PTX)
+    add_compile_definitions(PHANTOM_USE_CUDA_PTX)
 endif ()
 
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)

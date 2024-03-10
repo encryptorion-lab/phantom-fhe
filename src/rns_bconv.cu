@@ -656,31 +656,31 @@ __global__ static void bgv_moddown_kernel(uint64_t *dst, const uint64_t *cx, con
     }
 }
 
-__global__ static void bgv_moddown_step0_kernel(uint64_t *correction, const uint64_t *cp_mod_t,
-                                                const uint64_t *P_mod_qi, const uint64_t *P_mod_qi_shoup,
-                                                const uint64_t PInv_mod_t, const uint64_t PInv_mod_t_shoup,
-                                                const DModulus *base_Ql, size_t size_Ql, uint64_t t, uint64_t n) {
-    for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n * size_Ql; tid += blockDim.x * gridDim.x) {
-        size_t i = tid / n;
-        auto qi = base_Ql[i].value();
+// __global__ static void bgv_moddown_step0_kernel(uint64_t *correction, const uint64_t *cp_mod_t,
+//                                                 const uint64_t *P_mod_qi, const uint64_t *P_mod_qi_shoup,
+//                                                 const uint64_t PInv_mod_t, const uint64_t PInv_mod_t_shoup,
+//                                                 const DModulus *base_Ql, size_t size_Ql, uint64_t t, uint64_t n) {
+//     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n * size_Ql; tid += blockDim.x * gridDim.x) {
+//         size_t i = tid / n;
+//         auto qi = base_Ql[i].value();
+//
+//         uint64_t temp = multiply_and_reduce_shoup(cp_mod_t[tid % n], PInv_mod_t, PInv_mod_t_shoup, t);
+//         correction[tid] = multiply_and_reduce_shoup(temp, P_mod_qi[i], P_mod_qi_shoup[i], qi);
+//     }
+// }
 
-        uint64_t temp = multiply_and_reduce_shoup(cp_mod_t[tid % n], PInv_mod_t, PInv_mod_t_shoup, t);
-        correction[tid] = multiply_and_reduce_shoup(temp, P_mod_qi[i], P_mod_qi_shoup[i], qi);
-    }
-}
-
-__global__ static void bgv_moddown_step1_kernel(uint64_t *dst, const uint64_t *cx, const uint64_t *delta,
-                                                const uint64_t *correction, const DModulus *modulus,
-                                                const uint64_t *PInv_mod_qi, const uint64_t *PInv_mod_qi_shoup,
-                                                size_t n, size_t size_Ql) {
-    for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n * size_Ql; tid += blockDim.x * gridDim.x) {
-        size_t i = tid / n;
-        uint64_t mod = modulus[i].value();
-        uint64_t temp = sub_uint64_uint64_mod(cx[tid], delta[tid], mod);
-        temp = add_uint64_uint64_mod(temp, correction[tid], mod);
-        dst[tid] = multiply_and_reduce_shoup(temp, PInv_mod_qi[i], PInv_mod_qi_shoup[i], mod);
-    }
-}
+// __global__ static void bgv_moddown_step1_kernel(uint64_t *dst, const uint64_t *cx, const uint64_t *delta,
+//                                                 const uint64_t *correction, const DModulus *modulus,
+//                                                 const uint64_t *PInv_mod_qi, const uint64_t *PInv_mod_qi_shoup,
+//                                                 size_t n, size_t size_Ql) {
+//     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n * size_Ql; tid += blockDim.x * gridDim.x) {
+//         size_t i = tid / n;
+//         uint64_t mod = modulus[i].value();
+//         uint64_t temp = sub_uint64_uint64_mod(cx[tid], delta[tid], mod);
+//         temp = add_uint64_uint64_mod(temp, correction[tid], mod);
+//         dst[tid] = multiply_and_reduce_shoup(temp, PInv_mod_qi[i], PInv_mod_qi_shoup[i], mod);
+//     }
+// }
 
 __global__ static void moddown_kernel(uint64_t *dst, const uint64_t *cx, const uint64_t *delta, const DModulus *modulus,
                                       const uint64_t *PInv_mod_qi, const uint64_t *PInv_mod_qi_shoup, size_t n,

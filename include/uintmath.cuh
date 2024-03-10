@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cuda.h>
-#include <cuda_runtime_api.h>
 #include <cuComplex.h>
 #include "common.h"
 
@@ -38,11 +36,21 @@ namespace phantom::arith {
     };
 
     __forceinline__ __device__ void ld_two_uint64(uint64_t& x, uint64_t& y, const uint64_t* ptr) {
+#ifdef PHANTOM_USE_CUDA_PTX
         asm("ld.global.v2.u64 {%0,%1}, [%2];" : "=l"(x), "=l"(y) : "l"(ptr));
+#else
+        x = ptr[0];
+        y = ptr[1];
+#endif
     }
 
     __forceinline__ __device__ void st_two_uint64(uint64_t* ptr, const uint64_t& x, const uint64_t& y) {
+#ifdef PHANTOM_USE_CUDA_PTX
         asm("st.cs.global.v2.u64 [%0], {%1, %2};" : :"l"(ptr), "l"(x), "l"(y));
+#else
+        ptr[0] = x;
+        ptr[1] = y;
+#endif
     }
 
     /***************************

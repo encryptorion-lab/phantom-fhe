@@ -778,39 +778,3 @@ void reduce(int size, T *d_idata, int *d_odata) {
             <<<dimGrid, dimBlock, smemSize>>>
             (d_idata, d_odata, size);
 }
-
-uint32_t zero_coeff_count_poly(const uint64_t *ct1, size_t coeffs_mod_size, size_t poly_modulus_degree) {
-    //    size_t size = coeffs_mod_size * poly_modulus_degree;
-    //
-    //    int threads = 256;
-    //    int blocks = (size + threads - 1) / threads;
-    //
-    //    dim3 dimBlock(threads, 1, 1);
-    //    dim3 dimGrid(blocks, 1, 1);
-
-    // For reduce7 kernel we require only blockSize/warpSize
-    // number of elements in shared memory
-    //    int smemSize = ((threads / 32) + 1) * sizeof(int);
-
-    //    thrust::device_vector<int> dvec_block_sum(blocks);
-    //    int *d_block_sum = thrust::raw_pointer_cast(dvec_block_sum.data());
-
-    //    cudaMemset((void *) ct1, 0, size * sizeof(uint64_t));
-
-    //    zero_count_kernel<uint64_t, 256><<<dimGrid, dimBlock, smemSize>>>
-    //        (ct1, d_block_sum, size);
-
-    //    int result = thrust::reduce(dvec_block_sum.begin(), dvec_block_sum.end());
-
-    //    rmm::cuda_stream_view s;
-    //    rmm::device_scalar<uint32_t> d_count(0, s);
-    //
-    //
-    //    zero_coeff_count_kernel<<<size / 256, 256, 0, s.value()>>>(
-    //            d_count.data(), ct1, size);
-    //
-    //    uint32_t result2 = d_count.value(s);
-    //    std::cout << "result: " << result << std::endl;
-    //    std::cout << "result2: " << result2 << std::endl;
-    //    return result2;
-}

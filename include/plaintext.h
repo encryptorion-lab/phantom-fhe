@@ -276,19 +276,6 @@ typedef struct PhantomPlaintext {
     }
 
     /**
-    Returns the non-zero coefficient count of the current plaintext polynomial.
-    even the plaintext is in rns form, we only need to check ont rns, as
-    once 0 mod p1 <==> 0 mod (p1*p2...)
-    */
-    [[nodiscard]] __host__ __forceinline__ size_t nonzero_coeff_count() const {
-        if (!poly_modulus_degree_) {
-            return 0;
-        }
-        auto zero_count = zero_coeff_count_poly(data_.get(), coeff_modulus_size_, poly_modulus_degree_);
-        return coeff_count() - zero_count;
-    }
-
-    /**
     Returns the significant coefficient count of the current plaintext polynomial.
     */
     [[nodiscard]] __host__ __device__ __forceinline__ size_t significant_coeff_count() const {

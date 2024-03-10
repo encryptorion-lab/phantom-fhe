@@ -97,19 +97,17 @@ namespace phantom::arith {
                                                                       const uint64_t& modulus,
                                                                       const uint64_t* barrett_mu) {
         uint64_t result;
+        uint64_t q = modulus;
 
+#ifdef PHANTOM_USE_CUDA_PTX
         uint64_t lo = product.lo;
         uint64_t hi = product.hi;
-
         uint64_t ratio0 = barrett_mu[0];
         uint64_t ratio1 = barrett_mu[1];
-
-        uint64_t q = modulus;
 
         asm(
             "{\n\t"
             " .reg .u64 tmp;\n\t"
-            //        " .reg .pred p;\n\t"
             // Multiply input and const_ratio
             // Round 1
             " mul.hi.u64 tmp, %1, %3;\n\t"
@@ -123,17 +121,16 @@ namespace phantom::arith {
             // Barrett subtraction
             " mul.lo.u64 %0, %0, %5;\n\t"
             " sub.u64 %0, %1, %0;\n\t"
-            //        // cusbq
-            //        " sub.cc.s64 %0, %0, %5;\n\t"
-            //        " shr.s64 tmp, %0, 63;\n\t"
-            //        " and.b64 tmp, tmp, %5;\n\t"
-            //        " add.s64 %0, %0, tmp;\n\t"
-
-            //        " setp.hs.u64 p, %0, %5;\n\t"
-            //        " @p sub.u64 %0, %0, %5;\n\t"
             "}"
             : "=l"(result)
             : "l"(lo), "l"(hi), "l"(ratio0), "l"(ratio1), "l"(q));
+#else
+        uint128_t barrett_mu_uint128;
+        barrett_mu_uint128.hi = barrett_mu[1];
+        barrett_mu_uint128.lo = barrett_mu[0];
+        const uint64_t s = barrett_multiply_and_shift_uint128(product, barrett_mu_uint128);
+        result = product.lo - s * modulus;
+#endif
         csub_q(result, q);
         return result;
     }
@@ -164,10 +161,9 @@ namespace phantom::arith {
                                                                            const uint64_t& operand2,
                                                                            const uint64_t& modulus,
                                                                            const uint64_t* barrett_mu) {
+#ifdef PHANTOM_USE_CUDA_PTX
         uint64_t result;
-
         uint64_t q = modulus;
-
         uint64_t ratio0 = barrett_mu[0];
         uint64_t ratio1 = barrett_mu[1];
         asm(
@@ -195,6 +191,10 @@ namespace phantom::arith {
             : "l"(operand1), "l"(operand2), "l"(ratio0), "l"(ratio1), "l"(q));
         csub_q(result, q);
         return result;
+#else
+        const uint128_t product = multiply_uint64_uint64(operand1, operand2);
+        return barrett_reduce_uint128_uint64(product, modulus, barrett_mu);
+#endif
     }
 
     /** Modular multiplication, result = operand1 * operand2 % mod
