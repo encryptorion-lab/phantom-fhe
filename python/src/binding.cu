@@ -48,25 +48,20 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<phantom::EncryptionParameters &>())
             .def("gen_secretkey", &PhantomSecretKey::gen_secretkey)
             .def("gen_publickey",
-                 &PhantomSecretKey::gen_publickey,
-                 py::arg("context"), py::arg("public_key"), py::arg("save_seed") = true)
+                 &PhantomSecretKey::gen_publickey, py::arg(), py::arg(), py::arg("save_seed") = true)
             .def("gen_relinkey",
-                 &PhantomSecretKey::gen_relinkey,
-                 py::arg("context"), py::arg("relin_key"), py::arg("save_seed") = false)
+                 &PhantomSecretKey::gen_relinkey, py::arg(), py::arg(), py::arg("save_seed") = false)
             .def("create_galois_keys",
-                 &PhantomSecretKey::create_galois_keys,
-                 py::arg("context"), py::arg("galois_key"), py::arg("save_seed") = false)
+                 &PhantomSecretKey::create_galois_keys, py::arg(), py::arg(), py::arg("save_seed") = false)
             .def("encrypt_symmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, bool>(
-                    &PhantomSecretKey::encrypt_symmetric, py::const_))
+                     &PhantomSecretKey::encrypt_symmetric, py::const_))
             .def("decrypt",
                  py::overload_cast<const PhantomContext &, const PhantomCiphertext &>(&PhantomSecretKey::decrypt));
 
     py::class_<PhantomPublicKey>(m, "public_key")
             .def(py::init<PhantomContext &>())
-            .def("encrypt_asymmetric",
-                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &, bool>(
-                         &PhantomPublicKey::encrypt_asymmetric),
-                 py::arg("context"), py::arg("plaintext"), py::arg("save_seed") = false);
+            .def("encrypt_asymmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, bool>(
+                     &PhantomPublicKey::encrypt_asymmetric), py::arg(), py::arg(), py::arg("save_seed") = false);
 
     py::class_<PhantomRelinKey>(m, "relin_key")
             .def(py::init<PhantomContext &>());
@@ -80,9 +75,9 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<PhantomContext &>())
             .def("slot_count", &PhantomCKKSEncoder::slot_count)
             .def("encode", py::overload_cast<const PhantomContext &, const std::vector<double> &, double>(
-                    &PhantomCKKSEncoder::encode))
+                     &PhantomCKKSEncoder::encode))
             .def("encode_to", py::overload_cast<const PhantomContext &, const std::vector<double> &, size_t, double>(
-                    &PhantomCKKSEncoder::encode))
+                     &PhantomCKKSEncoder::encode))
             .def("decode",
                  py::overload_cast<const PhantomContext &, const PhantomPlaintext &>(&PhantomCKKSEncoder::decode));
 
@@ -95,55 +90,43 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<const PhantomContext &>())
             .def("set_scale", &PhantomCiphertext::set_scale);
 
-    m.def("negate", &negate);
     m.def("negate_inplace", &negate_inplace);
 
-    m.def("add", &add);
     m.def("add_inplace", &add_inplace);
-    m.def("add_plain", &add_plain);
     m.def("add_plain_inplace", &add_plain_inplace);
     m.def("add_many", &add_many);
 
-    m.def("sub", &sub);
-    m.def("sub_inplace", &sub_inplace);
-    m.def("sub_plain", &sub_plain);
+    m.def("sub_inplace", &sub_inplace, py::arg(), py::arg(), py::arg(), py::arg("negate") = false);
     m.def("sub_plain_inplace", &sub_plain_inplace);
 
-    m.def("multiply", &multiply);
     m.def("multiply_inplace", &multiply_inplace);
     m.def("multiply_and_relin_inplace", &multiply_and_relin_inplace);
-    m.def("multiply_plain", &multiply_plain);
     m.def("multiply_plain_inplace", &multiply_plain_inplace);
 
-    m.def("relinearize", &relinearize);
     m.def("relinearize_inplace", &relinearize_inplace);
 
-    m.def("mod_switch_to", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, PhantomPlaintext &, size_t>(&mod_switch_to));
-    m.def("mod_switch_to", py::overload_cast<const PhantomContext &, const PhantomCiphertext &, PhantomCiphertext &, size_t>(&mod_switch_to));
-    m.def("mod_switch_to_inplace", py::overload_cast<const PhantomContext &, PhantomPlaintext &, size_t>(&mod_switch_to_inplace));
-    m.def("mod_switch_to_inplace", py::overload_cast<const PhantomContext &, PhantomCiphertext &, size_t>(&mod_switch_to_inplace));
-    m.def("mod_switch_to_next", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, PhantomPlaintext &>(&mod_switch_to_next));
-    m.def("mod_switch_to_next", py::overload_cast<const PhantomContext &, const PhantomCiphertext &, PhantomCiphertext &>(&mod_switch_to_next));
-    m.def("mod_switch_to_next_inplace", py::overload_cast<const PhantomContext &, PhantomPlaintext &>(&mod_switch_to_next_inplace));
-    m.def("mod_switch_to_next_inplace", py::overload_cast<const PhantomContext &, PhantomCiphertext &>(&mod_switch_to_next_inplace));
+    m.def("mod_switch_to_inplace",
+          py::overload_cast<const PhantomContext &, PhantomPlaintext &, size_t>(&mod_switch_to_inplace));
+    m.def("mod_switch_to_inplace",
+          py::overload_cast<const PhantomContext &, PhantomCiphertext &, size_t>(&mod_switch_to_inplace));
+    m.def("mod_switch_to_next",
+          py::overload_cast<const PhantomContext &, const PhantomCiphertext &, PhantomCiphertext
+              &>(&mod_switch_to_next));
+    m.def("mod_switch_to_next_inplace",
+          py::overload_cast<const PhantomContext &, PhantomPlaintext &>(&mod_switch_to_next_inplace));
+    m.def("mod_switch_to_next_inplace",
+          py::overload_cast<const PhantomContext &, PhantomCiphertext &>(&mod_switch_to_next_inplace));
     m.def("rescale_to_next", &rescale_to_next);
     m.def("rescale_to_next_inplace", &rescale_to_next_inplace);
 
-    m.def("apply_galois", &apply_galois);
     m.def("apply_galois_inplace", &apply_galois_inplace);
 
-    m.def("rotate_rows", &rotate_rows);
     m.def("rotate_rows_inplace", &rotate_rows_inplace);
-
-    m.def("rotate_columns", &rotate_columns);
     m.def("rotate_columns_inplace", &rotate_columns_inplace);
-
-    m.def("rotate_vector", &rotate_vector);
     m.def("rotate_vector_inplace", &rotate_vector_inplace);
 
     m.def("hoisting", &hoisting);
     m.def("hoisting_inplace", &hoisting_inplace);
 
-    m.def("complex_conjugate", &complex_conjugate);
     m.def("complex_conjugate_inplace", &complex_conjugate_inplace);
 }

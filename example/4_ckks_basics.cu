@@ -155,7 +155,7 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     secret_key.encrypt_symmetric(context, y_plain, y_sym_cipher, false);
 
     cout << "Homomorphic adding ......" << endl;
-    add(context, x_sym_cipher, y_sym_cipher, x_sym_cipher); // x = x + y
+    add_inplace(context, x_sym_cipher, y_sym_cipher);
 
     PhantomPlaintext x_plus_y_sym_plain(context);
     cout << "Decrypting ......" << endl;
@@ -179,7 +179,7 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     result.clear();
 
     cout << "Homomorphic subtracting ......" << endl;
-    sub(context, x_sym_cipher, y_sym_cipher, x_sym_cipher); // x = x - y
+    sub_inplace(context, x_sym_cipher, y_sym_cipher);
 
     PhantomPlaintext x_minus_y_sym_plain(context);
     cout << "Decrypting ......" << endl;
@@ -201,7 +201,7 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     public_key.encrypt_asymmetric(context, y_plain, y_asym_cipher, false);
 
     cout << "Homomorphic adding ......" << endl;
-    add(context, x_asym_cipher, y_asym_cipher, y_asym_cipher);
+    add_inplace(context, y_asym_cipher, x_asym_cipher);
 
     PhantomPlaintext x_plus_y_asym_plain(context);
     cout << "Decrypting ......" << endl;
@@ -223,7 +223,7 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     result.clear();
 
     cout << "Homomorphic subtracting ......" << endl;
-    sub(context, y_asym_cipher, x_asym_cipher, x_asym_cipher);
+    sub_inplace(context, x_asym_cipher, y_asym_cipher, true);
 
     PhantomPlaintext x_minus_y_asym_plain(context);
     cout << "Decrypting ......" << endl;
@@ -807,7 +807,8 @@ void example_ckks_basics(EncryptionParameters &parms, PhantomContext &context, c
     print_line(__LINE__);
     cout << "Compute PI*x^3 + 0.4*x + 1." << endl;
     PhantomCiphertext encrypted_result(context);
-    add(context, x3_encrypted, x1_encrypted, encrypted_result);
+    encrypted_result = x3_encrypted;
+    add_inplace(context, encrypted_result, x1_encrypted);
     add_plain_inplace(context, encrypted_result, plain_coeff0);
 
     /*
@@ -1022,7 +1023,8 @@ void example_ckks_stress_test(EncryptionParameters &parms, PhantomContext &conte
     // print_line(__LINE__);
     // cout << "Compute PI*x^3 + 0.4*x + 1." << endl;
     PhantomCiphertext encrypted_result(context);
-    add(context, x3_encrypted, x1_encrypted, encrypted_result);
+    encrypted_result = x3_encrypted;
+    add_inplace(context, encrypted_result, x1_encrypted);
     add_plain_inplace(context, encrypted_result, plain_coeff0);
 
     /*

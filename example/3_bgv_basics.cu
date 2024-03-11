@@ -20,7 +20,7 @@
 using namespace std;
 using namespace phantom;
 
-void example_bgv_enc(EncryptionParameters &parms, PhantomContext &context) {
+void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV Basics" << std::endl;
 
     PhantomSecretKey secret_key(parms);
@@ -100,7 +100,7 @@ void example_bgv_enc(EncryptionParameters &parms, PhantomContext &context) {
     result.clear();
 }
 
-void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
+void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV HomAdd/HomSub test" << std::endl;
 
     PhantomSecretKey secret_key(parms);
@@ -140,8 +140,8 @@ void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
     public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
 
     cout << "Homomorphic adding ......" << endl;
-    add(context, x_cipher, y_cipher, y_cipher);
-    add(context, x_cipher, y_cipher, x_cipher);
+    add_inplace(context, y_cipher, x_cipher);
+    add_inplace(context, x_cipher, y_cipher);
 
     PhantomPlaintext x_plus_y_plain(context);
     cout << "Decrypting ......" << endl;
@@ -161,8 +161,8 @@ void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
 
     cout << "Homomorphic subtracting ......" << endl;
 
-    sub(context, x_cipher, y_cipher, y_cipher);
-    sub(context, x_cipher, y_cipher, x_cipher);
+    sub_inplace(context, y_cipher, x_cipher, true);
+    sub_inplace(context, x_cipher, y_cipher, false);
 
     PhantomPlaintext x_minus_y_plain(context);
     cout << "Decrypting ......" << endl;
@@ -231,7 +231,7 @@ void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
     result.clear();
 }
 
-void example_bgv_add_plain(EncryptionParameters &parms, PhantomContext &context) {
+void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV HomAddPlain/HomSubPlain test" << std::endl;
 
     PhantomSecretKey secret_key(parms);
@@ -274,7 +274,7 @@ void example_bgv_add_plain(EncryptionParameters &parms, PhantomContext &context)
     vector<int64_t> result;
     bool correctness = true;
     cout << "Homomorphic adding ......" << endl;
-    add_plain(context, x_cipher, y_plain, x_cipher);
+    add_plain_inplace(context, x_cipher, y_plain);
 
     PhantomPlaintext x_plus_y_plain(context);
     cout << "Decrypting ......" << endl;
@@ -293,7 +293,7 @@ void example_bgv_add_plain(EncryptionParameters &parms, PhantomContext &context)
 
     cout << "Homomorphic subtracting ......" << endl;
 
-    sub_plain(context, x_cipher, y_plain, x_cipher);
+    sub_plain_inplace(context, x_cipher, y_plain);
 
     PhantomPlaintext x_minus_y_plain(context);
     cout << "Decrypting ......" << endl;
@@ -312,7 +312,7 @@ void example_bgv_add_plain(EncryptionParameters &parms, PhantomContext &context)
     result.clear();
 }
 
-void example_bgv_mul(EncryptionParameters &parms, PhantomContext &context) {
+void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV HomMul test" << std::endl;
 
     PhantomSecretKey secret_key(parms);

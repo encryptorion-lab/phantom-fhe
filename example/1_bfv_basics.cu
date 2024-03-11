@@ -652,7 +652,8 @@ void example_bfv_add() {
         secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher, false);
         PhantomCiphertext sym_cipher_copy(sym_cipher);
         PhantomCiphertext destination(context);
-        add(context, sym_cipher, sym_cipher_copy, destination);
+        destination = sym_cipher;
+        add_inplace(context, destination, sym_cipher_copy);
         secret_key.decrypt(context, destination, dec_plain);
         batchEncoder.decode(context, dec_plain, dec_res);
 
@@ -666,7 +667,8 @@ void example_bfv_add() {
         public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher, false);
         PhantomCiphertext asym_cipher_copy(asym_cipher);
         PhantomCiphertext destination2(context);
-        add(context, asym_cipher, asym_cipher_copy, destination2);
+        destination2 = asym_cipher;
+        add_inplace(context, destination2, asym_cipher_copy);
         secret_key.decrypt(context, destination2, dec_asym_plain);
 
         batchEncoder.decode(context, dec_asym_plain, dec_res);
@@ -709,7 +711,8 @@ void example_bfv_sub() {
         PhantomCiphertext sym_cipher_copy(context);
         secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher_copy, false);
         PhantomCiphertext destination(context);
-        sub(context, sym_cipher, sym_cipher_copy, destination);
+        destination = sym_cipher;
+        sub_inplace(context, destination, sym_cipher_copy);
         secret_key.decrypt(context, destination, dec_plain);
         batchEncoder.decode(context, dec_plain, dec_res);
 
@@ -724,7 +727,8 @@ void example_bfv_sub() {
         PhantomCiphertext asym_cipher_copy(context);
         public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher_copy, false);
         PhantomCiphertext destination2(context);
-        sub(context, asym_cipher, asym_cipher_copy, destination2);
+        destination2 = asym_cipher;
+        sub_inplace(context, destination2, asym_cipher_copy);
         secret_key.decrypt(context, destination2, dec_asym_plain);
 
         batchEncoder.decode(context, dec_asym_plain, dec_res);
