@@ -9,9 +9,9 @@ if (PHANTOM_USE_CUDA_PTX)
     add_compile_definitions(PHANTOM_USE_CUDA_PTX)
 endif ()
 
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES native)
-endif()
+endif ()
 
 # output the compile option in file compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -42,13 +42,23 @@ add_subdirectory(src)
 add_subdirectory(example)
 
 # benchmark
-add_subdirectory(benchmark)
+# [option] PHANTOM_ENABLE_BENCH (default: ON)
+option(PHANTOM_ENABLE_BENCH "Enable benchmark" ON)
+message(STATUS "Enable benchmark: ${PHANTOM_ENABLE_BENCH}")
+if (PHANTOM_ENABLE_BENCH)
+    add_subdirectory(benchmark)
+endif ()
 
 # test
 add_subdirectory(test)
 
 # python binding
-add_subdirectory(python)
+# [option] PHANTOM_ENABLE_PYTHON_BINDING (default: ON)
+option(PHANTOM_ENABLE_PYTHON_BINDING "Enable python binding" ON)
+message(STATUS "Enable python binding: ${PHANTOM_ENABLE_PYTHON_BINDING}")
+if (PHANTOM_ENABLE_PYTHON_BINDING)
+    add_subdirectory(python)
+endif ()
 
 # config for installation
 install(TARGETS Phantom EXPORT PhantomConfig)
