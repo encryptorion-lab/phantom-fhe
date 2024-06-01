@@ -42,8 +42,6 @@ public:
      */
     explicit PhantomCKKSEncoder(const PhantomContext &context);
 
-    ~PhantomCKKSEncoder() = default;
-
     /**
      * @brief Encodes a vector of complex numbers to specified chain index
      * @param context

@@ -12,13 +12,14 @@
 #include "mempool.cuh"
 #include "rns.cuh"
 #include "util/galois.h"
+#include "util.cuh"
 
 namespace phantom {
 
     // stores pre-computation data for a given set of encryption parameters.
     class ContextData {
     public:
-        explicit ContextData(const EncryptionParameters &parms);
+        explicit ContextData(const EncryptionParameters &params);
 
         ContextData() = delete;
         ContextData(const ContextData &copy) = delete;
@@ -146,15 +147,13 @@ typedef struct PhantomContext {
 
     std::vector<phantom::ContextData> context_data_;
 
-    phantom::sec_level_type sec_level_;
-
     bool using_keyswitching_;
 
     size_t first_parm_index_;
 
     phantom::mul_tech_type mul_tech_;
 
-    std::vector<cudaStream_t> sid_vec_;
+    std::vector<std::shared_ptr<phantom::util::StreamWrapper>> cuda_streams_;
 
     DNTTTable gpu_rns_tables_;
 
@@ -177,7 +176,7 @@ typedef struct PhantomContext {
     std::vector<DCKKSEncoderInfo> gpu_ckks_msg_vec_;
     std::shared_ptr<PhantomGaloisTool> key_galois_tool_;
 
-    explicit PhantomContext(const phantom::EncryptionParameters &parms);
+    explicit PhantomContext(const phantom::EncryptionParameters &params);
     PhantomContext(const PhantomContext &) = delete;
     void operator=(const PhantomContext &) = delete;
     ~PhantomContext() = default;
@@ -283,29 +282,29 @@ typedef struct PhantomContext {
         return coeff_div_plain_shoup_.get() + pos;
     }
 
-    const std::vector<cudaStream_t> &sid_vec() const { return sid_vec_; }
+    [[nodiscard]] auto &get_cuda_stream(size_t index) const { return cuda_streams_.at(index)->get(); }
 
-    const DNTTTable &gpu_plain_tables() const noexcept { return gpu_plain_tables_; }
+    [[nodiscard]] const DNTTTable &gpu_plain_tables() const noexcept { return gpu_plain_tables_; }
 
     DNTTTable &gpu_plain_tables() { return gpu_plain_tables_; }
 
-    const DNTTTable &gpu_rns_tables() const noexcept { return gpu_rns_tables_; }
+    [[nodiscard]] const DNTTTable &gpu_rns_tables() const noexcept { return gpu_rns_tables_; }
 
     DNTTTable &gpu_rns_tables() { return gpu_rns_tables_; }
 
-    uint64_t *in() const { return in_.get(); }
+    [[nodiscard]] uint64_t *in() const { return in_.get(); }
 
-    auto *coeff_div_plain() const { return coeff_div_plain_.get(); }
+    [[nodiscard]] auto *coeff_div_plain() const { return coeff_div_plain_.get(); }
 
-    auto *coeff_div_plain_shoup() const { return coeff_div_plain_shoup_.get(); }
+    [[nodiscard]] auto *coeff_div_plain_shoup() const { return coeff_div_plain_shoup_.get(); }
 
-    auto *plain_modulus() const { return plain_modulus_.get(); }
+    [[nodiscard]] auto *plain_modulus() const { return plain_modulus_.get(); }
 
-    auto *plain_modulus_shoup() const { return plain_modulus_shoup_.get(); }
+    [[nodiscard]] auto *plain_modulus_shoup() const { return plain_modulus_shoup_.get(); }
 
-    auto *plain_upper_half_increment() const { return plain_upper_half_increment_.get(); }
+    [[nodiscard]] auto *plain_upper_half_increment() const { return plain_upper_half_increment_.get(); }
 
-    auto *prng_seed() const { return prng_seed_.get(); }
+    [[nodiscard]] auto *prng_seed() const { return prng_seed_.get(); }
 
-    auto *gpu_ckks_msg_vec() const { return gpu_ckks_msg_vec_.data(); }
+    [[nodiscard]] auto *gpu_ckks_msg_vec() const { return gpu_ckks_msg_vec_.data(); }
 } PhantomContext;

@@ -18,7 +18,7 @@ void inline random_bytes(unsigned char *buf, size_t count) {
         len--;
         temp[len] = rd();
     }
-    CUDA_CHECK(cudaMemcpy(buf, temp.data(), count, cudaMemcpyHostToDevice));
+    cudaMemcpy(buf, temp.data(), count, cudaMemcpyHostToDevice);
 }
 
 __host__ __device__ inline uint32_t load_littleendian(const unsigned char *x) {

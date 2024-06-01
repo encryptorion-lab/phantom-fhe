@@ -72,16 +72,16 @@ typedef struct PhantomCiphertext {
         if (copy.prng_seed() != nullptr) {
             prng_seed_.acquire(phantom::util::allocate<uint8_t>(phantom::util::global_pool(),
                                                                 phantom::util::global_variables::prng_seed_byte_count));
-            CUDA_CHECK(cudaMemcpy(prng_seed(), copy.prng_seed(),
-                phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
-                cudaMemcpyDeviceToDevice));
+            cudaMemcpy(prng_seed(), copy.prng_seed(),
+                       phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
+                       cudaMemcpyDeviceToDevice);
         }
         if (copy.data() != nullptr) {
             data_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(),
                                                             size_ * coeff_modulus_size_ * poly_modulus_degree_));
-            CUDA_CHECK(cudaMemcpy(data(), copy.data(),
-                size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
-                cudaMemcpyDeviceToDevice));
+            cudaMemcpy(data(), copy.data(),
+                       size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                       cudaMemcpyDeviceToDevice);
         }
     }
 
@@ -101,17 +101,17 @@ typedef struct PhantomCiphertext {
             if (copy.prng_seed() != nullptr) {
                 prng_seed_.acquire(phantom::util::allocate<uint8_t>(phantom::util::global_pool(),
                                                                     phantom::util::global_variables::prng_seed_byte_count));
-                CUDA_CHECK(cudaMemcpy(prng_seed(), copy.prng_seed(),
-                    phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
-                    cudaMemcpyDeviceToDevice));
+                cudaMemcpy(prng_seed(), copy.prng_seed(),
+                           phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
+                           cudaMemcpyDeviceToDevice);
             }
             if (copy.data() != nullptr) {
                 data_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(),
                                                                 size_ * coeff_modulus_size_ * poly_modulus_degree_ *
                                                                 sizeof(uint64_t)));
-                CUDA_CHECK(cudaMemcpy(data(), copy.data(),
-                    size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
-                    cudaMemcpyDeviceToDevice));
+                cudaMemcpy(data(), copy.data(),
+                           size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                           cudaMemcpyDeviceToDevice);
             }
         }
         return *this;
@@ -194,22 +194,22 @@ typedef struct PhantomCiphertext {
 
             std::vector<uint64_t> temp_data;
             temp_data.resize(data_size);
-            CUDA_CHECK(cudaMemcpy(temp_data.data(), data_.get(),
-                size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
-                cudaMemcpyDeviceToHost));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(temp_data.data(), data_.get(),
+                                  size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                                  cudaMemcpyDeviceToHost));
             stream.write(
-                reinterpret_cast<const char *>(temp_data.data()),
-                static_cast<std::streamsize>(phantom::util::mul_safe(data_size, sizeof(uint64_t))));
+                    reinterpret_cast<const char *>(temp_data.data()),
+                    static_cast<std::streamsize>(phantom::util::mul_safe(data_size, sizeof(uint64_t))));
 
             std::vector<uint8_t> temp_seed;
             temp_seed.resize(phantom::util::global_variables::prng_seed_byte_count);
-            CUDA_CHECK(cudaMemcpy(temp_seed.data(), prng_seed_.get(),
-                phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
-                cudaMemcpyDeviceToHost));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(temp_seed.data(), prng_seed_.get(),
+                                  phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
+                                  cudaMemcpyDeviceToHost));
             stream.write(
-                reinterpret_cast<const char *>(temp_seed.data()),
-                static_cast<std::streamsize>(phantom::util::mul_safe(
-                    phantom::util::global_variables::prng_seed_byte_count, sizeof(uint8_t))));
+                    reinterpret_cast<const char *>(temp_seed.data()),
+                    static_cast<std::streamsize>(phantom::util::mul_safe(
+                            phantom::util::global_variables::prng_seed_byte_count, sizeof(uint8_t))));
         }
         catch (const std::ios_base::failure &) {
             stream.exceptions(old_except_mask);
@@ -261,23 +261,24 @@ typedef struct PhantomCiphertext {
             std::vector<uint64_t> temp_data;
             temp_data.resize(total_uint64_count);
             stream.read(
-                reinterpret_cast<char *>(temp_data.data()),
-                static_cast<std::streamsize>(phantom::util::mul_safe(total_uint64_count * sizeof(uint64_t))));
+                    reinterpret_cast<char *>(temp_data.data()),
+                    static_cast<std::streamsize>(phantom::util::mul_safe(total_uint64_count * sizeof(uint64_t))));
 
             new_data.data_.acquire(
-                phantom::util::allocate<uint64_t>(phantom::util::global_pool(), total_uint64_count * sizeof(uint64_t)));
-            CUDA_CHECK(cudaMemcpy(new_data.data_.get(), temp_data.data(), total_uint64_count * sizeof(uint64_t),
-                cudaMemcpyHostToDevice));
+                    phantom::util::allocate<uint64_t>(phantom::util::global_pool(),
+                                                      total_uint64_count * sizeof(uint64_t)));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(new_data.data_.get(), temp_data.data(), total_uint64_count * sizeof(uint64_t),
+                                  cudaMemcpyHostToDevice));
 
             std::vector<uint8_t> temp_seed;
             temp_seed.resize(phantom::util::global_variables::prng_seed_byte_count);
             stream.read(
-                reinterpret_cast<char *>(temp_seed.data()),
-                static_cast<std::streamsize>(phantom::util::mul_safe(
-                    phantom::util::global_variables::prng_seed_byte_count, sizeof(uint8_t))));
-            CUDA_CHECK(cudaMemcpy(new_data.prng_seed_.get(), temp_seed.data(),
-                phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
-                cudaMemcpyHostToDevice));
+                    reinterpret_cast<char *>(temp_seed.data()),
+                    static_cast<std::streamsize>(phantom::util::mul_safe(
+                            phantom::util::global_variables::prng_seed_byte_count, sizeof(uint8_t))));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(new_data.prng_seed_.get(), temp_seed.data(),
+                                  phantom::util::global_variables::prng_seed_byte_count * sizeof(uint8_t),
+                                  cudaMemcpyHostToDevice));
         }
         catch (const std::ios_base::failure &) {
             stream.exceptions(old_except_mask);
@@ -317,13 +318,12 @@ typedef struct PhantomCiphertext {
             prev_data.acquire(data_);
             data_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(),
                                                             size * poly_modulus_degree * coeff_modulus_size));
-            CUDA_CHECK(cudaMemcpy(data_.get(), prev_data.get(), old_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
-        }
-        else if (new_size > 0 && new_size < old_size) {
+            PHANTOM_CHECK_CUDA(cudaMemcpy(data_.get(), prev_data.get(), old_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+        } else if (new_size > 0 && new_size < old_size) {
             prev_data.acquire(data_);
             data_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(),
                                                             size * poly_modulus_degree * coeff_modulus_size));
-            CUDA_CHECK(cudaMemcpy(data_.get(), prev_data.get(), new_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(data_.get(), prev_data.get(), new_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
         }
 
         size_ = size;
@@ -341,9 +341,9 @@ typedef struct PhantomCiphertext {
                                                         size * coeff_modulus_size * poly_modulus_degree));
 
         if (new_size > old_size)
-            CUDA_CHECK(cudaMemcpy(data_.get(), prev_data.get(), old_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(data_.get(), prev_data.get(), old_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
         if (new_size > 0 && new_size <= old_size)
-            CUDA_CHECK(cudaMemcpy(data_.get(), prev_data.get(), new_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+            PHANTOM_CHECK_CUDA(cudaMemcpy(data_.get(), prev_data.get(), new_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
 
         size_ = size;
         coeff_modulus_size_ = coeff_modulus_size;
@@ -454,10 +454,10 @@ should have little or no reason to ever change the scale by hand.
     }
 
     __host__ __device__ __forceinline__ uint8_t *prng_seed() const {
-        return (uint8_t *)(prng_seed_.get());
+        return (uint8_t *) (prng_seed_.get());
     }
 
     __host__ __device__ __forceinline__ uint64_t *data() const {
-        return (uint64_t *)(data_.get());
+        return (uint64_t *) (data_.get());
     }
 } PhantomCiphertext;

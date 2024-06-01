@@ -51,7 +51,7 @@ typedef struct PhantomPlaintext {
         scale_ = copy.scale_;
         data_.acquire(
             phantom::util::allocate<uint64_t>(phantom::util::global_pool(), coeff_modulus_size_ * poly_modulus_degree_));
-        CUDA_CHECK(
+        PHANTOM_CHECK_CUDA(
             cudaMemcpy(data_.get(), copy.data_.get(), coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
                 cudaMemcpyDeviceToDevice));
     }
@@ -76,7 +76,7 @@ typedef struct PhantomPlaintext {
             scale_ = copy.scale_;
             data_.acquire(
                 phantom::util::allocate<uint64_t>(phantom::util::global_pool(), coeff_modulus_size_ * poly_modulus_degree_));
-            CUDA_CHECK(cudaMemcpy(data_.get(), copy.data_.get(),
+            PHANTOM_CHECK_CUDA(cudaMemcpy(data_.get(), copy.data_.get(),
                 coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
                 cudaMemcpyDeviceToDevice));
         }
@@ -123,7 +123,7 @@ typedef struct PhantomPlaintext {
 
             std::vector<uint64_t> temp_data;
             temp_data.resize(coeff_modulus_size_ * poly_modulus_degree_);
-            CUDA_CHECK(cudaMemcpy(temp_data.data(), data_.get(),
+            PHANTOM_CHECK_CUDA(cudaMemcpy(temp_data.data(), data_.get(),
                 coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
                 cudaMemcpyDeviceToHost));
             stream.write(
@@ -182,7 +182,7 @@ typedef struct PhantomPlaintext {
                 reinterpret_cast<char *>(temp_data.data()),
                 static_cast<std::streamsize>(phantom::util::mul_safe(total_uint64_count, sizeof(uint64_t))));
 
-            CUDA_CHECK(cudaMemcpy(new_data.data_.get(), temp_data.data(), total_uint64_count * sizeof(uint64_t),
+            PHANTOM_CHECK_CUDA(cudaMemcpy(new_data.data_.get(), temp_data.data(), total_uint64_count * sizeof(uint64_t),
                 cudaMemcpyHostToDevice));
         }
         catch (const std::ios_base::failure &) {

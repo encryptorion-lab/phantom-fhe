@@ -1,4 +1,5 @@
 #include "fft.h"
+#include "context.cuh"
 
 using namespace phantom::arith;
 
@@ -89,8 +90,7 @@ __global__ void inplace_special_ffft_base_kernel(cuDoubleComplex *inout,
             if (_numOfGroups == numOfGroups) {
                 samples[0] = inout[glbIdx];
                 samples[1] = inout[glbIdx + pairsInGroup];
-            }
-            else {
+            } else {
                 samples[0] = buffer[bufIdx];
                 samples[1] = buffer[bufIdx + pairsInGroup];
             }
@@ -111,8 +111,7 @@ __global__ void inplace_special_ffft_base_kernel(cuDoubleComplex *inout,
                 // inout[__brev(glbIdx + pairsInGroup) >> (32 - logn)] = samples[1];
                 inout[glbIdx] = samples[0];
                 inout[glbIdx + pairsInGroup] = samples[1];
-            }
-            else {
+            } else {
                 buffer[bufIdx] = samples[0];
                 buffer[bufIdx + pairsInGroup] = samples[1];
                 __syncthreads();
@@ -223,8 +222,7 @@ __global__ void inplace_special_ifft_base_kernel(cuDoubleComplex *inout,
                 // samples[1] = inout[__brev(glbIdx + pairsInGroup) >> (32 - logn)];
                 samples[0] = inout[glbIdx];
                 samples[1] = inout[glbIdx + pairsInGroup];
-            }
-            else {
+            } else {
                 samples[0] = buffer[bufIdx];
                 samples[1] = buffer[bufIdx + pairsInGroup];
             }
@@ -242,8 +240,7 @@ __global__ void inplace_special_ifft_base_kernel(cuDoubleComplex *inout,
             if (_numOfGroups == numOfGroups) {
                 inout[glbIdx] = samples[0];
                 inout[glbIdx + pairsInGroup] = samples[1];
-            }
-            else {
+            } else {
                 buffer[bufIdx] = samples[0];
                 buffer[bufIdx + pairsInGroup] = samples[1];
                 __syncthreads();
@@ -322,23 +319,17 @@ __global__ void inplace_special_ifft_iter_kernel(cuDoubleComplex *inout,
  * @param[inout] gpu_rns_vec_ The DRNSInfo stored in PhantomContext.
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_forward(DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_size) {
+void special_fft_forward(const PhantomContext &context, DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_size) {
     uint32_t threadsPerBlock, blocksPerGrid;
     for (uint32_t twr = 0; twr < msg_vec_size; twr++) {
         DCKKSEncoderInfo *gp = &gpu_ckks_msg_vec[twr];
-        // cout << endl;
-        // for (size_t i = 0; i < 16; i++)
-        // {
-        //     printf("%d: %lf + i %lf\n", i, gp->in_[i].x, gp->in_[i].y);
-        // }
-        // cout << "......" << endl;
-        // cout << endl;
-        // cout << endl;
+
         if (gp->sparse_slots() == 00) {
             throw std::invalid_argument("the poly degree has not been set");
         }
         uint32_t logn = log2(gp->sparse_slots());
         uint32_t logRatio = log2(gp->m()) - logn - 2;
+        auto &stream = context.get_cuda_stream(twr % phantom::util::n_cuda_streams);
 
         if (gp->sparse_slots() <= SWITCH_POINT) {
             // max 1024 threads, max n = 2048
@@ -347,31 +338,28 @@ void special_fft_forward(DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_si
             uint32_t iter = 0;
             uint32_t numOfGroups = 1;
             inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock,
-                    gp->sparse_slots() * sizeof(cuDoubleComplex), gp->SID()>>>(
-                        gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
-                        logRatio);
-        }
-        else {
+            gp->sparse_slots() * sizeof(cuDoubleComplex), stream>>>(
+                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
+                    logRatio);
+        } else {
             uint32_t iter = 0;
             uint32_t numOfGroups = 1;
             threadsPerBlock = NTT_THREAD_PER_BLOCK;
-            blocksPerGrid = ceil((float)gp->sparse_slots() / threadsPerBlock / 2);
+            blocksPerGrid = ceil((float) gp->sparse_slots() / threadsPerBlock / 2);
             for (; numOfGroups < (gp->sparse_slots() / SWITCH_POINT); numOfGroups <<= 1) {
-                inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, gp->SID()>>>(
-                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
-                    logRatio);
+                inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
+                        gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
+                        logRatio);
 
                 iter++;
             }
 
-            inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT * sizeof(cuDoubleComplex),
-                    gp->SID()>>>(gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter,
-                                 gp->m(), logRatio);
+            inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
+                                                                               sizeof(cuDoubleComplex), stream>>>(
+                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter,
+                    gp->m(), logRatio);
         }
-    }
-
-    for (uint32_t twr = 0; twr < msg_vec_size; twr++) {
-        CUDA_CHECK(cudaStreamSynchronize(gpu_ckks_msg_vec[twr].SID()));
+        cudaStreamSynchronize(stream);
     }
 }
 
@@ -379,12 +367,14 @@ void special_fft_forward(DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_si
  * @param[inout] gpu_rns_vec_ The vector<DRNSInfo> stored in PhantomContext.
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_backward(DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_size, double scalar) {
+void special_fft_backward(const PhantomContext &context, DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_size,
+                          double scalar) {
     uint32_t threadsPerBlock, blocksPerGrid;
     for (uint32_t twr = 0; twr < msg_vec_size; twr++) {
         DCKKSEncoderInfo *gp = &gpu_ckks_msg_vec[twr];
         uint32_t logn = log2(gp->sparse_slots());
         uint32_t logRatio = log2(gp->m()) - logn - 2;
+        auto &stream = context.get_cuda_stream(twr % phantom::util::n_cuda_streams);
         if (gp->sparse_slots() <= SWITCH_POINT) {
             // printf("====================================\n");
             //  max 1024 threads, max n = 2048
@@ -392,12 +382,11 @@ void special_fft_backward(DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_s
             uint32_t numOfGroups = 1;
             threadsPerBlock = gp->sparse_slots() >> 1;
             blocksPerGrid = 1;
-            inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock,
-                    gp->sparse_slots() * sizeof(cuDoubleComplex), gp->SID()>>>(
-                        gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
-                        logRatio, scalar);
-        }
-        else {
+            inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, gp->sparse_slots() *
+                                                                               sizeof(cuDoubleComplex), stream>>>(
+                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
+                    logRatio, scalar);
+        } else {
             // printf("******************************************\n");
             int32_t iter = logn - log2(SWITCH_POINT);
             uint32_t numOfGroups = gp->sparse_slots() / SWITCH_POINT;
@@ -407,23 +396,21 @@ void special_fft_backward(DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_s
                 numOfGroups = 1;
 
             threadsPerBlock = NTT_THREAD_PER_BLOCK;
-            blocksPerGrid = ceil((float)gp->sparse_slots() / threadsPerBlock / 2);
+            blocksPerGrid = ceil((float) gp->sparse_slots() / threadsPerBlock / 2);
 
-            inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT * sizeof(cuDoubleComplex),
-                    gp->SID()>>>(gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter,
-                                 gp->m(), logRatio, scalar);
+            inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
+                                                                               sizeof(cuDoubleComplex), stream>>>(
+                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter,
+                    gp->m(), logRatio, scalar);
             numOfGroups >>= 1;
             for (; numOfGroups >= 1; numOfGroups >>= 1) {
                 iter--;
 
-                inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, gp->SID()>>>(
-                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
-                    logRatio, scalar);
+                inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
+                        gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
+                        logRatio, scalar);
             }
         }
-    }
-    for (uint32_t twr = 0; twr < msg_vec_size; twr++) {
-        // Synchronize
-        CUDA_CHECK(cudaStreamSynchronize(gpu_ckks_msg_vec[twr].SID()));
+        cudaStreamSynchronize(stream);
     }
 }

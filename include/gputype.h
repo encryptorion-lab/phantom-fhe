@@ -203,11 +203,9 @@ typedef struct DNTTTable {
         cudaMemcpyAsync(n_inv_mod_q_shoup_.get() + index, &n_inv_mod_q_shoup, sizeof(uint64_t), cudaMemcpyHostToDevice);
     }
 
-    ~DNTTTable() = default;
 } DNTTTable;
 
 typedef struct DCKKSEncoderInfo {
-    cudaStream_t SID_;
     uint32_t m_; // order of the multiplicative group
     uint32_t sparse_slots_ = 0;
     phantom::util::Pointer<cuDoubleComplex> in_; // input buffer, length must be n
@@ -217,7 +215,6 @@ typedef struct DCKKSEncoderInfo {
     DCKKSEncoderInfo() = default;
 
     DCKKSEncoderInfo &operator=(DCKKSEncoderInfo &&source) noexcept {
-        SID_ = source.SID_;
         m_ = source.m_;
         sparse_slots_ = source.sparse_slots_;
         in_.acquire(source.in_);
@@ -231,13 +228,10 @@ typedef struct DCKKSEncoderInfo {
         const uint32_t slots = coeff_count >> 1; // n/2
         const uint32_t slots_half = slots >> 1;
 
-        CUDA_CHECK(cudaStreamCreate(&SID_));
         in_.acquire(phantom::util::allocate<cuDoubleComplex>(phantom::util::global_pool(), slots));
         twiddle_.acquire(phantom::util::allocate<cuDoubleComplex>(phantom::util::global_pool(), m_));
         mul_group_.acquire(phantom::util::allocate<uint32_t>(phantom::util::global_pool(), slots_half));
     }
-
-    __device__ __host__ cudaStream_t &SID() { return SID_; }
 
     __device__ __host__ uint32_t m() const { return m_; }
 

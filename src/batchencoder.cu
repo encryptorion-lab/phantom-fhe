@@ -43,7 +43,7 @@ void PhantomBatchEncoder::populate_matrix_reps_index_map() const {
         pos *= gen;
         pos &= (m - 1);
     }
-    CUDA_CHECK(
+    PHANTOM_CHECK_CUDA(
             cudaMemcpy(matrix_reps_index_map_.get(), temp.data(), sizeof(uint64_t) * slots_, cudaMemcpyHostToDevice));
 }
 
@@ -70,7 +70,7 @@ void PhantomBatchEncoder::encode(const PhantomContext &context, const std::vecto
         throw std::logic_error("values_matrix size is too large");
     }
 
-    CUDA_CHECK(cudaMemcpy(data_.get(), values_matrix.data(), values_matrix.size() * sizeof(uint64_t),
+    PHANTOM_CHECK_CUDA(cudaMemcpy(data_.get(), values_matrix.data(), values_matrix.size() * sizeof(uint64_t),
                           cudaMemcpyHostToDevice));
 
     uint64_t gridDimGlb = ceil(slots_ / blockDimGlb.x);
@@ -97,7 +97,7 @@ void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPla
     // Copy plain.data_
     Pointer<uint64_t> plain_data_copy;
     plain_data_copy.acquire(allocate<uint64_t>(global_pool(), slots_));
-    CUDA_CHECK(cudaMemcpy(plain_data_copy.get(), plain.data(), slots_ * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+    PHANTOM_CHECK_CUDA(cudaMemcpy(plain_data_copy.get(), plain.data(), slots_ * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
 
     nwt_2d_radix8_forward_inplace(plain_data_copy.get(), context.gpu_plain_tables(), 1, 0);
 
@@ -106,5 +106,5 @@ void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPla
     uint64_t gridDimGlb = ceil(slots_ / blockDimGlb.x);
     decode_gpu<<<gridDimGlb, blockDimGlb>>>(out.get(), plain_data_copy.get(), matrix_reps_index_map_.get(), slots_);
 
-    CUDA_CHECK(cudaMemcpy(destination.data(), out.get(), sizeof(uint64_t) * slots_, cudaMemcpyDeviceToHost));
+    PHANTOM_CHECK_CUDA(cudaMemcpy(destination.data(), out.get(), sizeof(uint64_t) * slots_, cudaMemcpyDeviceToHost));
 }

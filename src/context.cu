@@ -14,12 +14,12 @@ using namespace phantom::util;
 using namespace phantom::arith;
 
 namespace phantom {
-    ContextData::ContextData(const EncryptionParameters &parms) {
-        parms_ = parms;
-        const auto &key_modulus = parms.key_modulus();
-        const auto &coeff_modulus = parms.coeff_modulus();
-        const auto &plain_modulus = parms.plain_modulus();
-        const size_t special_modulus_size = parms.special_modulus_size();
+    ContextData::ContextData(const EncryptionParameters &params) {
+        parms_ = params;
+        const auto &key_modulus = params.key_modulus();
+        const auto &coeff_modulus = params.coeff_modulus();
+        const auto &plain_modulus = params.plain_modulus();
+        const size_t special_modulus_size = params.special_modulus_size();
 
         const size_t coeff_modulus_size = coeff_modulus.size();
 
@@ -33,7 +33,7 @@ namespace phantom {
         total_coeff_modulus_bit_count_ =
                 get_significant_bit_count_uint(total_coeff_modulus_.data(), coeff_modulus_size);
 
-        size_t poly_modulus_degree = parms.poly_modulus_degree();
+        size_t poly_modulus_degree = params.poly_modulus_degree();
 
         int coeff_count_power = get_power_of_two(poly_modulus_degree);
 
@@ -41,7 +41,7 @@ namespace phantom {
 
         small_ntt_tables_ = make_shared<RNSNTT>(coeff_count_power, coeff_modulus);
 
-        if (parms.scheme() == scheme_type::bfv || parms.scheme() == scheme_type::bgv) {
+        if (params.scheme() == scheme_type::bfv || params.scheme() == scheme_type::bgv) {
             plain_ntt_tables_ = make_shared<NTT>(coeff_count_power, plain_modulus);
 
             // Calculate coeff_div_plain_modulus (BFV-"Delta") and the remainder upper_half_increment
@@ -85,8 +85,7 @@ namespace phantom {
             for (size_t i = 0; i < coeff_modulus_size; i++) {
                 plain_upper_half_increment_[i] = coeff_modulus[i].value() - plain_modulus.value();
             }
-        }
-        else if (parms.scheme() == scheme_type::ckks) {
+        } else if (params.scheme() == scheme_type::ckks) {
             // plain_modulus should be zero
             if (!plain_modulus.is_zero()) {
                 throw std::invalid_argument("plain_modulus must be zero for CKKS");
@@ -110,30 +109,29 @@ namespace phantom {
             // upper_half_threshold_ = (total_coeff_modulus_ + 1) /2
             increment_uint(total_coeff_modulus_.data(), coeff_modulus_size, upper_half_threshold_.data());
             right_shift_uint(upper_half_threshold_.data(), 1, coeff_modulus_size, upper_half_threshold_.data());
-        }
-        else {
+        } else {
             throw std::invalid_argument("unsupported scheme");
         }
 
         // Create RNSTool
         gpu_rns_tool_ = std::make_shared<DRNSTool>(poly_modulus_degree, special_modulus_size, *coeff_modulus_base,
-                                                   key_modulus, plain_modulus, parms.mul_tech());
+                                                   key_modulus, plain_modulus, params.mul_tech());
     }
 } // namespace phantom
 
-PhantomContext::PhantomContext(const phantom::EncryptionParameters &parms) {
-    if (parms.coeff_modulus().size() == 1)
+PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
+    if (params.coeff_modulus().size() == 1)
         throw std::invalid_argument("The coefficient modulus must be a vector of at least two primes");
 
     // default to 0
     using_keyswitching_ = false;
-    mul_tech_ = parms.mul_tech();
-    size_t size_P = parms.special_modulus_size();
-    size_t size_QP = parms.coeff_modulus().size();
+    mul_tech_ = params.mul_tech();
+    size_t size_P = params.special_modulus_size();
+    size_t size_QP = params.coeff_modulus().size();
     size_t size_Q = size_QP - size_P;
-    poly_degree_ = parms.poly_modulus_degree();
+    poly_degree_ = params.poly_modulus_degree();
 
-    auto temp_parms = parms;
+    auto temp_parms = params;
     auto &coeff_modulus = temp_parms.coeff_modulus();
 
     context_data_.push_back(phantom::ContextData(temp_parms));
@@ -162,12 +160,11 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &parms) {
     }
 
     // Create CUDA streams
-    sid_vec_.resize(phantom::util::sid_count);
-    for (auto &i: sid_vec_) {
-        CUDA_CHECK(cudaStreamCreateWithFlags(&i, cudaStreamNonBlocking));
-    }
+    cuda_streams_.resize(phantom::util::n_cuda_streams);
+    for (size_t i = 0; i < phantom::util::n_cuda_streams; ++i)
+        cuda_streams_[i] = std::make_shared<phantom::util::StreamWrapper>();
 
-    auto &coeff_modulus_cpu = parms.coeff_modulus();
+    auto &coeff_modulus_cpu = params.coeff_modulus();
     coeff_mod_size_ = coeff_modulus_cpu.size();
     auto &small_ntt_tables = get_context_data(0).small_ntt_tables();
     gpu_rns_tables().init(poly_degree_, coeff_mod_size_);
@@ -186,9 +183,9 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &parms) {
 
     in_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_mod_size_ * poly_degree_));
 
-    if (parms.scheme() == phantom::scheme_type::bfv || parms.scheme() == phantom::scheme_type::bgv) {
+    if (params.scheme() == phantom::scheme_type::bfv || params.scheme() == phantom::scheme_type::bgv) {
         auto &plain_ntt_tables = get_context_data(0).plain_ntt_tables();
-        auto &plain_modulus_cpu = parms.plain_modulus();
+        auto &plain_modulus_cpu = params.plain_modulus();
         gpu_plain_tables().init(poly_degree_, 1);
         const auto temp = DModulus(plain_modulus_cpu.value(), plain_modulus_cpu.const_ratio()[0],
                                    plain_modulus_cpu.const_ratio()[1]);
@@ -200,13 +197,13 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &parms) {
 
         plain_modulus_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), coeff_mod_size_));
         plain_modulus_shoup_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), coeff_mod_size_));
-        CUDA_CHECK(cudaMemcpy(plain_modulus_.get(), get_context_data(0).plain_modulus().data(),
-                              coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice));
-        CUDA_CHECK(cudaMemcpy(plain_modulus_shoup_.get(), get_context_data(0).plain_modulus_shoup().data(),
-                              coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice));
+        cudaMemcpy(plain_modulus_.get(), get_context_data(0).plain_modulus().data(),
+                   coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
+        cudaMemcpy(plain_modulus_shoup_.get(), get_context_data(0).plain_modulus_shoup().data(),
+                   coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
     }
 
-    if (parms.scheme() == phantom::scheme_type::bfv) {
+    if (params.scheme() == phantom::scheme_type::bfv) {
         const auto coeff_div_plain_size = (coeff_mod_size_ * 2 - total_parm_size() + 1) * total_parm_size() / 2;
         coeff_div_plain_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_div_plain_size));
         coeff_div_plain_shoup_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_div_plain_size));
@@ -214,22 +211,22 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &parms) {
         for (size_t i = 0; i < total_parm_size(); i++) {
             const auto size = get_context_data(i).coeff_div_plain_modulus().size();
             // force to memcpy, as the type is different but the values are consistent
-            CUDA_CHECK(cudaMemcpy(coeff_div_plain_.get() + cdp_pos,
-                                  get_context_data(i).coeff_div_plain_modulus().data(), size * sizeof(uint64_t),
-                                  cudaMemcpyHostToDevice));
-            CUDA_CHECK(cudaMemcpy(coeff_div_plain_shoup_.get() + cdp_pos,
-                                  get_context_data(i).coeff_div_plain_modulus_shoup().data(), size * sizeof(uint64_t),
-                                  cudaMemcpyHostToDevice));
+            cudaMemcpy(coeff_div_plain_.get() + cdp_pos,
+                       get_context_data(i).coeff_div_plain_modulus().data(), size * sizeof(uint64_t),
+                       cudaMemcpyHostToDevice);
+            cudaMemcpy(coeff_div_plain_shoup_.get() + cdp_pos,
+                       get_context_data(i).coeff_div_plain_modulus_shoup().data(), size * sizeof(uint64_t),
+                       cudaMemcpyHostToDevice);
             cdp_pos += size;
         }
 
         plain_upper_half_increment_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_mod_size_));
-        CUDA_CHECK(cudaMemcpy(plain_upper_half_increment_.get(),
-                              get_context_data(0).plain_upper_half_increment().data(),
-                              coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice));
+        cudaMemcpy(plain_upper_half_increment_.get(),
+                   get_context_data(0).plain_upper_half_increment().data(),
+                   coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
     }
 
     int log_n = phantom::util::get_power_of_two(poly_degree_);
-    bool is_bfv = (parms.scheme() == phantom::scheme_type::bfv);
-    key_galois_tool_ = std::make_shared<PhantomGaloisTool>(parms.galois_elts(), log_n, is_bfv);
+    bool is_bfv = (params.scheme() == phantom::scheme_type::bfv);
+    key_galois_tool_ = std::make_shared<PhantomGaloisTool>(params.galois_elts(), log_n, is_bfv);
 }

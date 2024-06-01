@@ -53,8 +53,8 @@ typedef struct PhantomGaloisTool {
                 index_raw &= static_cast<uint64_t>(coeff_count_minus_one);
                 *temp_ptr++ = phantom::util::reverse_bits(static_cast<uint32_t>(index_raw), coeff_count_power_);
             }
-            CUDA_CHECK(cudaMemcpy(permutation_tables_[idx].get(), u32temp.data(), coeff_count_ * sizeof(uint32_t),
-                cudaMemcpyHostToDevice));
+            cudaMemcpy(permutation_tables_[idx].get(), u32temp.data(), coeff_count_ * sizeof(uint32_t),
+                cudaMemcpyHostToDevice);
         }
 
         if (is_bfv_) {
@@ -70,8 +70,8 @@ typedef struct PhantomGaloisTool {
                     *temp_ptr++ = index_raw;
                     index_raw = (index_raw + galois_elt) & ((coeff_count_ << 1) - 1); // (mod 2n-1)
                 }
-                CUDA_CHECK(cudaMemcpy(index_raw_tables_[idx].get(), u64temp.data(), coeff_count_ * sizeof(uint64_t),
-                    cudaMemcpyHostToDevice));
+                cudaMemcpy(index_raw_tables_[idx].get(), u64temp.data(), coeff_count_ * sizeof(uint64_t),
+                    cudaMemcpyHostToDevice);
             }
         }
     }

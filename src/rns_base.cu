@@ -355,7 +355,7 @@ void DRNSBase::compose_array(cuDoubleComplex* dst, const uint64_t* src, const ui
     uint32_t rns_poly_uint64_count = sparse_coeff_count * size();
     temp_prod_array.acquire(allocate<uint64_t>(global_pool(), rns_poly_uint64_count));
     acc_mod_array.acquire(allocate<uint64_t>(global_pool(), rns_poly_uint64_count));
-    CUDA_CHECK(cudaMemset(acc_mod_array.get(), 0, rns_poly_uint64_count * sizeof(uint64_t)));
+    cudaMemset(acc_mod_array.get(), 0, rns_poly_uint64_count * sizeof(uint64_t));
 
     uint64_t gridDimGlb = ceil(sparse_coeff_count / blockDimGlb.x);
 
@@ -415,7 +415,7 @@ void DRNSBase::decompose_array(uint64_t* dst, const uint64_t* src, const DModulu
                                const uint64_t plain_upper_half_threshold) const {
     Pointer<uint64_t> temp;
     temp.acquire(allocate<uint64_t>(global_pool(), poly_degree * size()));
-    CUDA_CHECK(cudaMemset(temp.get(), 0, poly_degree * size() * sizeof(uint64_t)));
+    cudaMemset(temp.get(), 0, poly_degree * size() * sizeof(uint64_t));
 
     uint64_t gridDimGlb = poly_degree * size() / blockDimGlb.x;
     decompose_array_uint_kernel<<<gridDimGlb, blockDimGlb>>>(dst, temp.get(), src, modulus, poly_degree, size(),

@@ -33,7 +33,7 @@ namespace phantom {
 
         constexpr double two_pow_64 = 18446744073709551616.0;
 
-        constexpr int sid_count = 8;
+        constexpr int n_cuda_streams = 10;
 
         __device__ __constant__ constexpr double two_pow_64_dev = 18446744073709551616.0;
 
@@ -46,18 +46,3 @@ namespace phantom {
         __device__ __constant__ constexpr int bits_per_uint64_dev = bytes_per_uint64_dev * bits_per_byte_dev;
     }
 }
-
-// CUDA to check the last error information
-inline void cuda_check(cudaError_t status, const char *action = NULL, const char *file = NULL, int32_t line = 0) {
-    // check for cuda errors
-    if (status != cudaSuccess) {
-        printf("CUDA error occurred: %s\n", cudaGetErrorString(status));
-        if (action != NULL)
-            printf("While running %s   (file %s, line %d)\n", action, file, line);
-        // exit(1);
-        cudaGetLastError(); //
-        throw std::logic_error("CUDA error!");
-    }
-}
-
-#define CUDA_CHECK(action) cuda_check(action, #action, __FILE__, __LINE__)

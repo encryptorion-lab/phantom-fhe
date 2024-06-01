@@ -460,7 +460,7 @@ void launch_gemm_kernel_v00(uint64_t *batched_C, size_t ldc, const uint64_t *bat
     dim3 const grid_dim{static_cast<unsigned int>(m) / block_dim.x, static_cast<unsigned int>(n) / block_dim.y,
                         static_cast<unsigned int>(batch_size)};
     gemm_v00<<<grid_dim, block_dim, 0U, stream>>>(batched_C, ldc, batched_A, lda, batched_B, ldb, mod_chain, m, n, k);
-    CHECK_LAST_CUDA_ERROR();
+    PHANTOM_CHECK_CUDA_LAST();
 }
 
 void launch_gemm_kernel_v01(uint64_t *batched_C, size_t ldc, const uint64_t *batched_A, size_t lda,
@@ -470,7 +470,7 @@ void launch_gemm_kernel_v01(uint64_t *batched_C, size_t ldc, const uint64_t *bat
     dim3 const grid_dim{static_cast<unsigned int>(n) / block_dim.x, static_cast<unsigned int>(m) / block_dim.y,
                         static_cast<unsigned int>(batch_size)};
     gemm_v01<<<grid_dim, block_dim, 0U, stream>>>(batched_C, ldc, batched_A, lda, batched_B, ldb, mod_chain, m, n, k);
-    CHECK_LAST_CUDA_ERROR();
+    PHANTOM_CHECK_CUDA_LAST();
 }
 
 void launch_gemm_kernel_v02(uint64_t *batched_C, size_t ldc, const uint64_t *batched_A, size_t lda,
@@ -491,7 +491,7 @@ void launch_gemm_kernel_v02(uint64_t *batched_C, size_t ldc, const uint64_t *bat
                        sizeof(uint64_t) * BLOCK_TILE_SIZE_K * BLOCK_TILE_SIZE_X;
     gemm_v02<BLOCK_TILE_SIZE_X, BLOCK_TILE_SIZE_Y, BLOCK_TILE_SIZE_K><<<grid_dim, block_dim, smem_size, stream>>>(
             batched_C, ldc, batched_A, lda, batched_B, ldb, mod_chain, m, n, k);
-    CHECK_LAST_CUDA_ERROR();
+    PHANTOM_CHECK_CUDA_LAST();
 }
 
 void launch_gemm_kernel_v03(uint64_t *batched_C, size_t ldc, const uint64_t *batched_A, size_t lda,
@@ -516,7 +516,7 @@ void launch_gemm_kernel_v03(uint64_t *batched_C, size_t ldc, const uint64_t *bat
     gemm_v03<BLOCK_TILE_SIZE_X, BLOCK_TILE_SIZE_Y, BLOCK_TILE_SIZE_K, THREAD_TILE_SIZE_Y>
             <<<grid_dim, block_dim, smem_size, stream>>>(batched_C, ldc, batched_A, lda, batched_B, ldb, mod_chain, m,
                                                          n, k);
-    CHECK_LAST_CUDA_ERROR();
+    PHANTOM_CHECK_CUDA_LAST();
 }
 
 template<size_t m, size_t n, size_t k>
@@ -539,7 +539,7 @@ void launch_gemm_kernel_v04(uint64_t *batched_C, size_t ldc, const uint64_t *bat
                        sizeof(uint64_t) * BLOCK_TILE_SIZE_K * BLOCK_TILE_SIZE_X;
     gemm_v04<BLOCK_TILE_SIZE_X, BLOCK_TILE_SIZE_Y, BLOCK_TILE_SIZE_K, m, n, k>
             <<<grid_dim, block_dim, smem_size, stream>>>(batched_C, ldc, batched_A, lda, batched_B, ldb, mod_chain);
-    CHECK_LAST_CUDA_ERROR();
+    PHANTOM_CHECK_CUDA_LAST();
 }
 
 void bench_gemm(nvbench::state &state) {

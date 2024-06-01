@@ -65,6 +65,16 @@ void test_nwt_1d(size_t log_dim, size_t batch_size) {
             throw std::logic_error("Error");
         }
     }
+    cudaFree(modulus);
+    cudaFree(twiddles);
+    cudaFree(twiddles_shoup);
+    cudaFree(itwiddles);
+    cudaFree(itwiddles_shoup);
+    cudaFree(d_n_inv_mod_q);
+    cudaFree(d_n_inv_mod_q_shoup);
+    cudaFree(d_data);
+    delete[] h_idata;
+    delete[] h_odata;
 }
 
 void test_nwt_2d(size_t log_dim, size_t batch_size) {
@@ -118,6 +128,20 @@ void test_nwt_2d(size_t log_dim, size_t batch_size) {
 }
 
 int main() {
+    // single batch
+    test_nwt_1d(8, 1);
+    test_nwt_1d(9, 1);
+    test_nwt_1d(10, 1);
+    test_nwt_1d(11, 1);
+
+    test_nwt_2d(12, 1);
+    test_nwt_2d(13, 1);
+    test_nwt_2d(14, 1);
+    test_nwt_2d(15, 1);
+    test_nwt_2d(16, 1);
+    test_nwt_2d(17, 1);
+
+    // multiple batches
     test_nwt_1d(8, 10);
     test_nwt_1d(9, 10);
     test_nwt_1d(10, 10);

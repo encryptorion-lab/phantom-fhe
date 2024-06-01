@@ -295,7 +295,7 @@ void PhantomSecretKey::compute_secret_key_array(const PhantomContext &context, s
     Pointer<uint64_t> new_secret_key_array;
     new_secret_key_array.acquire(allocate<uint64_t>(global_pool(), max_power * poly_degree * coeff_mod_size));
     // Copy the power of secret key
-    CUDA_CHECK(cudaMemcpy(new_secret_key_array.get(), secret_key_array(),
+    PHANTOM_CHECK_CUDA(cudaMemcpy(new_secret_key_array.get(), secret_key_array(),
                           sk_max_power_ * poly_degree * coeff_mod_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
@@ -346,7 +346,7 @@ void PhantomSecretKey::generate_one_kswitch_key(const PhantomContext &context, u
         pk_ptr[twr] = public_key.pk_.data();
         relin_keys.public_keys_[twr] = std::move(public_key);
     }
-    CUDA_CHECK(
+    PHANTOM_CHECK_CUDA(
             cudaMemcpy(relin_keys.public_keys_ptr_.get(), pk_ptr, sizeof(uint64_t *) * dnum, cudaMemcpyHostToDevice));
 
     // Second compute P_{w,q}(s^2)+(-(as+e))
@@ -472,8 +472,6 @@ void PhantomSecretKey::encrypt_zero_symmetric(const PhantomContext &context, Pha
         sample_uniform_poly<<<gridDimGlb, blockDimGlb>>>(c1, context.prng_seed(), base_rns, poly_degree,
                                                          coeff_mod_size);
         // c0 = -(as + e) or c0 = -(as + te), c1 = a
-        // For debug only: we set error to be zero
-        // CUDA_CHECK(cudaMemset(context.in(), 0UL, poly_degree * coeff_mod_size * sizeof(uint64_t)));
         multiply_and_add_negate_rns_poly<<<gridDimGlb, blockDimGlb>>>(c1, secret_key_array(), context.in(), base_rns,
                                                                       c0, poly_degree, coeff_mod_size);
     }
@@ -555,7 +553,7 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
         Pointer<uint64_t> plain_copy;
         plain_copy.acquire(allocate<uint64_t>(global_pool(), bgv_coeff_mod_size * poly_degree));
         for (size_t i = 0; i < bgv_coeff_mod_size; i++) {
-            CUDA_CHECK(cudaMemcpy(plain_copy.get() + i * poly_degree, plain.data(), sizeof(uint64_t) * poly_degree,
+            PHANTOM_CHECK_CUDA(cudaMemcpy(plain_copy.get() + i * poly_degree, plain.data(), sizeof(uint64_t) * poly_degree,
                                   cudaMemcpyDeviceToDevice));
         }
 
@@ -595,7 +593,7 @@ void PhantomSecretKey::ckks_decrypt(const PhantomContext &context, const Phantom
     // Resize plain to appropriate size
     destination.chain_index() = 0;
     destination.resize(coeff_mod_size, poly_degree);
-    CUDA_CHECK(cudaMemcpy(destination.data(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
+    PHANTOM_CHECK_CUDA(cudaMemcpy(destination.data(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
                           cudaMemcpyDeviceToDevice));
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     for (size_t i = 1; i <= needed_sk_power; i++) {
@@ -636,7 +634,7 @@ void PhantomSecretKey::bfv_decrypt(const PhantomContext &context, const PhantomC
     // The secret key powers are already NTT transformed.
     Pointer<uint64_t> inner_prod;
     inner_prod.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
-    CUDA_CHECK(cudaMemset(inner_prod.get(), 0UL, coeff_mod_size * poly_degree * sizeof(uint64_t)));
+    PHANTOM_CHECK_CUDA(cudaMemset(inner_prod.get(), 0UL, coeff_mod_size * poly_degree * sizeof(uint64_t)));
     Pointer<uint64_t> temp;
     temp.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
 
@@ -644,7 +642,7 @@ void PhantomSecretKey::bfv_decrypt(const PhantomContext &context, const PhantomC
     for (size_t i = 1; i <= needed_sk_power; i++) {
         uint64_t *ci = encrypted.data() + i * coeff_mod_size * poly_degree;
         uint64_t *si = secret_key_array() + (i - 1) * coeff_modulus_size_ * poly_degree;
-        CUDA_CHECK(
+        PHANTOM_CHECK_CUDA(
                 cudaMemcpy(temp.get(), ci, coeff_mod_size * poly_degree * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
         // Change ci to NTT form
         nwt_2d_radix8_forward_inplace(temp.get(), context.gpu_rns_tables(), coeff_mod_size, 0);
@@ -709,7 +707,7 @@ void PhantomSecretKey::bgv_decrypt(const PhantomContext &context, const PhantomC
     uint64_t *c0 = encrypted.data();
     Pointer<uint64_t> inner_prod;
     inner_prod.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
-    CUDA_CHECK(cudaMemcpy(inner_prod.get(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
+    PHANTOM_CHECK_CUDA(cudaMemcpy(inner_prod.get(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
                           cudaMemcpyDeviceToDevice));
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
@@ -812,7 +810,7 @@ void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphe
     // Copy noise_poly to Host
     uint64_t *host_noise_poly;
     host_noise_poly = (uint64_t *)malloc(coeff_mod_size * poly_degree * sizeof(uint64_t));
-    CUDA_CHECK(
+    PHANTOM_CHECK_CUDA(
             cudaMemcpy(host_noise_poly, c0, coeff_mod_size * poly_degree * sizeof(uint64_t), cudaMemcpyDeviceToHost));
 
     // CRT-compose the noise

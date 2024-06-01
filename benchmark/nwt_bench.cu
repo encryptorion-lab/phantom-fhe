@@ -37,7 +37,7 @@ void fnwt_1d_bench(nvbench::state &state) {
 }
 
 NVBENCH_BENCH(fnwt_1d_bench)
-    .add_int64_axis("Batch Size", {256 * 30})
+    .add_int64_axis("Batch Size", {1, 10, 100, 1000})
     .add_int64_power_of_two_axis("Dimension", nvbench::range(8, 11, 1))
     .set_timeout(1); // Limit to one second per measurement.
 
@@ -74,10 +74,10 @@ void inwt_1d_bench(nvbench::state &state) {
     );
 }
 
-// NVBENCH_BENCH(inwt_1d_bench)
-//     .add_int64_axis("Batch Size", {1})
-//     .add_int64_power_of_two_axis("Dimension", nvbench::range(8, 11, 1))
-//     .set_timeout(1); // Limit to one second per measurement.
+ NVBENCH_BENCH(inwt_1d_bench)
+     .add_int64_axis("Batch Size", {1, 10, 100, 1000})
+     .add_int64_power_of_two_axis("Dimension", nvbench::range(8, 11, 1))
+     .set_timeout(1); // Limit to one second per measurement.
 
 void fnwt_2d_bench(nvbench::state &state) {
     const auto batch_size = state.get_int64("Batch Size");
@@ -107,8 +107,8 @@ void fnwt_2d_bench(nvbench::state &state) {
 }
 
 NVBENCH_BENCH(fnwt_2d_bench)
-    .add_int64_axis("Batch Size", {30})
-    .add_int64_power_of_two_axis("Dimension", nvbench::range(16, 16, 1))
+    .add_int64_axis("Batch Size", {1, 10, 100, 1000})
+    .add_int64_power_of_two_axis("Dimension", nvbench::range(12, 17, 1))
     .set_timeout(1); // Limit to one second per measurement.
 
 void inwt_2d_bench(nvbench::state &state) {
@@ -138,7 +138,7 @@ void inwt_2d_bench(nvbench::state &state) {
     );
 }
 
-// NVBENCH_BENCH(inwt_2d_bench)
-//     .add_int64_axis("Batch Size", {1, 2, 4, 8, 16, 32})
-//     .add_int64_power_of_two_axis("Dimension", nvbench::range(12, 17, 1))
-//     .set_timeout(1); // Limit to one second per measurement.
+ NVBENCH_BENCH(inwt_2d_bench)
+     .add_int64_axis("Batch Size", {1, 10, 100, 1000})
+     .add_int64_power_of_two_axis("Dimension", nvbench::range(12, 17, 1))
+     .set_timeout(1); // Limit to one second per measurement.

@@ -142,7 +142,7 @@ typedef struct PhantomRelinKey {
         }
         if (copy.public_keys_ptr_.get() != nullptr) {
             public_keys_ptr_.acquire(phantom::util::allocate<uint64_t *>(phantom::util::global_pool(), pk_num_));
-            CUDA_CHECK(cudaMemcpy(public_keys_ptr_.get(), copy.public_keys_ptr_.get(),
+            PHANTOM_CHECK_CUDA(cudaMemcpy(public_keys_ptr_.get(), copy.public_keys_ptr_.get(),
                 pk_num_ * sizeof(uint64_t *), cudaMemcpyDeviceToDevice));
         }
         parms_id_ = copy.parms_id_;
@@ -170,7 +170,7 @@ typedef struct PhantomRelinKey {
             }
             if (assign.public_keys_ptr_.get() != nullptr) {
                 public_keys_ptr_.acquire(phantom::util::allocate<uint64_t *>(phantom::util::global_pool(), pk_num_));
-                CUDA_CHECK(cudaMemcpy(public_keys_ptr_.get(), assign.public_keys_ptr_.get(),
+                PHANTOM_CHECK_CUDA(cudaMemcpy(public_keys_ptr_.get(), assign.public_keys_ptr_.get(),
                     pk_num_ * sizeof(uint64_t *), cudaMemcpyDeviceToDevice));
             }
             parms_id_ = assign.parms_id_;
@@ -449,22 +449,15 @@ typedef struct PhantomSecretKey {
         sk_max_power_ = copy.sk_max_power_;
         poly_modulus_degree_ = copy.poly_modulus_degree_;
         coeff_modulus_size_ = copy.coeff_modulus_size_;
-        // auto data_rns_size = copy.data_rns_.size();
-        // data_rns_.resize(data_rns_size);
-        // for (size_t i = 0; i < data_rns_size; i++)
-        // {
-        //     data_rns_[i].acquire(allocate<uint64_t>(Global(), poly_modulus_degree_));
-        //     CUDA_CHECK(cudaMemcpy(data_rns_[i].get(), copy.data_rns_[i].get(), poly_modulus_degree_ * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
-        // }
 
         data_rns_.acquire(
             phantom::util::allocate<uint64_t>(phantom::util::global_pool(), poly_modulus_degree_ * coeff_modulus_size_));
-        CUDA_CHECK(cudaMemcpy(data_rns_.get(), copy.data_rns_.get(),
+        PHANTOM_CHECK_CUDA(cudaMemcpy(data_rns_.get(), copy.data_rns_.get(),
             poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
 
         auto secret_key_array_size = sk_max_power_ * poly_modulus_degree_ * coeff_modulus_size_;
         secret_key_array_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), secret_key_array_size));
-        CUDA_CHECK(cudaMemcpy(secret_key_array_.get(), copy.secret_key_array_.get(),
+        PHANTOM_CHECK_CUDA(cudaMemcpy(secret_key_array_.get(), copy.secret_key_array_.get(),
             secret_key_array_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
     }
 
@@ -492,22 +485,17 @@ typedef struct PhantomSecretKey {
             sk_max_power_ = source.sk_max_power_;
             poly_modulus_degree_ = source.poly_modulus_degree_;
             coeff_modulus_size_ = source.coeff_modulus_size_;
-            // data_rns_.resize(data_rns_size);
-            // for (size_t i = 0; i < data_rns_size; i++)
-            // {
-            //     data_rns_[i].acquire(allocate<uint64_t>(Global(), poly_modulus_degree_));
-            //     CUDA_CHECK(cudaMemcpy(data_rns_[i].get(), source.data_rns_[i].get(), poly_modulus_degree_ * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
-            // }
+
             data_rns_.acquire(
                 phantom::util::allocate<uint64_t>(phantom::util::global_pool(), poly_modulus_degree_ * coeff_modulus_size_));
-            CUDA_CHECK(cudaMemcpy(data_rns_.get(), source.data_rns_.get(),
+            PHANTOM_CHECK_CUDA(cudaMemcpy(data_rns_.get(), source.data_rns_.get(),
                 poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t),
                 cudaMemcpyDeviceToDevice));
 
             auto secret_key_array_size = sk_max_power_ * poly_modulus_degree_ * coeff_modulus_size_;
             secret_key_array_.
                     acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), secret_key_array_size));
-            CUDA_CHECK(cudaMemcpy(secret_key_array_.get(), source.secret_key_array_.get(),
+            PHANTOM_CHECK_CUDA(cudaMemcpy(secret_key_array_.get(), source.secret_key_array_.get(),
                 secret_key_array_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
         }
 

@@ -18,31 +18,51 @@
 #include <cuda_runtime.h>
 #include <curand.h>
 
-#define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
+#define PHANTOM_CHECK_CUDA(val) check((val), #val, __FILE__, __LINE__)
+#define PHANTOM_CHECK_CUDA_LAST() checkLast(__FILE__, __LINE__)
 
 template<typename T>
 inline void check(T err, const char *const func, const char *const file,
                   const int line) {
     if (err != cudaSuccess) {
         std::cerr << "CUDA Runtime Error at: " << file << ":" << line
-                << std::endl;
+                  << std::endl;
         std::cerr << cudaGetErrorString(err) << " " << func << std::endl;
         // We don't exit when we encounter CUDA errors in this example.
         // std::exit(EXIT_FAILURE);
     }
 }
 
-#define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
-
 inline void checkLast(const char *const file, const int line) {
     cudaError_t err{cudaGetLastError()};
     if (err != cudaSuccess) {
         std::cerr << "CUDA Runtime Error at: " << file << ":" << line
-                << std::endl;
+                  << std::endl;
         std::cerr << cudaGetErrorString(err) << std::endl;
         // We don't exit when we encounter CUDA errors in this example.
         // std::exit(EXIT_FAILURE);
     }
+}
+
+namespace phantom::util {
+
+    class StreamWrapper {
+    public:
+        StreamWrapper() {
+            PHANTOM_CHECK_CUDA(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+        }
+
+        ~StreamWrapper() {
+            PHANTOM_CHECK_CUDA(cudaStreamDestroy(stream));
+        }
+
+        cudaStream_t &get() {
+            return stream;
+        }
+
+    private:
+        cudaStream_t stream{};
+    };
 }
 
 // A function to return a seeded random number generator.
@@ -81,9 +101,9 @@ public:
         auto median_time = median(time_);
         auto stddev = std_dev(time_);
         std::cout << func_name_ << ","
-                << n_trials << ","
-                << median_time << ","
-                << mean_time << std::endl;
+                  << n_trials << ","
+                  << median_time << ","
+                  << mean_time << std::endl;
     }
 
     inline void start() const {
@@ -156,16 +176,6 @@ private:
     }
 };
 
-template<typename S>
-std::ostream &operator<<(std::ostream &os, const std::vector<S> &vector) {
-    // Printing all the elements
-    // using <<
-    for (auto element: vector) {
-        os << std::hex << std::setfill('0') << std::setw(2) << (int)element << " ";
-    }
-    return os;
-}
-
 class ChronoTimer {
 public:
     explicit ChronoTimer(std::string func_name) {
@@ -179,9 +189,9 @@ public:
         auto min_time = min(time_);
         auto stddev = std_dev(time_);
         std::cout << func_name_ << ","
-                << n_trials << ","
-                << median_time << ","
-                << mean_time << std::endl;
+                  << n_trials << ","
+                  << median_time << ","
+                  << mean_time << std::endl;
     }
 
     inline void start() {
