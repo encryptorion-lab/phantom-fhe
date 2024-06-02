@@ -9,7 +9,7 @@ using namespace phantom::arith;
 
 namespace phantom {
     DRNSTool::DRNSTool(size_t n, size_t size_P, const RNSBase &base, const std::vector<Modulus> &modulus_QP,
-                       const Modulus &t, mul_tech_type mul_tech) {
+                       const Modulus &t, mul_tech_type mul_tech, const std::shared_ptr<cuda_stream_wrapper> &stream_wrapper) {
         size_t base_size = base.size();
         if (base_size < COEFF_MOD_COUNT_MIN || base_size > COEFF_MOD_COUNT_MAX) {
             throw invalid_argument("RNSBase is invalid");
@@ -21,7 +21,7 @@ namespace phantom {
             throw invalid_argument("poly_modulus_degree is invalid");
         }
 
-        base_.init(base);
+        base_.init(base, stream_wrapper);
 
         size_t size_QP = modulus_QP.size();
         size_t size_Q = size_QP - size_P;
@@ -36,7 +36,7 @@ namespace phantom {
         for (size_t i = 0; i < size_Q; i++)
             modulus_Q[i] = modulus_QP[i];
         RNSBase base_Q(modulus_Q);
-        base_Q_.init(base_Q);
+        base_Q_.init(base_Q, stream_wrapper);
 
         vector<Modulus> modulus_P(size_P);
         for (size_t i = 0; i < size_P; i++)
@@ -47,15 +47,15 @@ namespace phantom {
 
         if (base_size == size_QP) { // key level
             base_QlP.init(base);
-            base_QlP_.init(base_QlP);
+            base_QlP_.init(base_QlP, stream_wrapper);
             base_Ql.init(base_QlP.drop(modulus_P));
-            base_Ql_.init(base_Ql);
+            base_Ql_.init(base_Ql, stream_wrapper);
         }
         else { // data level
             base_Ql.init(base);
-            base_Ql_.init(base_Ql);
+            base_Ql_.init(base_Ql, stream_wrapper);
             base_QlP.init(base_Ql.extend(RNSBase(modulus_P)));
-            base_QlP_.init(base_QlP);
+            base_QlP_.init(base_QlP, stream_wrapper);
         }
 
         size_t size_Ql = base_Ql.size();
@@ -173,12 +173,12 @@ namespace phantom {
 
                 v_base_part_Ql_to_compl_part_QlP_conv_.resize(beta);
                 for (size_t i = 0; i < beta; i++)
-                    v_base_part_Ql_to_compl_part_QlP_conv_[i].init(*v_base_part_Ql_to_compl_part_QlP_conv[i]);
+                    v_base_part_Ql_to_compl_part_QlP_conv_[i].init(*v_base_part_Ql_to_compl_part_QlP_conv[i], stream_wrapper);
             }
 
             // create base converter from P to Ql for mod down
             BaseConverter base_P_to_Ql_conv(RNSBase(modulus_P), base_Ql);
-            base_P_to_Ql_conv_.init(base_P_to_Ql_conv);
+            base_P_to_Ql_conv_.init(base_P_to_Ql_conv, stream_wrapper);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +205,7 @@ namespace phantom {
         if (!t.is_zero() && mul_tech == mul_tech_type::none) {
             // Set up BaseConvTool for q --> {t}
             BaseConverter base_q_to_t_conv(base_Ql, RNSBase({t}));
-            base_q_to_t_conv_.init(base_q_to_t_conv);
+            base_q_to_t_conv_.init(base_q_to_t_conv, stream_wrapper);
 
             if (size_P != 0) {
                 vector<uint64_t> values_P(size_P);
@@ -267,7 +267,7 @@ namespace phantom {
 
                 // create base converter from P to t for mod down
                 BaseConverter base_P_to_t_conv(RNSBase(modulus_P), RNSBase({t}));
-                base_P_to_t_conv_.init(base_P_to_t_conv);
+                base_P_to_t_conv_.init(base_P_to_t_conv, stream_wrapper);
             }
         }
 
@@ -321,7 +321,7 @@ namespace phantom {
 
             // Set up t-gamma base if t is non-zero
             RNSBase base_t_gamma(vector<Modulus>{t, gamma});
-            base_t_gamma_.init(base_t_gamma);
+            base_t_gamma_.init(base_t_gamma, stream_wrapper);
 
             // Compute gamma^(-1) mod t
             uint64_t temp;
@@ -371,7 +371,7 @@ namespace phantom {
 
             // Set up BaseConverter for base_Ql --> {t, gamma}
             BaseConverter base_q_to_t_gamma_conv(base_Ql, base_t_gamma);
-            base_q_to_t_gamma_conv_.init(base_q_to_t_gamma_conv);
+            base_q_to_t_gamma_conv_.init(base_q_to_t_gamma_conv, stream_wrapper);
         }
 
         // BEHZ multiply
@@ -409,11 +409,11 @@ namespace phantom {
 
             // Populate the base arrays
             RNSBase base_B(base_B_primes);
-            base_B_.init(base_B);
+            base_B_.init(base_B, stream_wrapper);
             RNSBase base_Bsk(base_B.extend(m_sk));
-            base_Bsk_.init(base_Bsk);
+            base_Bsk_.init(base_Bsk, stream_wrapper);
             RNSBase base_Bsk_m_tilde(base_Bsk.extend(m_tilde));
-            base_Bsk_m_tilde_.init(base_Bsk_m_tilde);
+            base_Bsk_m_tilde_.init(base_Bsk_m_tilde, stream_wrapper);
 
             // Generate the Bsk NTTTables; these are used for NTT after base extension to Bsk
             size_t base_Bsk_size = base_Bsk.size();
@@ -464,19 +464,19 @@ namespace phantom {
 
             // Set up BaseConverter for base_Q --> Bsk
             BaseConverter base_q_to_Bsk_conv(base_Q, base_Bsk);
-            base_q_to_Bsk_conv_.init(base_q_to_Bsk_conv);
+            base_q_to_Bsk_conv_.init(base_q_to_Bsk_conv, stream_wrapper);
 
             // Set up BaseConverter for base_Q --> {m_tilde}
             BaseConverter base_q_to_m_tilde_conv(base_Q, RNSBase({m_tilde}));
-            base_q_to_m_tilde_conv_.init(base_q_to_m_tilde_conv);
+            base_q_to_m_tilde_conv_.init(base_q_to_m_tilde_conv, stream_wrapper);
 
             // Set up BaseConverter for B --> base_Q
             BaseConverter base_B_to_q_conv(base_B, base_Q);
-            base_B_to_q_conv_.init(base_B_to_q_conv);
+            base_B_to_q_conv_.init(base_B_to_q_conv, stream_wrapper);
 
             // Set up BaseConverter for B --> {m_sk}
             BaseConverter base_B_to_m_sk_conv(base_B, RNSBase({m_sk}));
-            base_B_to_m_sk_conv_.init(base_B_to_m_sk_conv);
+            base_B_to_m_sk_conv_.init(base_B_to_m_sk_conv, stream_wrapper);
 
             // Compute prod(B) mod base_Q
             std::vector<std::uint64_t> prod_B_mod_q(size_Q);
@@ -674,9 +674,9 @@ namespace phantom {
             // each prime in R is smaller than the smallest prime in Q
             auto modulus_R = get_primes_below(n_, modulus_Q[min_q_idx].value(), size_R);
             RNSBase base_Rl(modulus_R);
-            base_Rl_.init(base_Rl);
+            base_Rl_.init(base_Rl, stream_wrapper);
             RNSBase base_QlRl(base_Q.extend(base_Rl));
-            base_QlRl_.init(base_QlRl);
+            base_QlRl_.init(base_QlRl, stream_wrapper);
 
             // Generate QR NTT tables
             RNSNTT base_QlRl_ntt_tables(log_n, vector(base_QlRl.base(), base_QlRl.base() + size_QR));
@@ -699,11 +699,11 @@ namespace phantom {
 
             // Used for switching ciphertext from basis Q to R
             BaseConverter base_Ql_to_Rl_conv(base_Ql, base_Rl);
-            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv);
+            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv, stream_wrapper);
 
             // Used for switching ciphertext from basis R to Q
             BaseConverter base_Rl_to_Ql_conv(base_Rl, base_Q);
-            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv);
+            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv, stream_wrapper);
 
             // Used for t/Q scale&round in HPS method
             vector<double> tRSHatInvModsDivsFrac(size_Q);
@@ -780,9 +780,9 @@ namespace phantom {
             // each prime in Rl is smaller than the smallest prime in Ql
             auto modulus_Rl = get_primes_below(n, modulus_Q[min_q_idx].value(), size_Rl);
             RNSBase base_Rl(modulus_Rl);
-            base_Rl_.init(base_Rl);
+            base_Rl_.init(base_Rl, stream_wrapper);
             RNSBase base_QlRl(base_Ql.extend(base_Rl));
-            base_QlRl_.init(base_QlRl);
+            base_QlRl_.init(base_QlRl, stream_wrapper);
 
             // Generate QlRl NTT tables
             RNSNTT base_QlRl_ntt_tables(log_n, vector(base_QlRl.base(), base_QlRl.base() + size_QlRl));
@@ -804,11 +804,11 @@ namespace phantom {
 
             // Used for switching ciphertext from basis Q(Ql) to R(Rl)
             BaseConverter base_Ql_to_Rl_conv(base_Ql, base_Rl);
-            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv);
+            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv, stream_wrapper);
 
             // Used for switching ciphertext from basis Rl to Ql
             BaseConverter base_Rl_to_Ql_conv(base_Rl, base_Ql);
-            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv);
+            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv, stream_wrapper);
 
             // Used for t/Rl scale&round in overQ variants
             vector<double> tQlSlHatInvModsDivsFrac(size_Rl);
@@ -887,15 +887,15 @@ namespace phantom {
                 for (size_t i = 0; i < size_QlDrop; i++)
                     modulus_QlDrop[i] = modulus_Q[size_Ql + i];
                 RNSBase base_QlDrop(modulus_QlDrop);
-                base_QlDrop_.init(base_QlDrop);
+                base_QlDrop_.init(base_QlDrop, stream_wrapper);
 
                 // Used for switching ciphertext from basis Q to Rl
                 BaseConverter base_Q_to_Rl_conv(base_Q, base_Rl);
-                base_Q_to_Rl_conv_.init(base_Q_to_Rl_conv);
+                base_Q_to_Rl_conv_.init(base_Q_to_Rl_conv, stream_wrapper);
 
                 // Used for switching ciphertext from basis Ql to QlDrop (Ql modup to Q)
                 BaseConverter base_Ql_to_QlDrop_conv(base_Ql, base_QlDrop);
-                base_Ql_to_QlDrop_conv_.init(base_Ql_to_QlDrop_conv);
+                base_Ql_to_QlDrop_conv_.init(base_Ql_to_QlDrop_conv, stream_wrapper);
 
                 vector<double> QlQHatInvModqDivqFrac(size_QlDrop);
                 vector<uint64_t> QlQHatInvModqDivqModq(size_Ql * (size_QlDrop + 1));

@@ -41,9 +41,9 @@ typedef struct DBaseConverter {
         PModq_shoup_.acquire(source.PModq_shoup_);
     }
 
-    void init(phantom::util::BaseConverter& cpu_base_converter) {
-        ibase_.init(cpu_base_converter.ibase());
-        obase_.init(cpu_base_converter.obase());
+    void init(phantom::util::BaseConverter& cpu_base_converter, const std::shared_ptr<phantom::util::cuda_stream_wrapper>& stream_wrapper) {
+        ibase_.init(cpu_base_converter.ibase(), stream_wrapper);
+        obase_.init(cpu_base_converter.obase(), stream_wrapper);
 
         qiHat_mod_pj_.acquire(
             phantom::util::allocate<uint64_t>(phantom::util::global_pool(), obase_.size() * ibase_.size()));

@@ -10,7 +10,7 @@ namespace phantom {
     class DRNSTool {
     public:
         explicit DRNSTool(size_t n, size_t size_P, const util::RNSBase &base_Ql, const std::vector<Modulus> &modulus_QP,
-                          const Modulus &t, mul_tech_type mul_tech);
+                          const Modulus &t, mul_tech_type mul_tech, const std::shared_ptr<util::cuda_stream_wrapper> &stream_wrapper);
 
         DRNSTool() {
             inv_q_last_mod_q_ = util::Pointer<uint64_t>();

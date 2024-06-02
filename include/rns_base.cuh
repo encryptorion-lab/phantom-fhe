@@ -1,55 +1,31 @@
 #pragma once
 
 #include "util/rns.h"
+#include "cuda_wrapper.cuh"
 
-typedef struct DRNSBase {
-    std::size_t size_;
-    phantom::util::Pointer<DModulus> base_;
-    phantom::util::Pointer<uint64_t> big_Q_;
-    phantom::util::Pointer<uint64_t> big_qiHat_;
-    phantom::util::Pointer<uint64_t> qiHat_mod_qi_;
-    phantom::util::Pointer<uint64_t> qiHat_mod_qi_shoup_;
-    phantom::util::Pointer<uint64_t> qiHatInv_mod_qi_;
-    phantom::util::Pointer<uint64_t> qiHatInv_mod_qi_shoup_;
-    phantom::util::Pointer<double> qiInv_;
+class DRNSBase {
+private:
+    std::size_t size_{};
 
-    DRNSBase() {
-        size_ = 0;
-        base_ = phantom::util::Pointer<DModulus>();
-        big_Q_ = phantom::util::Pointer<uint64_t>();
-        big_qiHat_ = phantom::util::Pointer<uint64_t>();
-        qiHat_mod_qi_ = phantom::util::Pointer<uint64_t>();
-        qiHat_mod_qi_shoup_ = phantom::util::Pointer<uint64_t>();
-        qiHatInv_mod_qi_ = phantom::util::Pointer<uint64_t>();
-        qiHatInv_mod_qi_shoup_ = phantom::util::Pointer<uint64_t>();
-        qiInv_ = phantom::util::Pointer<double>();
+    phantom::util::cuda_shared_ptr<DModulus> base_;
+    phantom::util::cuda_shared_ptr<uint64_t> big_Q_;
+    phantom::util::cuda_shared_ptr<uint64_t> big_qiHat_;
+    phantom::util::cuda_shared_ptr<uint64_t> qiHat_mod_qi_;
+    phantom::util::cuda_shared_ptr<uint64_t> qiHat_mod_qi_shoup_;
+    phantom::util::cuda_shared_ptr<uint64_t> qiHatInv_mod_qi_;
+    phantom::util::cuda_shared_ptr<uint64_t> qiHatInv_mod_qi_shoup_;
+    phantom::util::cuda_shared_ptr<double> qiInv_;
+
+public:
+    DRNSBase() : size_(0) {}
+
+    explicit DRNSBase(const phantom::util::RNSBase &cpu_rns_base,
+                      const std::shared_ptr<phantom::util::cuda_stream_wrapper> &stream_wrapper) {
+        init(cpu_rns_base, stream_wrapper);
     }
 
-    DRNSBase(DRNSBase &source) {
-        size_ = source.size_;
-        base_.acquire(source.base_);
-        big_Q_.acquire(source.big_Q_);
-        big_qiHat_.acquire(source.big_qiHat_);
-        qiHat_mod_qi_.acquire(source.qiHat_mod_qi_);
-        qiHat_mod_qi_shoup_.acquire(source.qiHat_mod_qi_shoup_);
-        qiHatInv_mod_qi_.acquire(source.qiHatInv_mod_qi_);
-        qiHatInv_mod_qi_shoup_.acquire(source.qiHatInv_mod_qi_shoup_);
-        qiInv_.acquire(source.qiInv_);
-    }
-
-    DRNSBase(DRNSBase &&source) noexcept {
-        size_ = source.size_;
-        base_.acquire(source.base_);
-        big_Q_.acquire(source.big_Q_);
-        big_qiHat_.acquire(source.big_qiHat_);
-        qiHat_mod_qi_.acquire(source.qiHat_mod_qi_);
-        qiHat_mod_qi_shoup_.acquire(source.qiHat_mod_qi_shoup_);
-        qiHatInv_mod_qi_.acquire(source.qiHatInv_mod_qi_);
-        qiHatInv_mod_qi_shoup_.acquire(source.qiHatInv_mod_qi_shoup_);
-        qiInv_.acquire(source.qiInv_);
-    }
-
-    void init(const phantom::util::RNSBase &cpu_rns_base);
+    void init(const phantom::util::RNSBase &cpu_rns_base,
+              const std::shared_ptr<phantom::util::cuda_stream_wrapper> &stream_wrapper);
 
     [[nodiscard]] __host__ __device__ __forceinline__ std::size_t size() const noexcept { return size_; }
 
@@ -83,6 +59,4 @@ typedef struct DRNSBase {
     __host__ void compose_array(cuDoubleComplex *dst, const uint64_t *src, const uint64_t *upper_half_threshold,
                                 double inv_scale, uint32_t coeff_count, uint32_t sparse_coeff_count,
                                 uint32_t sparse_ratio) const;
-
-    ~DRNSBase() = default;
-} DRNSBase;
+};

@@ -8,43 +8,57 @@ using namespace phantom;
 using namespace phantom::util;
 using namespace phantom::arith;
 
-void DRNSBase::init(const RNSBase& cpu_rns_base) {
+void DRNSBase::init(const RNSBase &cpu_rns_base, const std::shared_ptr<cuda_stream_wrapper> &stream_wrapper) {
     size_ = cpu_rns_base.size();
 
-    base_.acquire(allocate<DModulus>(global_pool(), size_));
+//    base_.acquire(allocate<DModulus>(global_pool(), size_));
+    base_ = phantom::util::cuda_make_shared<DModulus>(size_, stream_wrapper);
     for (size_t idx = 0; idx < size_; idx++) {
         auto temp_modulus = *(cpu_rns_base.base() + idx);
         DModulus temp(temp_modulus.value(), temp_modulus.const_ratio().at(0), temp_modulus.const_ratio().at(1));
-        cudaMemcpyAsync(base() + idx, &temp, sizeof(temp), cudaMemcpyHostToDevice);
+        PHANTOM_CHECK_CUDA(cudaMemcpyAsync(base() + idx, &temp, sizeof(DModulus),
+                                           cudaMemcpyHostToDevice, stream_wrapper->get_stream()));
+        cudaStreamSynchronize(stream_wrapper->get_stream());
     }
 
-    big_Q_.acquire(allocate<uint64_t>(global_pool(), size_));
-    cudaMemcpyAsync(big_modulus(), cpu_rns_base.big_modulus(), size_ * sizeof(std::uint64_t), cudaMemcpyHostToDevice);
+//    big_Q_.acquire(allocate<uint64_t>(global_pool(), size_));
+    big_Q_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream_wrapper);
+    cudaMemcpyAsync(big_modulus(), cpu_rns_base.big_modulus(), size_ * sizeof(uint64_t),
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
 
-    big_qiHat_.acquire(allocate<uint64_t>(global_pool(), size_ * size_));
+//    big_qiHat_.acquire(allocate<uint64_t>(global_pool(), size_ * size_));
+    big_qiHat_ = phantom::util::cuda_make_shared<uint64_t>(size_ * size_, stream_wrapper);
     cudaMemcpyAsync(big_qiHat(), cpu_rns_base.big_qiHat(), size_ * size_ * sizeof(std::uint64_t),
-                    cudaMemcpyHostToDevice);
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
 
-    qiHat_mod_qi_.acquire(allocate<uint64_t>(global_pool(), size_));
-    qiHat_mod_qi_shoup_.acquire(allocate<uint64_t>(global_pool(), size_));
-    cudaMemcpyAsync(qiHat_mod_qi_.get(), cpu_rns_base.qiHat_mod_qi(), size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
+//    qiHat_mod_qi_.acquire(allocate<uint64_t>(global_pool(), size_));
+//    qiHat_mod_qi_shoup_.acquire(allocate<uint64_t>(global_pool(), size_));
+    qiHat_mod_qi_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream_wrapper);
+    qiHat_mod_qi_shoup_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream_wrapper);
+    cudaMemcpyAsync(qiHat_mod_qi_.get(), cpu_rns_base.qiHat_mod_qi(), size_ * sizeof(uint64_t),
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
     cudaMemcpyAsync(qiHat_mod_qi_shoup_.get(), cpu_rns_base.qiHat_mod_qi_shoup(), size_ * sizeof(uint64_t),
-                    cudaMemcpyHostToDevice);
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
 
-    qiHatInv_mod_qi_.acquire(allocate<uint64_t>(global_pool(), size_));
-    qiHatInv_mod_qi_shoup_.acquire(allocate<uint64_t>(global_pool(), size_));
+//    qiHatInv_mod_qi_.acquire(allocate<uint64_t>(global_pool(), size_));
+//    qiHatInv_mod_qi_shoup_.acquire(allocate<uint64_t>(global_pool(), size_));
+    qiHatInv_mod_qi_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream_wrapper);
+    qiHatInv_mod_qi_shoup_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream_wrapper);
     cudaMemcpyAsync(qiHatInv_mod_qi_.get(), cpu_rns_base.QHatInvModq(), size_ * sizeof(uint64_t),
-                    cudaMemcpyHostToDevice);
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
     cudaMemcpyAsync(qiHatInv_mod_qi_shoup_.get(), cpu_rns_base.QHatInvModq_shoup(), size_ * sizeof(uint64_t),
-                    cudaMemcpyHostToDevice);
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
 
-    qiInv_.acquire(allocate<double>(global_pool(), size_));
-    cudaMemcpyAsync(qiInv(), cpu_rns_base.inv(), size_ * sizeof(double), cudaMemcpyHostToDevice);
+//    qiInv_.acquire(allocate<double>(global_pool(), size_));
+    qiInv_ = phantom::util::cuda_make_shared<double>(size_, stream_wrapper);
+    cudaMemcpyAsync(qiInv(), cpu_rns_base.inv(), size_ * sizeof(double),
+                    cudaMemcpyHostToDevice, stream_wrapper->get_stream());
+    cudaStreamSynchronize(stream_wrapper->get_stream());
 }
 
 template<typename T>
 // T = double or uint64_t
-__global__ void decompose_uint64(std::uint64_t* dst, const T coefft, const bool is_negative, const DModulus* modulus,
+__global__ void decompose_uint64(std::uint64_t *dst, const T coefft, const bool is_negative, const DModulus *modulus,
                                  const uint32_t poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
@@ -62,16 +76,16 @@ __global__ void decompose_uint64(std::uint64_t* dst, const T coefft, const bool 
     }
 }
 
-__global__ void decompose_uint128(std::uint64_t* dst, const double coeffd, const bool is_negative,
-                                  const DModulus* modulus, const uint32_t poly_degree, const uint32_t coeff_mod_size) {
+__global__ void decompose_uint128(std::uint64_t *dst, const double coeffd, const bool is_negative,
+                                  const DModulus *modulus, const uint32_t poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
         size_t twr = tid / poly_degree;
         DModulus mod = modulus[twr];
 
         uint64_t coeffu[2] = {
-            static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
-            static_cast<uint64_t>(coeffd / two_pow_64_dev)
+                static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
+                static_cast<uint64_t>(coeffd / two_pow_64_dev)
         };
 
         uint64_t temp = barrett_reduce_uint128_uint64({coeffu[1], coeffu[0]}, mod.value(), mod.const_ratio());
@@ -82,7 +96,7 @@ __global__ void decompose_uint128(std::uint64_t* dst, const double coeffd, const
     }
 }
 
-__global__ void decompose_uint(uint64_t* dst, const uint64_t* coeffu, const bool is_negative, const DModulus* modulus,
+__global__ void decompose_uint(uint64_t *dst, const uint64_t *coeffu, const bool is_negative, const DModulus *modulus,
                                const uint32_t poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
@@ -105,7 +119,7 @@ __global__ void decompose_uint(uint64_t* dst, const uint64_t* coeffu, const bool
     }
 }
 
-__global__ void decompose_array_uint64(uint64_t* dst, const cuDoubleComplex* src, const DModulus* modulus,
+__global__ void decompose_array_uint64(uint64_t *dst, const cuDoubleComplex *src, const DModulus *modulus,
                                        const uint32_t sparse_poly_degree, const uint32_t sparse_ratio,
                                        const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree * coeff_mod_size;
@@ -138,7 +152,7 @@ __global__ void decompose_array_uint64(uint64_t* dst, const cuDoubleComplex* src
     }
 }
 
-__global__ void decompose_array_uint128(uint64_t* dst, const cuDoubleComplex* src, const DModulus* modulus,
+__global__ void decompose_array_uint128(uint64_t *dst, const cuDoubleComplex *src, const DModulus *modulus,
                                         const uint32_t sparse_poly_degree, const uint32_t sparse_ratio,
                                         const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree * coeff_mod_size;
@@ -156,8 +170,8 @@ __global__ void decompose_array_uint128(uint64_t* dst, const cuDoubleComplex* sr
         bool is_negative = static_cast<bool>(signbit(coeffd));
         coeffd = fabs(coeffd);
         uint64_t coeffu[2] = {
-            static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
-            static_cast<uint64_t>(coeffd / two_pow_64_dev)
+                static_cast<uint64_t>(fmod(coeffd, two_pow_64_dev)),
+                static_cast<uint64_t>(coeffd / two_pow_64_dev)
         };
         uint32_t index = tid * sparse_ratio;
 
@@ -175,7 +189,7 @@ __global__ void decompose_array_uint128(uint64_t* dst, const cuDoubleComplex* sr
     }
 }
 
-__global__ void decompose_array_uint_slow_first_part(uint64_t* dst, const cuDoubleComplex* src,
+__global__ void decompose_array_uint_slow_first_part(uint64_t *dst, const cuDoubleComplex *src,
                                                      const uint32_t sparse_poly_degree, const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree; tid += blockDim.x * gridDim.x) {
         double coeffd;
@@ -198,7 +212,7 @@ __global__ void decompose_array_uint_slow_first_part(uint64_t* dst, const cuDoub
     }
 }
 
-__global__ void decompose_array_uint_slow_second_part(uint64_t* dst, const uint64_t* src, const DModulus* modulus,
+__global__ void decompose_array_uint_slow_second_part(uint64_t *dst, const uint64_t *src, const DModulus *modulus,
                                                       const uint32_t sparse_poly_degree, const uint32_t sparse_ratio,
                                                       const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_poly_degree * coeff_mod_size;
@@ -228,7 +242,7 @@ __global__ void decompose_array_uint_slow_second_part(uint64_t* dst, const uint6
     }
 }
 
-void DRNSBase::decompose(uint64_t* dst, const double value, const uint32_t poly_degree,
+void DRNSBase::decompose(uint64_t *dst, const double value, const uint32_t poly_degree,
                          const uint32_t coeff_bit_count) const {
     double coeffd = round(value);
     bool is_negative = signbit(coeffd);
@@ -255,7 +269,7 @@ void DRNSBase::decompose(uint64_t* dst, const double value, const uint32_t poly_
     }
 }
 
-void DRNSBase::decompose(uint64_t* dst, const int64_t value, const uint32_t poly_degree,
+void DRNSBase::decompose(uint64_t *dst, const int64_t value, const uint32_t poly_degree,
                          const uint32_t coeff_bit_count) const {
     bool is_negative = signbit(value);
     uint64_t coeffu = fabs(value);
@@ -263,7 +277,7 @@ void DRNSBase::decompose(uint64_t* dst, const int64_t value, const uint32_t poly
     decompose_uint64<<<gridDimGlb, blockDimGlb>>>(dst, coeffu, is_negative, base(), poly_degree, size());
 }
 
-void DRNSBase::decompose_array(uint64_t* dst, const cuDoubleComplex* src, const uint32_t sparse_poly_degree,
+void DRNSBase::decompose_array(uint64_t *dst, const cuDoubleComplex *src, const uint32_t sparse_poly_degree,
                                const uint32_t sparse_ratio, const uint32_t max_coeff_bit_count) const {
     uint64_t gridDimGlb = sparse_poly_degree * size() / blockDimGlb.x;
     if (max_coeff_bit_count <= 64) {
@@ -281,12 +295,12 @@ void DRNSBase::decompose_array(uint64_t* dst, const cuDoubleComplex* src, const 
     }
 }
 
-__global__ void compose_kernel(cuDoubleComplex* dst, uint64_t* temp_prod_array, uint64_t* acc_mod_array,
-                               const uint64_t* src, const uint32_t size, const DModulus* base_q,
-                               const uint64_t* base_prod, const uint64_t* punctured_prod_array,
-                               const uint64_t* inv_punctured_prod_mod_base_array,
-                               const uint64_t* inv_punctured_prod_mod_base_array_shoup,
-                               const uint64_t* upper_half_threshold, const double inv_scale, const uint32_t coeff_count,
+__global__ void compose_kernel(cuDoubleComplex *dst, uint64_t *temp_prod_array, uint64_t *acc_mod_array,
+                               const uint64_t *src, const uint32_t size, const DModulus *base_q,
+                               const uint64_t *base_prod, const uint64_t *punctured_prod_array,
+                               const uint64_t *inv_punctured_prod_mod_base_array,
+                               const uint64_t *inv_punctured_prod_mod_base_array_shoup,
+                               const uint64_t *upper_half_threshold, const double inv_scale, const uint32_t coeff_count,
                                const uint32_t sparse_coeff_count, const uint32_t sparse_ratio) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < sparse_coeff_count; tid += blockDim.x * gridDim.x) {
         if (size > 1) {
@@ -344,7 +358,7 @@ __global__ void compose_kernel(cuDoubleComplex* dst, uint64_t* temp_prod_array, 
     }
 }
 
-void DRNSBase::compose_array(cuDoubleComplex* dst, const uint64_t* src, const uint64_t* upper_half_threshold,
+void DRNSBase::compose_array(cuDoubleComplex *dst, const uint64_t *src, const uint64_t *upper_half_threshold,
                              const double inv_scale, const uint32_t coeff_count, const uint32_t sparse_coeff_count,
                              const uint32_t sparse_ratio) const {
     if (!src) {
@@ -371,7 +385,7 @@ void DRNSBase::compose_array(cuDoubleComplex* dst, const uint64_t* src, const ui
  @param[in]: mod, the modulus
  @ret: result
  */
-__forceinline__ __device__ uint64_t decompose_uint(const uint64_t* value, const size_t coeff_mod_size,
+__forceinline__ __device__ uint64_t decompose_uint(const uint64_t *value, const size_t coeff_mod_size,
                                                    const DModulus modulus) {
     if (coeff_mod_size == 1) {
         // pi < t, which is impossible
@@ -390,9 +404,9 @@ __forceinline__ __device__ uint64_t decompose_uint(const uint64_t* value, const 
     return temp.hi;
 }
 
-__global__ void decompose_array_uint_kernel(uint64_t* dst, uint64_t* temp_data, const uint64_t* plain_data,
-                                            const DModulus* modulus, const size_t poly_degree,
-                                            const size_t coeff_mod_size, const uint64_t* plain_upper_half_increment,
+__global__ void decompose_array_uint_kernel(uint64_t *dst, uint64_t *temp_data, const uint64_t *plain_data,
+                                            const DModulus *modulus, const size_t poly_degree,
+                                            const size_t coeff_mod_size, const uint64_t *plain_upper_half_increment,
                                             const uint64_t plain_upper_half_threshold) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < poly_degree; tid += blockDim.x * gridDim.x) {
         uint64_t pt = plain_data[tid];
@@ -410,8 +424,8 @@ __global__ void decompose_array_uint_kernel(uint64_t* dst, uint64_t* temp_data, 
     }
 }
 
-void DRNSBase::decompose_array(uint64_t* dst, const uint64_t* src, const DModulus* modulus, const size_t poly_degree,
-                               const uint64_t* plain_upper_half_increment,
+void DRNSBase::decompose_array(uint64_t *dst, const uint64_t *src, const DModulus *modulus, const size_t poly_degree,
+                               const uint64_t *plain_upper_half_increment,
                                const uint64_t plain_upper_half_threshold) const {
     Pointer<uint64_t> temp;
     temp.acquire(allocate<uint64_t>(global_pool(), poly_degree * size()));

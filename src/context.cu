@@ -14,7 +14,8 @@ using namespace phantom::util;
 using namespace phantom::arith;
 
 namespace phantom {
-    ContextData::ContextData(const EncryptionParameters &params) {
+    ContextData::ContextData(const EncryptionParameters &params,
+                             const std::shared_ptr<phantom::util::cuda_stream_wrapper> &stream_wrapper) {
         parms_ = params;
         const auto &key_modulus = params.key_modulus();
         const auto &coeff_modulus = params.coeff_modulus();
@@ -115,13 +116,26 @@ namespace phantom {
 
         // Create RNSTool
         gpu_rns_tool_ = std::make_shared<DRNSTool>(poly_modulus_degree, special_modulus_size, *coeff_modulus_base,
-                                                   key_modulus, plain_modulus, params.mul_tech());
+                                                   key_modulus, plain_modulus, params.mul_tech(), stream_wrapper);
     }
 } // namespace phantom
 
 PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
     if (params.coeff_modulus().size() == 1)
         throw std::invalid_argument("The coefficient modulus must be a vector of at least two primes");
+
+    // GPU setup
+    int device;
+    cudaGetDevice(&device);
+    cudaMemPool_t mempool;
+    cudaDeviceGetDefaultMemPool(&mempool, device);
+    uint64_t threshold = UINT64_MAX;
+    cudaMemPoolSetAttribute(mempool, cudaMemPoolAttrReleaseThreshold, &threshold);
+
+    // Create CUDA streams
+    cuda_streams_wrappers_.resize(phantom::util::n_cuda_streams);
+    for (size_t i = 0; i < phantom::util::n_cuda_streams; ++i)
+        cuda_streams_wrappers_[i] = std::make_shared<phantom::util::cuda_stream_wrapper>();
 
     // default to 0
     using_keyswitching_ = false;
@@ -134,7 +148,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
     auto temp_parms = params;
     auto &coeff_modulus = temp_parms.coeff_modulus();
 
-    context_data_.push_back(phantom::ContextData(temp_parms));
+    context_data_.emplace_back(temp_parms, cuda_streams_wrappers_[0]);
 
     if (size_P != 0) {
         using_keyswitching_ = true;
@@ -145,7 +159,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
         coeff_modulus.pop_back();
 
     for (size_t i = 0; i < size_Q; i++) {
-        context_data_.push_back(phantom::ContextData(temp_parms));
+        context_data_.emplace_back(temp_parms, cuda_streams_wrappers_[0]);
         // Drop one modulus after each data level
         coeff_modulus.pop_back();
     }
@@ -158,11 +172,6 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
     for (size_t idx = 0; idx < context_data_.size(); idx++) {
         context_data_[idx].set_chain_index(idx);
     }
-
-    // Create CUDA streams
-    cuda_streams_.resize(phantom::util::n_cuda_streams);
-    for (size_t i = 0; i < phantom::util::n_cuda_streams; ++i)
-        cuda_streams_[i] = std::make_shared<phantom::util::StreamWrapper>();
 
     auto &coeff_modulus_cpu = params.coeff_modulus();
     coeff_mod_size_ = coeff_modulus_cpu.size();

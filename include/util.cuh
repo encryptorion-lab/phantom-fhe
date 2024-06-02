@@ -44,27 +44,6 @@ inline void checkLast(const char *const file, const int line) {
     }
 }
 
-namespace phantom::util {
-
-    class StreamWrapper {
-    public:
-        StreamWrapper() {
-            PHANTOM_CHECK_CUDA(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-        }
-
-        ~StreamWrapper() {
-            PHANTOM_CHECK_CUDA(cudaStreamDestroy(stream));
-        }
-
-        cudaStream_t &get() {
-            return stream;
-        }
-
-    private:
-        cudaStream_t stream{};
-    };
-}
-
 // A function to return a seeded random number generator.
 inline std::mt19937 &generator() {
     // the generator will only be seeded once (per thread) since it's static

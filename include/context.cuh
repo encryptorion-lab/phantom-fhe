@@ -13,13 +13,15 @@
 #include "rns.cuh"
 #include "util/galois.h"
 #include "util.cuh"
+#include "cuda_wrapper.cuh"
 
 namespace phantom {
 
     // stores pre-computation data for a given set of encryption parameters.
     class ContextData {
     public:
-        explicit ContextData(const EncryptionParameters &params);
+        explicit ContextData(const EncryptionParameters &params,
+                             const std::shared_ptr<phantom::util::cuda_stream_wrapper> &stream_wrapper);
 
         ContextData() = delete;
         ContextData(const ContextData &copy) = delete;
@@ -153,7 +155,7 @@ typedef struct PhantomContext {
 
     phantom::mul_tech_type mul_tech_;
 
-    std::vector<std::shared_ptr<phantom::util::StreamWrapper>> cuda_streams_;
+    std::vector<std::shared_ptr<phantom::util::cuda_stream_wrapper>> cuda_streams_wrappers_;
 
     DNTTTable gpu_rns_tables_;
 
@@ -281,7 +283,7 @@ typedef struct PhantomContext {
         return coeff_div_plain_shoup_.get() + pos;
     }
 
-    [[nodiscard]] auto &get_cuda_stream(size_t index) const { return cuda_streams_.at(index)->get(); }
+    [[nodiscard]] auto &get_cuda_stream(size_t index) const { return cuda_streams_wrappers_.at(index)->get_stream(); }
 
     [[nodiscard]] const DNTTTable &gpu_plain_tables() const noexcept { return gpu_plain_tables_; }
 
