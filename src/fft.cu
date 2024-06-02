@@ -319,98 +319,87 @@ __global__ void inplace_special_ifft_iter_kernel(cuDoubleComplex *inout,
  * @param[inout] gpu_rns_vec_ The DRNSInfo stored in PhantomContext.
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_forward(const PhantomContext &context, DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_size) {
+void special_fft_forward(DCKKSEncoderInfo &gp) {
     uint32_t threadsPerBlock, blocksPerGrid;
-    for (uint32_t twr = 0; twr < msg_vec_size; twr++) {
-        DCKKSEncoderInfo *gp = &gpu_ckks_msg_vec[twr];
 
-        if (gp->sparse_slots() == 00) {
-            throw std::invalid_argument("the poly degree has not been set");
-        }
-        uint32_t logn = log2(gp->sparse_slots());
-        uint32_t logRatio = log2(gp->m()) - logn - 2;
-        auto &stream = context.get_cuda_stream(twr % phantom::util::n_cuda_streams);
+    if (gp.sparse_slots() == 00) {
+        throw std::invalid_argument("the poly degree has not been set");
+    }
+    uint32_t logn = log2(gp.sparse_slots());
+    uint32_t logRatio = log2(gp.m()) - logn - 2;
 
-        if (gp->sparse_slots() <= SWITCH_POINT) {
-            // max 1024 threads, max n = 2048
-            threadsPerBlock = gp->sparse_slots() >> 1;
-            blocksPerGrid = 1;
-            uint32_t iter = 0;
-            uint32_t numOfGroups = 1;
-            inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock,
-            gp->sparse_slots() * sizeof(cuDoubleComplex), stream>>>(
-                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
+    if (gp.sparse_slots() <= SWITCH_POINT) {
+        // max 1024 threads, max n = 2048
+        threadsPerBlock = gp.sparse_slots() >> 1;
+        blocksPerGrid = 1;
+        uint32_t iter = 0;
+        uint32_t numOfGroups = 1;
+        inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock,
+        gp.sparse_slots() * sizeof(cuDoubleComplex)>>>(
+                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
+                logRatio);
+    } else {
+        uint32_t iter = 0;
+        uint32_t numOfGroups = 1;
+        threadsPerBlock = NTT_THREAD_PER_BLOCK;
+        blocksPerGrid = ceil((float) gp.sparse_slots() / threadsPerBlock / 2);
+        for (; numOfGroups < (gp.sparse_slots() / SWITCH_POINT); numOfGroups <<= 1) {
+            inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0>>>(
+                    gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
                     logRatio);
-        } else {
-            uint32_t iter = 0;
-            uint32_t numOfGroups = 1;
-            threadsPerBlock = NTT_THREAD_PER_BLOCK;
-            blocksPerGrid = ceil((float) gp->sparse_slots() / threadsPerBlock / 2);
-            for (; numOfGroups < (gp->sparse_slots() / SWITCH_POINT); numOfGroups <<= 1) {
-                inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-                        gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
-                        logRatio);
 
-                iter++;
-            }
-
-            inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
-                                                                               sizeof(cuDoubleComplex), stream>>>(
-                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter,
-                    gp->m(), logRatio);
+            iter++;
         }
-        cudaStreamSynchronize(stream);
+
+        inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
+                                                                           sizeof(cuDoubleComplex)>>>(
+                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter,
+                gp.m(), logRatio);
     }
 }
 
-/** Perform backward NTT transformation
- * @param[inout] gpu_rns_vec_ The vector<DRNSInfo> stored in PhantomContext.
+/** Perform backward FFT transformation
+ * @param[inout] gp DCKKSEncoderInfo
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_backward(const PhantomContext &context, DCKKSEncoderInfo *gpu_ckks_msg_vec, uint32_t msg_vec_size,
-                          double scalar) {
+void special_fft_backward(DCKKSEncoderInfo &gp, double scalar) {
     uint32_t threadsPerBlock, blocksPerGrid;
-    for (uint32_t twr = 0; twr < msg_vec_size; twr++) {
-        DCKKSEncoderInfo *gp = &gpu_ckks_msg_vec[twr];
-        uint32_t logn = log2(gp->sparse_slots());
-        uint32_t logRatio = log2(gp->m()) - logn - 2;
-        auto &stream = context.get_cuda_stream(twr % phantom::util::n_cuda_streams);
-        if (gp->sparse_slots() <= SWITCH_POINT) {
-            // printf("====================================\n");
-            //  max 1024 threads, max n = 2048
-            uint32_t iter = 0;
-            uint32_t numOfGroups = 1;
-            threadsPerBlock = gp->sparse_slots() >> 1;
-            blocksPerGrid = 1;
-            inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, gp->sparse_slots() *
-                                                                               sizeof(cuDoubleComplex), stream>>>(
-                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
+    uint32_t logn = log2(gp.sparse_slots());
+    uint32_t logRatio = log2(gp.m()) - logn - 2;
+    if (gp.sparse_slots() <= SWITCH_POINT) {
+        // printf("====================================\n");
+        //  max 1024 threads, max n = 2048
+        uint32_t iter = 0;
+        uint32_t numOfGroups = 1;
+        threadsPerBlock = gp.sparse_slots() >> 1;
+        blocksPerGrid = 1;
+        inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, gp.sparse_slots() *
+                                                                           sizeof(cuDoubleComplex)>>>(
+                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
+                logRatio, scalar);
+    } else {
+        // printf("******************************************\n");
+        int32_t iter = logn - log2(SWITCH_POINT);
+        uint32_t numOfGroups = gp.sparse_slots() / SWITCH_POINT;
+        if (iter < 0)
+            iter = 0;
+        if (numOfGroups < 1)
+            numOfGroups = 1;
+
+        threadsPerBlock = NTT_THREAD_PER_BLOCK;
+        blocksPerGrid = ceil((float) gp.sparse_slots() / threadsPerBlock / 2);
+
+        inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
+                                                                           sizeof(cuDoubleComplex)>>>(
+                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter,
+                gp.m(), logRatio, scalar);
+        numOfGroups >>= 1;
+        for (; numOfGroups >= 1; numOfGroups >>= 1) {
+            iter--;
+
+            inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock>>>(
+                    gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
                     logRatio, scalar);
-        } else {
-            // printf("******************************************\n");
-            int32_t iter = logn - log2(SWITCH_POINT);
-            uint32_t numOfGroups = gp->sparse_slots() / SWITCH_POINT;
-            if (iter < 0)
-                iter = 0;
-            if (numOfGroups < 1)
-                numOfGroups = 1;
-
-            threadsPerBlock = NTT_THREAD_PER_BLOCK;
-            blocksPerGrid = ceil((float) gp->sparse_slots() / threadsPerBlock / 2);
-
-            inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
-                                                                               sizeof(cuDoubleComplex), stream>>>(
-                    gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter,
-                    gp->m(), logRatio, scalar);
-            numOfGroups >>= 1;
-            for (; numOfGroups >= 1; numOfGroups >>= 1) {
-                iter--;
-
-                inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-                        gp->in(), gp->twiddle(), gp->mul_group(), gp->sparse_slots(), logn, numOfGroups, iter, gp->m(),
-                        logRatio, scalar);
-            }
         }
-        cudaStreamSynchronize(stream);
     }
 }

@@ -125,7 +125,7 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
 
     double fix = scale / static_cast<double>(sparse_slots_);
 
-    special_fft_backward(context, &gpu_ckks_msg_vec_, (uint32_t) 1, fix);
+    special_fft_backward(gpu_ckks_msg_vec_, fix);
     // we calculate max_coeff_bit_count at cpu side
 
     // TODO to opt this
@@ -284,7 +284,7 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
     rns_tool.base_Ql().compose_array(gpu_ckks_msg_vec().in(), plain_copy.get(), gpu_upper_half_threshold.get(),
                                      inv_scale, coeff_count, sparse_slots_ << 1, slots_ / sparse_slots_);
 
-    special_fft_forward(context, &gpu_ckks_msg_vec_, (uint32_t) 1);
+    special_fft_forward(gpu_ckks_msg_vec_);
 
     // finally, bit-reverse and output
     Pointer<cuDoubleComplex> out;

@@ -173,7 +173,6 @@ typedef struct PhantomContext {
     // prng seed
     std::size_t coeff_mod_size_ = 0; // corresponding to the key param index, i.e., all coeff prime exists.
     std::size_t poly_degree_ = 0; // unchanged
-    std::vector<DCKKSEncoderInfo> gpu_ckks_msg_vec_;
     std::shared_ptr<PhantomGaloisTool> key_galois_tool_;
 
     explicit PhantomContext(const phantom::EncryptionParameters &params);
@@ -305,6 +304,4 @@ typedef struct PhantomContext {
     [[nodiscard]] auto *plain_upper_half_increment() const { return plain_upper_half_increment_.get(); }
 
     [[nodiscard]] auto *prng_seed() const { return prng_seed_.get(); }
-
-    [[nodiscard]] auto *gpu_ckks_msg_vec() const { return gpu_ckks_msg_vec_.data(); }
 } PhantomContext;
