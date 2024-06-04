@@ -9,14 +9,13 @@
 using namespace std;
 
 namespace phantom {
-    namespace util {
-        vector<uint64_t> conjugate_classes(uint64_t modulus, uint64_t subgroup_generator) {
+    namespace arith {
+        vector <uint64_t> conjugate_classes(uint64_t modulus, uint64_t subgroup_generator) {
             vector<uint64_t> classes{};
             for (uint64_t i = 0; i < modulus; i++) {
                 if (gcd(i, modulus) > 1) {
                     classes.push_back(0);
-                }
-                else {
+                } else {
                     classes.push_back(i);
                 }
             }
@@ -49,18 +48,16 @@ namespace phantom {
             auto gcd_tuple = xgcd(value, modulus);
             if (get<0>(gcd_tuple) != 1) {
                 return false;
-            }
-            else if (get<1>(gcd_tuple) < 0) {
+            } else if (get<1>(gcd_tuple) < 0) {
                 result = static_cast<uint64_t>(get<1>(gcd_tuple)) + modulus;
                 return true;
-            }
-            else {
+            } else {
                 result = static_cast<uint64_t>(get<1>(gcd_tuple));
                 return true;
             }
         }
 
-        vector<uint64_t> multiplicative_orders(vector<uint64_t> conjugate_classes, uint64_t modulus) {
+        vector <uint64_t> multiplicative_orders(vector <uint64_t> conjugate_classes, uint64_t modulus) {
             vector<uint64_t> orders{};
             orders.push_back(0);
             orders.push_back(1);
@@ -85,7 +82,7 @@ namespace phantom {
             return orders;
         }
 
-        void babystep_giantstep(uint64_t modulus, vector<uint64_t> &baby_steps, vector<uint64_t> &giant_steps) {
+        void babystep_giantstep(uint64_t modulus, vector <uint64_t> &baby_steps, vector <uint64_t> &giant_steps) {
             int exponent = get_power_of_two(modulus);
             if (exponent < 0) {
                 throw invalid_argument("modulus must be a power of 2");
@@ -116,9 +113,9 @@ namespace phantom {
             }
         }
 
-        pair<size_t, size_t> decompose_babystep_giantstep(
-            uint64_t modulus, uint64_t input, const vector<uint64_t> &baby_steps,
-            const vector<uint64_t> &giant_steps) {
+        pair <size_t, size_t> decompose_babystep_giantstep(
+                uint64_t modulus, uint64_t input, const vector <uint64_t> &baby_steps,
+                const vector <uint64_t> &giant_steps) {
             for (size_t i = 0; i < giant_steps.size(); i++) {
                 uint64_t gs = giant_steps[i];
                 for (size_t j = 0; j < baby_steps.size(); j++) {
@@ -201,8 +198,7 @@ namespace phantom {
                 do {
                     x = multiply_uint_mod(x, x, modulus);
                     count++;
-                }
-                while (x != value - 1 && count < r - 1);
+                } while (x != value - 1 && count < r - 1);
                 if (x != value - 1) {
                     return false;
                 }
@@ -210,7 +206,7 @@ namespace phantom {
             return true;
         }
 
-        vector<Modulus> get_primes(size_t ntt_size, int bit_size, size_t count) {
+        vector <Modulus> get_primes(size_t ntt_size, int bit_size, size_t count) {
             vector<Modulus> destination;
             uint64_t factor = mul_safe(uint64_t(2), uint64_t(ntt_size));
 
@@ -238,7 +234,7 @@ namespace phantom {
             return destination;
         }
 
-        vector<Modulus> get_primes_below(size_t ntt_size, uint64_t upper_bound, size_t count) {
+        vector <Modulus> get_primes_below(size_t ntt_size, uint64_t upper_bound, size_t count) {
             vector<Modulus> destination;
             uint64_t factor = mul_safe(uint64_t(2), uint64_t(ntt_size));
 
@@ -307,8 +303,7 @@ namespace phantom {
                 // Raise the random number to power the size of the quotient
                 // to get rid of irrelevant part
                 destination = exponentiate_uint_mod(destination, size_quotient_group, modulus);
-            }
-            while (!is_primitive_root(destination, degree, modulus) && (attempt_counter < attempt_counter_max));
+            } while (!is_primitive_root(destination, degree, modulus) && (attempt_counter < attempt_counter_max));
 
             return is_primitive_root(destination, degree, modulus);
         }

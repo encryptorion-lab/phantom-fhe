@@ -258,7 +258,7 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
 
     auto decryption_modulus = context_data.total_coeff_modulus();
     auto upper_half_threshold = context_data.upper_half_threshold();
-    int logn = util::get_power_of_two(coeff_count);
+    int logn = arith::get_power_of_two(coeff_count);
     Pointer<uint64_t> gpu_upper_half_threshold;
     gpu_upper_half_threshold.acquire(allocate<uint64_t>(global_pool(), upper_half_threshold.size()));
     cudaMemcpy(gpu_upper_half_threshold.get(), upper_half_threshold.data(),

@@ -9,7 +9,7 @@ using namespace phantom::arith;
 
 namespace phantom {
     DRNSTool::DRNSTool(size_t n, size_t size_P, const RNSBase &base, const std::vector<Modulus> &modulus_QP,
-                       const Modulus &t, mul_tech_type mul_tech, const std::shared_ptr<cuda_stream_wrapper> &stream_wrapper) {
+                       const Modulus &t, mul_tech_type mul_tech, const cudaStream_t &stream) {
         size_t base_size = base.size();
         if (base_size < COEFF_MOD_COUNT_MIN || base_size > COEFF_MOD_COUNT_MAX) {
             throw invalid_argument("RNSBase is invalid");
@@ -21,7 +21,7 @@ namespace phantom {
             throw invalid_argument("poly_modulus_degree is invalid");
         }
 
-        base_.init(base, stream_wrapper);
+        base_.init(base, stream);
 
         size_t size_QP = modulus_QP.size();
         size_t size_Q = size_QP - size_P;
@@ -36,7 +36,7 @@ namespace phantom {
         for (size_t i = 0; i < size_Q; i++)
             modulus_Q[i] = modulus_QP[i];
         RNSBase base_Q(modulus_Q);
-        base_Q_.init(base_Q, stream_wrapper);
+        base_Q_.init(base_Q, stream);
 
         vector<Modulus> modulus_P(size_P);
         for (size_t i = 0; i < size_P; i++)
@@ -47,15 +47,14 @@ namespace phantom {
 
         if (base_size == size_QP) { // key level
             base_QlP.init(base);
-            base_QlP_.init(base_QlP, stream_wrapper);
+            base_QlP_.init(base_QlP, stream);
             base_Ql.init(base_QlP.drop(modulus_P));
-            base_Ql_.init(base_Ql, stream_wrapper);
-        }
-        else { // data level
+            base_Ql_.init(base_Ql, stream);
+        } else { // data level
             base_Ql.init(base);
-            base_Ql_.init(base_Ql, stream_wrapper);
+            base_Ql_.init(base_Ql, stream);
             base_QlP.init(base_Ql.extend(RNSBase(modulus_P)));
-            base_QlP_.init(base_QlP, stream_wrapper);
+            base_QlP_.init(base_QlP, stream);
         }
 
         size_t size_Ql = base_Ql.size();
@@ -74,12 +73,12 @@ namespace phantom {
             inv_q_last_mod_q_shoup[i] = compute_shoup(value_inv_q_last_mod_q, base_Ql[i].value());
         }
         if (size_Ql > 1) {
-            inv_q_last_mod_q_.acquire(allocate<uint64_t>(global_pool(), (size_Ql - 1)));
-            inv_q_last_mod_q_shoup_.acquire(allocate<uint64_t>(global_pool(), (size_Ql - 1)));
+            inv_q_last_mod_q_ = cuda_make_shared<uint64_t>(size_Ql - 1, stream);
+            inv_q_last_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql - 1, stream);
             cudaMemcpyAsync(inv_q_last_mod_q_.get(), inv_q_last_mod_q.data(), (size_Ql - 1) * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_q_last_mod_q_shoup_.get(), inv_q_last_mod_q_shoup.data(),
-                            (size_Ql - 1) * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            (size_Ql - 1) * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -111,18 +110,19 @@ namespace phantom {
                 bigPInv_mod_q_shoup[i] = compute_shoup(tmp, base_qi.value());
             }
 
-            bigP_mod_q_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-            bigP_mod_q_shoup_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-            cudaMemcpyAsync(bigP_mod_q_.get(), bigP_mod_q.data(), size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice);
+            bigP_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            bigP_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            cudaMemcpyAsync(bigP_mod_q_.get(), bigP_mod_q.data(), size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice,
+                            stream);
             cudaMemcpyAsync(bigP_mod_q_shoup_.get(), bigP_mod_q_shoup.data(), size_Ql * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
 
-            bigPInv_mod_q_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-            bigPInv_mod_q_shoup_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
+            bigPInv_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            bigPInv_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
             cudaMemcpyAsync(bigPInv_mod_q_.get(), bigPInv_mod_q.data(), size_Ql * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(bigPInv_mod_q_shoup_.get(), bigPInv_mod_q_shoup.data(), size_Ql * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
 
             // data level rns tool, create base converter from part Ql to compl part QlP
             if (base_size <= size_Q) {
@@ -164,21 +164,21 @@ namespace phantom {
                     v_base_part_Ql_to_compl_part_QlP_conv.push_back(base_part_Ql_to_compl_part_QlP_conv);
                 }
 
-                partQlHatInv_mod_Ql_concat_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-                partQlHatInv_mod_Ql_concat_shoup_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
+                partQlHatInv_mod_Ql_concat_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+                partQlHatInv_mod_Ql_concat_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
                 cudaMemcpyAsync(partQlHatInv_mod_Ql_concat_.get(), partQlHatInv_mod_Ql_concat.data(),
-                                size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(partQlHatInv_mod_Ql_concat_shoup_.get(), partQlHatInv_mod_Ql_concat_shoup.data(),
-                                size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
                 v_base_part_Ql_to_compl_part_QlP_conv_.resize(beta);
                 for (size_t i = 0; i < beta; i++)
-                    v_base_part_Ql_to_compl_part_QlP_conv_[i].init(*v_base_part_Ql_to_compl_part_QlP_conv[i], stream_wrapper);
+                    v_base_part_Ql_to_compl_part_QlP_conv_[i].init(*v_base_part_Ql_to_compl_part_QlP_conv[i], stream);
             }
 
             // create base converter from P to Ql for mod down
             BaseConverter base_P_to_Ql_conv(RNSBase(modulus_P), base_Ql);
-            base_P_to_Ql_conv_.init(base_P_to_Ql_conv, stream_wrapper);
+            base_P_to_Ql_conv_.init(base_P_to_Ql_conv, stream);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +205,7 @@ namespace phantom {
         if (!t.is_zero() && mul_tech == mul_tech_type::none) {
             // Set up BaseConvTool for q --> {t}
             BaseConverter base_q_to_t_conv(base_Ql, RNSBase({t}));
-            base_q_to_t_conv_.init(base_q_to_t_conv, stream_wrapper);
+            base_q_to_t_conv_.init(base_q_to_t_conv, stream);
 
             if (size_P != 0) {
                 vector<uint64_t> values_P(size_P);
@@ -231,12 +231,12 @@ namespace phantom {
                     }
                 }
 
-                pjInv_mod_q_.acquire(allocate<uint64_t>(global_pool(), size_Ql * size_P));
-                pjInv_mod_q_shoup_.acquire(allocate<uint64_t>(global_pool(), size_Ql * size_P));
+                pjInv_mod_q_ = cuda_make_shared<uint64_t>(size_Ql * size_P, stream);
+                pjInv_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql * size_P, stream);
                 cudaMemcpyAsync(pjInv_mod_q_.get(), pjInv_mod_q.data(), size_Ql * size_P * sizeof(uint64_t),
-                                cudaMemcpyHostToDevice);
+                                cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(pjInv_mod_q_shoup_.get(), pjInv_mod_q_shoup.data(), size_Ql * size_P * sizeof(uint64_t),
-                                cudaMemcpyHostToDevice);
+                                cudaMemcpyHostToDevice, stream);
 
                 std::vector<uint64_t> pjInv_mod_t(size_P);
                 std::vector<uint64_t> pjInv_mod_t_shoup(size_P);
@@ -248,12 +248,12 @@ namespace phantom {
                     pjInv_mod_t_shoup[j] = compute_shoup(pjInv_mod_t_value, t.value());
                 }
 
-                pjInv_mod_t_.acquire(allocate<uint64_t>(global_pool(), size_P));
-                pjInv_mod_t_shoup_.acquire(allocate<uint64_t>(global_pool(), size_P));
+                pjInv_mod_t_ = cuda_make_shared<uint64_t>(size_P, stream);
+                pjInv_mod_t_shoup_ = cuda_make_shared<uint64_t>(size_P, stream);
                 cudaMemcpyAsync(pjInv_mod_t_.get(), pjInv_mod_t.data(), size_P * sizeof(uint64_t),
-                                cudaMemcpyHostToDevice);
+                                cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(pjInv_mod_t_shoup_.get(), pjInv_mod_t_shoup.data(), size_P * sizeof(uint64_t),
-                                cudaMemcpyHostToDevice);
+                                cudaMemcpyHostToDevice, stream);
 
                 uint64_t bigP_mod_t_value = modulo_uint(bigP.data(), size_P, t);
                 uint64_t bigPInv_mod_t_value;
@@ -267,7 +267,7 @@ namespace phantom {
 
                 // create base converter from P to t for mod down
                 BaseConverter base_P_to_t_conv(RNSBase(modulus_P), RNSBase({t}));
-                base_P_to_t_conv_.init(base_P_to_t_conv, stream_wrapper);
+                base_P_to_t_conv_.init(base_P_to_t_conv, stream);
             }
         }
 
@@ -302,11 +302,12 @@ namespace phantom {
                 tInv_mod_q_shoup[i] = compute_shoup(tInv_mod_qi_value, qi.value());
             }
 
-            tInv_mod_q_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-            tInv_mod_q_shoup_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-            cudaMemcpyAsync(tInv_mod_q_.get(), tInv_mod_q.data(), size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice);
+            tInv_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            tInv_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            cudaMemcpyAsync(tInv_mod_q_.get(), tInv_mod_q.data(), size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice,
+                            stream);
             cudaMemcpyAsync(tInv_mod_q_shoup_.get(), tInv_mod_q_shoup.data(), size_Ql * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +322,7 @@ namespace phantom {
 
             // Set up t-gamma base if t is non-zero
             RNSBase base_t_gamma(vector<Modulus>{t, gamma});
-            base_t_gamma_.init(base_t_gamma, stream_wrapper);
+            base_t_gamma_.init(base_t_gamma, stream);
 
             // Compute gamma^(-1) mod t
             uint64_t temp;
@@ -342,12 +343,12 @@ namespace phantom {
                 prod_t_gamma_mod_q_shoup[i] = compute_shoup(prod_t_gamma_mod_q[i], base_Ql[i].value());
             }
 
-            prod_t_gamma_mod_q_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
-            prod_t_gamma_mod_q_shoup_.acquire(allocate<uint64_t>(global_pool(), size_Ql));
+            prod_t_gamma_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            prod_t_gamma_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
             cudaMemcpyAsync(prod_t_gamma_mod_q_.get(), prod_t_gamma_mod_q.data(), size_Ql * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(prod_t_gamma_mod_q_shoup_.get(), prod_t_gamma_mod_q_shoup.data(),
-                            size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
             // Compute -prod(base_Ql)^(-1) mod {t, gamma}
             size_t base_t_gamma_size = 2;
@@ -362,16 +363,16 @@ namespace phantom {
                 neg_inv_q_mod_t_gamma_shoup[i] = compute_shoup(neg_inv_q_mod_t_gamma[i], base_t_gamma[i].value());
             }
 
-            neg_inv_q_mod_t_gamma_.acquire(allocate<uint64_t>(global_pool(), base_t_gamma_size));
-            neg_inv_q_mod_t_gamma_shoup_.acquire(allocate<uint64_t>(global_pool(), base_t_gamma_size));
+            neg_inv_q_mod_t_gamma_ = cuda_make_shared<uint64_t>(base_t_gamma_size, stream);
+            neg_inv_q_mod_t_gamma_shoup_ = cuda_make_shared<uint64_t>(base_t_gamma_size, stream);
             cudaMemcpyAsync(neg_inv_q_mod_t_gamma_.get(), neg_inv_q_mod_t_gamma.data(),
-                            base_t_gamma_size * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            base_t_gamma_size * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(neg_inv_q_mod_t_gamma_shoup_.get(), neg_inv_q_mod_t_gamma_shoup.data(),
-                            base_t_gamma_size * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            base_t_gamma_size * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
             // Set up BaseConverter for base_Ql --> {t, gamma}
             BaseConverter base_q_to_t_gamma_conv(base_Ql, base_t_gamma);
-            base_q_to_t_gamma_conv_.init(base_q_to_t_gamma_conv, stream_wrapper);
+            base_q_to_t_gamma_conv_.init(base_q_to_t_gamma_conv, stream);
         }
 
         // BEHZ multiply
@@ -409,11 +410,11 @@ namespace phantom {
 
             // Populate the base arrays
             RNSBase base_B(base_B_primes);
-            base_B_.init(base_B, stream_wrapper);
+            base_B_.init(base_B, stream);
             RNSBase base_Bsk(base_B.extend(m_sk));
-            base_Bsk_.init(base_Bsk, stream_wrapper);
+            base_Bsk_.init(base_Bsk, stream);
             RNSBase base_Bsk_m_tilde(base_Bsk.extend(m_tilde));
-            base_Bsk_m_tilde_.init(base_Bsk_m_tilde, stream_wrapper);
+            base_Bsk_m_tilde_.init(base_Bsk_m_tilde, stream);
 
             // Generate the Bsk NTTTables; these are used for NTT after base extension to Bsk
             size_t base_Bsk_size = base_Bsk.size();
@@ -442,12 +443,12 @@ namespace phantom {
                 m_tilde_QHatInvModq[i] = multiply_uint_mod(m_tilde.value(), QHatInvModqi, qi);
                 m_tilde_QHatInvModq_shoup[i] = compute_shoup(m_tilde_QHatInvModq[i], qi.value());
             }
-            m_tilde_QHatInvModq_.acquire(allocate<uint64_t>(global_pool(), m_tilde_QHatInvModq.size()));
-            m_tilde_QHatInvModq_shoup_.acquire(allocate<uint64_t>(global_pool(), m_tilde_QHatInvModq.size()));
+            m_tilde_QHatInvModq_ = cuda_make_shared<uint64_t>(m_tilde_QHatInvModq.size(), stream);
+            m_tilde_QHatInvModq_shoup_ = cuda_make_shared<uint64_t>(m_tilde_QHatInvModq.size(), stream);
             cudaMemcpyAsync(m_tilde_QHatInvModq_.get(), m_tilde_QHatInvModq.data(),
-                            sizeof(uint64_t) * m_tilde_QHatInvModq.size(), cudaMemcpyHostToDevice);
+                            sizeof(uint64_t) * m_tilde_QHatInvModq.size(), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(m_tilde_QHatInvModq_shoup_.get(), m_tilde_QHatInvModq_shoup.data(),
-                            sizeof(uint64_t) * m_tilde_QHatInvModq.size(), cudaMemcpyHostToDevice);
+                            sizeof(uint64_t) * m_tilde_QHatInvModq.size(), cudaMemcpyHostToDevice, stream);
 
             // t mod Bsk
             std::vector<uint64_t> tModBsk(base_Bsk_size);
@@ -456,36 +457,37 @@ namespace phantom {
                 tModBsk[i] = t.value();
                 tModBsk_shoup[i] = compute_shoup(t.value(), base_Bsk[i].value());
             }
-            tModBsk_.acquire(allocate<uint64_t>(global_pool(), tModBsk.size()));
-            tModBsk_shoup_.acquire(allocate<uint64_t>(global_pool(), tModBsk_shoup.size()));
-            cudaMemcpyAsync(tModBsk_.get(), tModBsk.data(), tModBsk.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+            tModBsk_ = cuda_make_shared<uint64_t>(tModBsk.size(), stream);
+            tModBsk_shoup_ = cuda_make_shared<uint64_t>(tModBsk_shoup.size(), stream);
+            cudaMemcpyAsync(tModBsk_.get(), tModBsk.data(), tModBsk.size() * sizeof(uint64_t), cudaMemcpyHostToDevice,
+                            stream);
             cudaMemcpyAsync(tModBsk_shoup_.get(), tModBsk_shoup.data(), tModBsk_shoup.size() * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
 
             // Set up BaseConverter for base_Q --> Bsk
             BaseConverter base_q_to_Bsk_conv(base_Q, base_Bsk);
-            base_q_to_Bsk_conv_.init(base_q_to_Bsk_conv, stream_wrapper);
+            base_q_to_Bsk_conv_.init(base_q_to_Bsk_conv, stream);
 
             // Set up BaseConverter for base_Q --> {m_tilde}
             BaseConverter base_q_to_m_tilde_conv(base_Q, RNSBase({m_tilde}));
-            base_q_to_m_tilde_conv_.init(base_q_to_m_tilde_conv, stream_wrapper);
+            base_q_to_m_tilde_conv_.init(base_q_to_m_tilde_conv, stream);
 
             // Set up BaseConverter for B --> base_Q
             BaseConverter base_B_to_q_conv(base_B, base_Q);
-            base_B_to_q_conv_.init(base_B_to_q_conv, stream_wrapper);
+            base_B_to_q_conv_.init(base_B_to_q_conv, stream);
 
             // Set up BaseConverter for B --> {m_sk}
             BaseConverter base_B_to_m_sk_conv(base_B, RNSBase({m_sk}));
-            base_B_to_m_sk_conv_.init(base_B_to_m_sk_conv, stream_wrapper);
+            base_B_to_m_sk_conv_.init(base_B_to_m_sk_conv, stream);
 
             // Compute prod(B) mod base_Q
             std::vector<std::uint64_t> prod_B_mod_q(size_Q);
             for (size_t i = 0; i < prod_B_mod_q.size(); i++) {
                 prod_B_mod_q[i] = modulo_uint(base_B.big_modulus(), base_B_size, base_Q[i]);
             }
-            prod_B_mod_q_.acquire(allocate<uint64_t>(global_pool(), prod_B_mod_q.size()));
+            prod_B_mod_q_ = cuda_make_shared<uint64_t>(prod_B_mod_q.size(), stream);
             cudaMemcpyAsync(prod_B_mod_q_.get(), prod_B_mod_q.data(), prod_B_mod_q.size() * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
 
             uint64_t temp;
 
@@ -500,12 +502,12 @@ namespace phantom {
                 inv_prod_q_mod_Bsk[i] = temp;
                 inv_prod_q_mod_Bsk_shoup[i] = compute_shoup(temp, base_Bsk[i].value());
             }
-            inv_prod_q_mod_Bsk_.acquire(allocate<uint64_t>(global_pool(), inv_prod_q_mod_Bsk.size()));
-            inv_prod_q_mod_Bsk_shoup_.acquire(allocate<uint64_t>(global_pool(), inv_prod_q_mod_Bsk_shoup.size()));
+            inv_prod_q_mod_Bsk_ = cuda_make_shared<uint64_t>(inv_prod_q_mod_Bsk.size(), stream);
+            inv_prod_q_mod_Bsk_shoup_ = cuda_make_shared<uint64_t>(inv_prod_q_mod_Bsk_shoup.size(), stream);
             cudaMemcpyAsync(inv_prod_q_mod_Bsk_.get(), inv_prod_q_mod_Bsk.data(),
-                            inv_prod_q_mod_Bsk.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            inv_prod_q_mod_Bsk.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_prod_q_mod_Bsk_shoup_.get(), inv_prod_q_mod_Bsk_shoup.data(),
-                            inv_prod_q_mod_Bsk_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            inv_prod_q_mod_Bsk_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
             // Compute prod(B)^(-1) mod m_sk
             temp = modulo_uint(base_B.big_modulus(), base_B_size, m_sk);
@@ -527,12 +529,12 @@ namespace phantom {
                 inv_m_tilde_mod_Bsk[i] = temp;
                 inv_m_tilde_mod_Bsk_shoup[i] = compute_shoup(temp, base_Bsk[i].value());
             }
-            inv_m_tilde_mod_Bsk_.acquire(allocate<uint64_t>(global_pool(), inv_m_tilde_mod_Bsk.size()));
-            inv_m_tilde_mod_Bsk_shoup_.acquire(allocate<uint64_t>(global_pool(), inv_m_tilde_mod_Bsk.size()));
+            inv_m_tilde_mod_Bsk_ = cuda_make_shared<uint64_t>(inv_m_tilde_mod_Bsk.size(), stream);
+            inv_m_tilde_mod_Bsk_shoup_ = cuda_make_shared<uint64_t>(inv_m_tilde_mod_Bsk_shoup.size(), stream);
             cudaMemcpyAsync(inv_m_tilde_mod_Bsk_.get(), inv_m_tilde_mod_Bsk.data(),
-                            sizeof(uint64_t) * inv_m_tilde_mod_Bsk.size(), cudaMemcpyHostToDevice);
+                            sizeof(uint64_t) * inv_m_tilde_mod_Bsk.size(), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_m_tilde_mod_Bsk_shoup_.get(), inv_m_tilde_mod_Bsk_shoup.data(),
-                            sizeof(uint64_t) * inv_m_tilde_mod_Bsk_shoup.size(), cudaMemcpyHostToDevice);
+                            sizeof(uint64_t) * inv_m_tilde_mod_Bsk_shoup.size(), cudaMemcpyHostToDevice, stream);
 
             // Compute prod(base_Q)^(-1) mod m_tilde
             temp = modulo_uint(base_Q.big_modulus(), size_Q, m_tilde);
@@ -549,9 +551,9 @@ namespace phantom {
             for (size_t i = 0; i < base_Bsk_size; i++) {
                 prod_q_mod_Bsk[i] = modulo_uint(base_Q.big_modulus(), size_Q, base_Bsk[i]);
             }
-            prod_q_mod_Bsk_.acquire(allocate<uint64_t>(global_pool(), prod_q_mod_Bsk.size()));
+            prod_q_mod_Bsk_ = cuda_make_shared<uint64_t>(prod_q_mod_Bsk.size(), stream);
             cudaMemcpyAsync(prod_q_mod_Bsk_.get(), prod_q_mod_Bsk.data(), prod_q_mod_Bsk.size() * sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
+                            cudaMemcpyHostToDevice, stream);
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -604,21 +606,21 @@ namespace phantom {
 
                 t_QHatInv_mod_q_div_q_mod_t[i] = value_t_QHatInv_mod_q_div_q_mod_t;
                 t_QHatInv_mod_q_div_q_mod_t_shoup[i] = compute_shoup(value_t_QHatInv_mod_q_div_q_mod_t, t.value());
-                t_QHatInv_mod_q_div_q_mod_t_.acquire(
-                        allocate<uint64_t>(global_pool(), t_QHatInv_mod_q_div_q_mod_t.size()));
-                t_QHatInv_mod_q_div_q_mod_t_shoup_.acquire(
-                        allocate<uint64_t>(global_pool(), t_QHatInv_mod_q_div_q_mod_t.size()));
+                t_QHatInv_mod_q_div_q_mod_t_ = cuda_make_shared<uint64_t>(t_QHatInv_mod_q_div_q_mod_t.size(), stream);
+                t_QHatInv_mod_q_div_q_mod_t_shoup_ =
+                        cuda_make_shared<uint64_t>(t_QHatInv_mod_q_div_q_mod_t_shoup.size(), stream);
                 cudaMemcpyAsync(t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_mod_t.data(),
-                                t_QHatInv_mod_q_div_q_mod_t.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                t_QHatInv_mod_q_div_q_mod_t.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(t_QHatInv_mod_q_div_q_mod_t_shoup_.get(), t_QHatInv_mod_q_div_q_mod_t_shoup.data(),
-                                t_QHatInv_mod_q_div_q_mod_t_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                t_QHatInv_mod_q_div_q_mod_t_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice,
+                                stream);
 
                 uint64_t numerator = modulo_uint(big_t_QHatInv_mod_qi.data(), 2, qi);
                 uint64_t denominator = qi.value();
                 t_QHatInv_mod_q_div_q_frac[i] = static_cast<double>(numerator) / static_cast<double>(denominator);
-                t_QHatInv_mod_q_div_q_frac_.acquire(allocate<double>(global_pool(), t_QHatInv_mod_q_div_q_frac.size()));
+                t_QHatInv_mod_q_div_q_frac_ = cuda_make_shared<double>(t_QHatInv_mod_q_div_q_frac.size(), stream);
                 cudaMemcpyAsync(t_QHatInv_mod_q_div_q_frac_.get(), t_QHatInv_mod_q_div_q_frac.data(),
-                                t_QHatInv_mod_q_div_q_frac.size() * sizeof(double), cudaMemcpyHostToDevice);
+                                t_QHatInv_mod_q_div_q_frac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
                 if (qMSB + sizeQMSB >= 52) {
                     size_t qMSBHf = qMSB >> 1;
@@ -640,22 +642,25 @@ namespace phantom {
                     t_QHatInv_mod_q_B_div_q_mod_t[i] = value_t_QHatInv_mod_q_B_div_q_mod_t;
                     t_QHatInv_mod_q_B_div_q_mod_t_shoup[i] =
                             compute_shoup(value_t_QHatInv_mod_q_B_div_q_mod_t, t.value());
-                    t_QHatInv_mod_q_B_div_q_mod_t_.acquire(
-                            allocate<uint64_t>(global_pool(), t_QHatInv_mod_q_B_div_q_mod_t.size()));
-                    t_QHatInv_mod_q_B_div_q_mod_t_shoup_.acquire(
-                            allocate<uint64_t>(global_pool(), t_QHatInv_mod_q_B_div_q_mod_t.size()));
+                    t_QHatInv_mod_q_B_div_q_mod_t_ =
+                            cuda_make_shared<uint64_t>(t_QHatInv_mod_q_B_div_q_mod_t.size(), stream);
+                    t_QHatInv_mod_q_B_div_q_mod_t_shoup_ =
+                            cuda_make_shared<uint64_t>(t_QHatInv_mod_q_B_div_q_mod_t_shoup.size(), stream);
                     cudaMemcpyAsync(t_QHatInv_mod_q_B_div_q_mod_t_.get(), t_QHatInv_mod_q_B_div_q_mod_t.data(),
-                                    t_QHatInv_mod_q_B_div_q_mod_t.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                    t_QHatInv_mod_q_B_div_q_mod_t.size() * sizeof(uint64_t), cudaMemcpyHostToDevice,
+                                    stream);
                     cudaMemcpyAsync(
                             t_QHatInv_mod_q_B_div_q_mod_t_shoup_.get(), t_QHatInv_mod_q_B_div_q_mod_t_shoup.data(),
-                            t_QHatInv_mod_q_B_div_q_mod_t_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            t_QHatInv_mod_q_B_div_q_mod_t_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice,
+                            stream);
 
                     numerator = modulo_uint(t_QHatInv_B_mod_qi.data(), 2, qi);
                     t_QHatInv_mod_q_B_div_q_frac[i] = static_cast<double>(numerator) / static_cast<double>(denominator);
-                    t_QHatInv_mod_q_B_div_q_frac_.acquire(
-                            allocate<double>(global_pool(), t_QHatInv_mod_q_B_div_q_frac.size()));
+                    t_QHatInv_mod_q_B_div_q_frac_ = cuda_make_shared<double>(t_QHatInv_mod_q_B_div_q_frac.size(),
+                                                                             stream);
                     cudaMemcpyAsync(t_QHatInv_mod_q_B_div_q_frac_.get(), t_QHatInv_mod_q_B_div_q_frac.data(),
-                                    t_QHatInv_mod_q_B_div_q_frac.size() * sizeof(double), cudaMemcpyHostToDevice);
+                                    t_QHatInv_mod_q_B_div_q_frac.size() * sizeof(double), cudaMemcpyHostToDevice,
+                                    stream);
                 }
             }
         }
@@ -674,9 +679,9 @@ namespace phantom {
             // each prime in R is smaller than the smallest prime in Q
             auto modulus_R = get_primes_below(n_, modulus_Q[min_q_idx].value(), size_R);
             RNSBase base_Rl(modulus_R);
-            base_Rl_.init(base_Rl, stream_wrapper);
+            base_Rl_.init(base_Rl, stream);
             RNSBase base_QlRl(base_Q.extend(base_Rl));
-            base_QlRl_.init(base_QlRl, stream_wrapper);
+            base_QlRl_.init(base_QlRl, stream);
 
             // Generate QR NTT tables
             RNSNTT base_QlRl_ntt_tables(log_n, vector(base_QlRl.base(), base_QlRl.base() + size_QR));
@@ -699,11 +704,11 @@ namespace phantom {
 
             // Used for switching ciphertext from basis Q to R
             BaseConverter base_Ql_to_Rl_conv(base_Ql, base_Rl);
-            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv, stream_wrapper);
+            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv, stream);
 
             // Used for switching ciphertext from basis R to Q
             BaseConverter base_Rl_to_Ql_conv(base_Rl, base_Q);
-            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv, stream_wrapper);
+            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv, stream);
 
             // Used for t/Q scale&round in HPS method
             vector<double> tRSHatInvModsDivsFrac(size_Q);
@@ -727,9 +732,9 @@ namespace phantom {
                 uint64_t tRSHatInvModsModqi = modulo_uint(tRSHatInvMods[i].data(), size_R + 2, qi);
                 tRSHatInvModsDivsFrac[i] = static_cast<double>(tRSHatInvModsModqi) / static_cast<double>(qi.value());
             }
-            tRSHatInvModsDivsFrac_.acquire(allocate<double>(global_pool(), tRSHatInvModsDivsFrac.size()));
+            tRSHatInvModsDivsFrac_ = cuda_make_shared<double>(tRSHatInvModsDivsFrac.size(), stream);
             cudaMemcpyAsync(tRSHatInvModsDivsFrac_.get(), tRSHatInvModsDivsFrac.data(),
-                            tRSHatInvModsDivsFrac.size() * sizeof(double), cudaMemcpyHostToDevice);
+                            tRSHatInvModsDivsFrac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
             // compute tRSHatInvModsDivs
             vector<vector<uint64_t>> tRSHatInvModsDivs(size_QR);
@@ -762,12 +767,12 @@ namespace phantom {
                 tRSHatInvModsDivsModr_shoup[j * (size_Q + 1) + size_Q] =
                         compute_shoup(tRSHatInvModsDivrjModrj, rj.value());
             }
-            tRSHatInvModsDivsModr_.acquire(allocate<uint64_t>(global_pool(), tRSHatInvModsDivsModr.size()));
-            tRSHatInvModsDivsModr_shoup_.acquire(allocate<uint64_t>(global_pool(), tRSHatInvModsDivsModr.size()));
+            tRSHatInvModsDivsModr_ = cuda_make_shared<uint64_t>(tRSHatInvModsDivsModr.size(), stream);
+            tRSHatInvModsDivsModr_shoup_ = cuda_make_shared<uint64_t>(tRSHatInvModsDivsModr_shoup.size(), stream);
             cudaMemcpyAsync(tRSHatInvModsDivsModr_.get(), tRSHatInvModsDivsModr.data(),
-                            tRSHatInvModsDivsModr.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            tRSHatInvModsDivsModr.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(tRSHatInvModsDivsModr_shoup_.get(), tRSHatInvModsDivsModr_shoup.data(),
-                            tRSHatInvModsDivsModr_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            tRSHatInvModsDivsModr_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
         }
 
         if ((mul_tech == mul_tech_type::hps_overq && base_size == size_Q) ||
@@ -780,9 +785,9 @@ namespace phantom {
             // each prime in Rl is smaller than the smallest prime in Ql
             auto modulus_Rl = get_primes_below(n, modulus_Q[min_q_idx].value(), size_Rl);
             RNSBase base_Rl(modulus_Rl);
-            base_Rl_.init(base_Rl, stream_wrapper);
+            base_Rl_.init(base_Rl, stream);
             RNSBase base_QlRl(base_Ql.extend(base_Rl));
-            base_QlRl_.init(base_QlRl, stream_wrapper);
+            base_QlRl_.init(base_QlRl, stream);
 
             // Generate QlRl NTT tables
             RNSNTT base_QlRl_ntt_tables(log_n, vector(base_QlRl.base(), base_QlRl.base() + size_QlRl));
@@ -804,11 +809,11 @@ namespace phantom {
 
             // Used for switching ciphertext from basis Q(Ql) to R(Rl)
             BaseConverter base_Ql_to_Rl_conv(base_Ql, base_Rl);
-            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv, stream_wrapper);
+            base_Ql_to_Rl_conv_.init(base_Ql_to_Rl_conv, stream);
 
             // Used for switching ciphertext from basis Rl to Ql
             BaseConverter base_Rl_to_Ql_conv(base_Rl, base_Ql);
-            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv, stream_wrapper);
+            base_Rl_to_Ql_conv_.init(base_Rl_to_Ql_conv, stream);
 
             // Used for t/Rl scale&round in overQ variants
             vector<double> tQlSlHatInvModsDivsFrac(size_Rl);
@@ -833,9 +838,9 @@ namespace phantom {
                 tQlSlHatInvModsDivsFrac[j] =
                         static_cast<double>(tQlSlHatInvModsModrj) / static_cast<double>(rj.value());
             }
-            tQlSlHatInvModsDivsFrac_.acquire(allocate<double>(global_pool(), tQlSlHatInvModsDivsFrac.size()));
+            tQlSlHatInvModsDivsFrac_ = cuda_make_shared<double>(tQlSlHatInvModsDivsFrac.size(), stream);
             cudaMemcpyAsync(tQlSlHatInvModsDivsFrac_.get(), tQlSlHatInvModsDivsFrac.data(),
-                            tQlSlHatInvModsDivsFrac.size() * sizeof(double), cudaMemcpyHostToDevice);
+                            tQlSlHatInvModsDivsFrac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
             // compute tQlSlHatInvModsDivs
             vector<vector<uint64_t>> tQlSlHatInvModsDivs(size_QlRl);
@@ -869,12 +874,12 @@ namespace phantom {
                 tQlSlHatInvModsDivsModq_shoup[i * (size_Rl + 1) + size_Rl] =
                         compute_shoup(tQlSlHatInvModsDivqiModqi, qi.value());
             }
-            tQlSlHatInvModsDivsModq_.acquire(allocate<uint64_t>(global_pool(), tQlSlHatInvModsDivsModq.size()));
-            tQlSlHatInvModsDivsModq_shoup_.acquire(allocate<uint64_t>(global_pool(), tQlSlHatInvModsDivsModq.size()));
+            tQlSlHatInvModsDivsModq_ = cuda_make_shared<uint64_t>(tQlSlHatInvModsDivsModq.size(), stream);
+            tQlSlHatInvModsDivsModq_shoup_ = cuda_make_shared<uint64_t>(tQlSlHatInvModsDivsModq_shoup.size(), stream);
             cudaMemcpyAsync(tQlSlHatInvModsDivsModq_.get(), tQlSlHatInvModsDivsModq.data(),
-                            tQlSlHatInvModsDivsModq.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            tQlSlHatInvModsDivsModq.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(tQlSlHatInvModsDivsModq_shoup_.get(), tQlSlHatInvModsDivsModq_shoup.data(),
-                            tQlSlHatInvModsDivsModq_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                            tQlSlHatInvModsDivsModq_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
             // drop levels
             if (mul_tech == mul_tech_type::hps_overq_leveled && base_size < size_Q) {
@@ -887,15 +892,15 @@ namespace phantom {
                 for (size_t i = 0; i < size_QlDrop; i++)
                     modulus_QlDrop[i] = modulus_Q[size_Ql + i];
                 RNSBase base_QlDrop(modulus_QlDrop);
-                base_QlDrop_.init(base_QlDrop, stream_wrapper);
+                base_QlDrop_.init(base_QlDrop, stream);
 
                 // Used for switching ciphertext from basis Q to Rl
                 BaseConverter base_Q_to_Rl_conv(base_Q, base_Rl);
-                base_Q_to_Rl_conv_.init(base_Q_to_Rl_conv, stream_wrapper);
+                base_Q_to_Rl_conv_.init(base_Q_to_Rl_conv, stream);
 
                 // Used for switching ciphertext from basis Ql to QlDrop (Ql modup to Q)
                 BaseConverter base_Ql_to_QlDrop_conv(base_Ql, base_QlDrop);
-                base_Ql_to_QlDrop_conv_.init(base_Ql_to_QlDrop_conv, stream_wrapper);
+                base_Ql_to_QlDrop_conv_.init(base_Ql_to_QlDrop_conv, stream);
 
                 vector<double> QlQHatInvModqDivqFrac(size_QlDrop);
                 vector<uint64_t> QlQHatInvModqDivqModq(size_Ql * (size_QlDrop + 1));
@@ -916,9 +921,9 @@ namespace phantom {
                     QlQHatInvModqDivqFrac[j] =
                             static_cast<double>(QlQHatInvModqModrj) / static_cast<double>(rj.value());
                 }
-                QlQHatInvModqDivqFrac_.acquire(allocate<double>(global_pool(), QlQHatInvModqDivqFrac.size()));
+                QlQHatInvModqDivqFrac_ = cuda_make_shared<double>(QlQHatInvModqDivqFrac.size(), stream);
                 cudaMemcpyAsync(QlQHatInvModqDivqFrac_.get(), QlQHatInvModqDivqFrac.data(),
-                                QlQHatInvModqDivqFrac.size() * sizeof(double), cudaMemcpyHostToDevice);
+                                QlQHatInvModqDivqFrac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
                 // compute QlQHatInvModqDivq
                 vector<vector<uint64_t>> QlQHatInvModqDivq(size_Q);
@@ -952,14 +957,15 @@ namespace phantom {
                     QlQHatInvModqDivqModq_shoup[i * (size_QlDrop + 1) + size_QlDrop] =
                             compute_shoup(QlQHatInvModqDivqiModqi, qi.value());
                 }
-                QlQHatInvModqDivqModq_.acquire(allocate<uint64_t>(global_pool(), QlQHatInvModqDivqModq.size()));
-                QlQHatInvModqDivqModq_shoup_.acquire(allocate<uint64_t>(global_pool(), QlQHatInvModqDivqModq.size()));
+                QlQHatInvModqDivqModq_ = cuda_make_shared<uint64_t>(QlQHatInvModqDivqModq.size(), stream);
+                QlQHatInvModqDivqModq_shoup_ = cuda_make_shared<uint64_t>(QlQHatInvModqDivqModq_shoup.size(), stream);
                 cudaMemcpyAsync(QlQHatInvModqDivqModq_.get(), QlQHatInvModqDivqModq.data(),
-                                QlQHatInvModqDivqModq.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                QlQHatInvModqDivqModq.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(QlQHatInvModqDivqModq_shoup_.get(), QlQHatInvModqDivqModq_shoup.data(),
-                                QlQHatInvModqDivqModq_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+                                QlQHatInvModqDivqModq_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             }
         }
+        cudaStreamSynchronize(stream);
     }
 
     __global__ void perform_final_multiplication(uint64_t *dst, const uint64_t *src, const uint64_t inv_gamma_mod_t,
@@ -976,8 +982,7 @@ namespace phantom {
                 temp = barrett_reduce_uint64_uint64((gamma_value - src[poly_degree + tid]), t.value(),
                                                     t.const_ratio()[1]);
                 temp = add_uint64_uint64_mod(src[tid], temp, t.value());
-            }
-            else {
+            } else {
                 // No correction needed
                 temp = barrett_reduce_uint64_uint64(src[poly_degree + tid], t.value(), t.const_ratio()[1]);
                 temp = sub_uint64_uint64_mod(src[tid], temp, t.value());
@@ -1011,8 +1016,7 @@ namespace phantom {
                 multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
                         temp, neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(), base_t_gamma_.base(), temp, n_,
                         base_t_gamma_size);
-            }
-            else {
+            } else {
                 // coeff_mod_size = 1
                 gridDimGlb = n_ * coeff_mod_size / blockDimGlb.x;
                 multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(temp, neg_inv_q_mod_t_gamma(),
@@ -1028,8 +1032,7 @@ namespace phantom {
             gridDimGlb = n_ / blockDimGlb.x;
             perform_final_multiplication<<<gridDimGlb, blockDimGlb>>>(dst, temp, inv_gamma_mod_t_,
                                                                       inv_gamma_mod_t_shoup_, n_, base_t_gamma_.base());
-        }
-        else {
+        } else {
             // Need additional memory
             Pointer<uint64_t> t_gamma;
             t_gamma.acquire(allocate<uint64_t>(global_pool(), base_t_gamma_size * n_));
@@ -1043,8 +1046,7 @@ namespace phantom {
                 multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
                         t_gamma.get(), neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(), base_t_gamma_.base(),
                         t_gamma.get(), n_, base_t_gamma_size);
-            }
-            else {
+            } else {
                 gridDimGlb = n_ * coeff_mod_size / blockDimGlb.x;
                 multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
                         t_gamma.get(), neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(), base_t_gamma_.base(),
@@ -1146,7 +1148,7 @@ namespace phantom {
         uint64_t gridDimGlb = n_ * next_base_q_size / blockDimGlb.x;
 
         for (size_t i = 0; i < cipher_size; i++) {
-            uint64_t *ci_in = (uint64_t *)src + i * n_ * base_q_size;
+            uint64_t *ci_in = (uint64_t *) src + i * n_ * base_q_size;
             uint64_t *ci_out = dst + i * n_ * next_base_q_size;
 
             //  Convert ci[last] to non-NTT form
@@ -1573,8 +1575,7 @@ namespace phantom {
                 // only once using floating point techniques
                 hps_decrypt_scale_and_round_kernel_small_lazy<<<gridDimGlb, blockDimGlb>>>(
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_frac_.get(), t, n, size_Ql);
-            }
-            else {
+            } else {
                 // In case of qMSB + sizeQMSB >= 52 we decompose x_i in the basis
                 // B=2^{qMSB/2} And split the sum \sum x_i*tQHatInvModqDivqFrac[i] to
                 // the sum \sum xLo_i*tQHatInvModqDivqFrac[i] +
@@ -1589,8 +1590,7 @@ namespace phantom {
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_mod_t_shoup_.get(),
                         t_QHatInv_mod_q_div_q_frac_.get(), t, n, size_Ql);
             }
-        }
-        else {
+        } else {
             // qMSB_ + sizeQMSB_ >= 52
             size_t qMSBHf = qMSB_ >> 1;
             if ((qMSBHf + tMSB_ + sizeQMSB_) < 52) {
@@ -1602,8 +1602,7 @@ namespace phantom {
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_frac_.get(),
                         t_QHatInv_mod_q_B_div_q_mod_t_.get(), t_QHatInv_mod_q_B_div_q_frac_.get(), t, n, size_Ql,
                         qMSBHf);
-            }
-            else {
+            } else {
                 hps_decrypt_scale_and_round_kernel_large<<<gridDimGlb, blockDimGlb>>>(
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_mod_t_shoup_.get(),
                         t_QHatInv_mod_q_div_q_frac_.get(), t_QHatInv_mod_q_B_div_q_mod_t_.get(),
@@ -1721,12 +1720,13 @@ namespace phantom {
     }
 
     // reuse scaleAndRound_HPS_QlRl_Ql_kernel
-    void DRNSTool::scaleAndRound_HPS_Q_Ql(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::scaleAndRound_HPS_Q_Ql(uint64_t *dst, const uint64_t *src,
+                                          const cudaStream_t &stream) const {
         uint64_t gridDimGlb = n_ / blockDimGlb.x;
         size_t n = n_;
         size_t size_Ql = base_Ql_.size();
         size_t size_QlDrop = base_QlDrop_.size();
-        scaleAndRound_HPS_QlRl_Ql_kernel<<<gridDimGlb, blockDimGlb>>>(
+        scaleAndRound_HPS_QlRl_Ql_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 dst, src, QlQHatInvModqDivqModq(), QlQHatInvModqDivqFrac(), base_Ql_.base(), n, size_Ql, size_QlDrop);
     }
 
@@ -1741,8 +1741,7 @@ namespace phantom {
             if (i < size_Ql) {
                 auto modulus = base_Ql[i].value();
                 out[tid] = multiply_and_reduce_shoup(in[tid], QlDropModq[i], QlDropModq_shoup[i], modulus);
-            }
-            else {
+            } else {
                 out[tid] = 0;
             }
         }

@@ -20,6 +20,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
     std::cout << "Example: CKKS Basics" << std::endl;

@@ -18,6 +18,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void example_bfv_basics() {
     std::cout << "Example: BFV Basics" << std::endl;

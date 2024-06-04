@@ -9,9 +9,8 @@
 #include <unordered_map>
 
 using namespace std;
-using namespace phantom::util;
 
-namespace phantom {
+namespace phantom::arith {
     void Modulus::set_value(uint64_t value) {
         if (value == 0) {
             // Zero settings
@@ -20,11 +19,9 @@ namespace phantom {
             value_ = 0;
             const_ratio_ = {{0, 0, 0}};
             is_prime_ = false;
-        }
-        else if ((value >> MOD_BIT_COUNT_MAX != 0) || (value == 1)) {
+        } else if ((value >> MOD_BIT_COUNT_MAX != 0) || (value == 1)) {
             throw invalid_argument("value can be at most 61-bit and cannot be 1");
-        }
-        else {
+        } else {
             value_ = value;
             bit_count_ = get_significant_bit_count(value_);
 
@@ -45,7 +42,7 @@ namespace phantom {
             uint64_count_ = 1;
 
             // Set the primality flag
-            is_prime_ = util::is_prime(*this);
+            is_prime_ = ::phantom::arith::is_prime(*this);
         }
     }
 
@@ -56,7 +53,7 @@ namespace phantom {
         return barrett_reduce_64(value, *this);
     }
 
-    vector<Modulus> CoeffModulus::BFVDefault(size_t poly_modulus_degree, sec_level_type sec_level) {
+    vector <Modulus> CoeffModulus::BFVDefault(size_t poly_modulus_degree, sec_level_type sec_level) {
         if (!MaxBitCount(poly_modulus_degree, sec_level)) {
             throw invalid_argument("non-standard poly_modulus_degree");
         }
@@ -66,20 +63,20 @@ namespace phantom {
 
         switch (sec_level) {
             case sec_level_type::tc128:
-                return global_variables::GetDefaultCoeffModulus128().at(poly_modulus_degree);
+                return util::global_variables::GetDefaultCoeffModulus128().at(poly_modulus_degree);
 
             case sec_level_type::tc192:
-                return global_variables::GetDefaultCoeffModulus192().at(poly_modulus_degree);
+                return util::global_variables::GetDefaultCoeffModulus192().at(poly_modulus_degree);
 
             case sec_level_type::tc256:
-                return global_variables::GetDefaultCoeffModulus256().at(poly_modulus_degree);
+                return util::global_variables::GetDefaultCoeffModulus256().at(poly_modulus_degree);
 
             default:
                 throw runtime_error("invalid security level");
         }
     }
 
-    vector<Modulus> CoeffModulus::Create(size_t poly_modulus_degree, vector<int> bit_sizes) {
+    vector <Modulus> CoeffModulus::Create(size_t poly_modulus_degree, const vector<int> &bit_sizes) {
         if (poly_modulus_degree > POLY_MOD_DEGREE_MAX || poly_modulus_degree < POLY_MOD_DEGREE_MIN ||
             get_power_of_two(static_cast<uint64_t>(poly_modulus_degree)) < 0) {
             throw invalid_argument("poly_modulus_degree is invalid");

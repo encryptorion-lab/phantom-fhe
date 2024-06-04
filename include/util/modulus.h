@@ -9,7 +9,7 @@
 #include <vector>
 #include <limits>
 
-namespace phantom {
+namespace phantom::arith {
     /** Store pre-computation for Barrett reduction.
     Represent a non-negative integer modulus of up to 61 bits.
     */
@@ -267,7 +267,7 @@ namespace phantom {
         @param[in] sec_level The desired standard security level
         */
         [[nodiscard]] static constexpr int MaxBitCount(
-            std::size_t poly_modulus_degree, sec_level_type sec_level = sec_level_type::tc128) noexcept {
+                std::size_t poly_modulus_degree, sec_level_type sec_level = sec_level_type::tc128) noexcept {
             switch (sec_level) {
                 case sec_level_type::tc128:
                     return util::he_std_parms_128_tc(poly_modulus_degree);
@@ -298,7 +298,7 @@ namespace phantom {
         @throws std::invalid_argument if sec_level is sec_level_type::none
         */
         [[nodiscard]] static std::vector<Modulus> BFVDefault(
-            std::size_t poly_modulus_degree, sec_level_type sec_level = sec_level_type::tc128);
+                std::size_t poly_modulus_degree, sec_level_type sec_level = sec_level_type::tc128);
 
         /**
         Returns a custom coefficient modulus suitable for use with the specified
@@ -316,7 +316,8 @@ namespace phantom {
         are out of bounds
         @throws std::logic_error if not enough suitable primes could be found
         */
-        [[nodiscard]] static std::vector<Modulus> Create(std::size_t poly_modulus_degree, std::vector<int> bit_sizes);
+        [[nodiscard]] static std::vector<Modulus>
+        Create(std::size_t poly_modulus_degree, const std::vector<int> &bit_sizes);
     };
 
     /**
@@ -357,7 +358,7 @@ namespace phantom {
         @throws std::logic_error if not enough suitable primes could be found
         */
         [[nodiscard]] static inline std::vector<Modulus> Batching(
-            std::size_t poly_modulus_degree, std::vector<int> bit_sizes) {
+                std::size_t poly_modulus_degree, std::vector<int> bit_sizes) {
             return CoeffModulus::Create(poly_modulus_degree, bit_sizes);
         }
     };

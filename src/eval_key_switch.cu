@@ -1,4 +1,4 @@
-#include "evaluate.h"
+#include "evaluate.cuh"
 #include "mempool.cuh"
 #include "ntt.cuh"
 #include "polymath.cuh"
@@ -90,7 +90,9 @@ void key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uin
 
 // cks refers to cipher to be key-switched
 void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, uint64_t *cks,
-                        const PhantomRelinKey &relin_keys, bool is_relin) {
+                        const PhantomRelinKey &relin_keys, bool is_relin, const cuda_stream_wrapper *p_stream_wrapper) {
+    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
     auto &key_parms = key_context_data.parms();
@@ -116,11 +118,9 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
             // how many levels to drop
             levelsDropped = FindLevelsToDrop(context, levels, dcrtBits, isKeySwitch, is_Asymmetric);
         }
-    }
-    else if (scheme == scheme_type::bgv || scheme == scheme_type::ckks) {
+    } else if (scheme == scheme_type::bgv || scheme == scheme_type::ckks) {
         levelsDropped = encrypted.chain_index() - 1;
-    }
-    else {
+    } else {
         throw invalid_argument("unsupported scheme in switch_key_inplace");
     }
 
@@ -136,13 +136,14 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
     // auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
+    cudaDeviceSynchronize();
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        Pointer<uint64_t> t_cks;
-        t_cks.acquire(allocate<uint64_t>(global_pool(), size_Q * n));
-        cudaMemcpyAsync(t_cks.get(), cks, size_Q * n * sizeof(uint64_t), cudaMemcpyDeviceToDevice);
-        rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get());
-        t_cks.release();
+        auto t_cks = phantom::util::cuda_make_shared<uint64_t>(size_Q * n, stream);
+        cudaMemcpyAsync(t_cks.get(), cks, size_Q * n * sizeof(uint64_t),
+                        cudaMemcpyDeviceToDevice, stream);
+        rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get(), stream);
     }
+    cudaDeviceSynchronize();
 
     // Prepare key
     auto &key_vector = relin_keys.public_keys_;
@@ -186,8 +187,7 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
             add_to_ct_kernel<<<(size_Q * n) / blockDimGlb.x, blockDimGlb>>>(ct_i, t_cx.get(), rns_tool.base_Q().base(),
                                                                             n, size_Q);
             t_cx.release();
-        }
-        else {
+        } else {
             auto ct_i = encrypted.data() + i * size_Ql_n;
             add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(ct_i, cx_i, rns_tool.base_Ql().base(), n,
                                                                          size_Ql);

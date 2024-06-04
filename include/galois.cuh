@@ -20,8 +20,8 @@ typedef struct PhantomGaloisTool {
     bool is_bfv_;
 
     PhantomGaloisTool(const std::vector<uint32_t> &galois_elts, int coeff_count_power, bool is_bfv = false) {
-        if ((coeff_count_power < phantom::util::get_power_of_two(POLY_MOD_DEGREE_MIN)) ||
-            coeff_count_power > phantom::util::get_power_of_two(POLY_MOD_DEGREE_MAX)) {
+        if ((coeff_count_power < phantom::arith::get_power_of_two(POLY_MOD_DEGREE_MIN)) ||
+            coeff_count_power > phantom::arith::get_power_of_two(POLY_MOD_DEGREE_MAX)) {
             throw std::invalid_argument("coeff_count_power out of range");
         }
         coeff_count_power_ = coeff_count_power;
@@ -48,10 +48,10 @@ typedef struct PhantomGaloisTool {
             auto galois_elt = galois_elts_.at(idx);
             auto temp_ptr = u32temp.data();
             for (size_t i = coeff_count_; i < coeff_count_ << 1; i++) {
-                uint32_t reversed = phantom::util::reverse_bits(static_cast<uint32_t>(i), coeff_count_power_ + 1);
+                uint32_t reversed = phantom::arith::reverse_bits(static_cast<uint32_t>(i), coeff_count_power_ + 1);
                 uint64_t index_raw = (static_cast<uint64_t>(galois_elt) * static_cast<uint64_t>(reversed)) >> 1;
                 index_raw &= static_cast<uint64_t>(coeff_count_minus_one);
-                *temp_ptr++ = phantom::util::reverse_bits(static_cast<uint32_t>(index_raw), coeff_count_power_);
+                *temp_ptr++ = phantom::arith::reverse_bits(static_cast<uint32_t>(index_raw), coeff_count_power_);
             }
             cudaMemcpy(permutation_tables_[idx].get(), u32temp.data(), coeff_count_ * sizeof(uint32_t),
                 cudaMemcpyHostToDevice);

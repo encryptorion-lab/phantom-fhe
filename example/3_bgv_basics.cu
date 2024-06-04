@@ -19,6 +19,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV Basics" << std::endl;

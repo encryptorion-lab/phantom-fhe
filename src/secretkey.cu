@@ -7,6 +7,7 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 // Compute the infty norm of poly
 void poly_infty_norm_coeffmod(const uint64_t *poly, size_t coeff_count, size_t coeff_uint64_count,

@@ -35,7 +35,6 @@ ADD_LIBRARY(Phantom SHARED
         util/uintarith.cu
         util/uintarithmod.cu
         util/uintarithsmallmod.cu
-        util/uintcore.cu
 )
 
 target_compile_features(Phantom PUBLIC cxx_std_17 cuda_std_17)
@@ -50,7 +49,7 @@ set(PHANTOM_HEADER_FILES
         ../include/context.h
         ../include/croots.h
         ../include/util/encryptionparams.h
-        ../include/evaluate.h
+        ../include/evaluate.cuh
         ../include/fft.h
         ../include/galois.cuh
         ../include/gpucontext.h
@@ -81,7 +80,6 @@ set(PHANTOM_HEADER_FILES
         ../include/util/hestdparms.h
         ../include/util/ntt.h
         ../include/util/numth.h
-        ../include/util/polycore.h
         ../include/util/rns.h
         ../include/util/uintarith.h
         ../include/util/uintarithmod.h

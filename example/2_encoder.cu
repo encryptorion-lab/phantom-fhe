@@ -5,6 +5,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 // 8192
 vector<cuDoubleComplex>

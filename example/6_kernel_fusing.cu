@@ -3,6 +3,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void bgv_moddown_test(EncryptionParameters &parms) {
     PhantomContext context(parms);

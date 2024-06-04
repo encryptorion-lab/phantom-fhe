@@ -11,8 +11,29 @@
 #include "ntt.h"
 #include "uintarithsmallmod.h"
 
-namespace phantom::util {
+namespace phantom::arith {
     class RNSBase {
+
+    private:
+        bool initialize();
+
+        // total number of small modulus in this base
+        std::size_t size_;
+        // vector of small modulus in this base
+        std::vector<Modulus> mod_;
+        // product of all small modulus in this base, stored in 1d vector
+        std::vector<std::uint64_t> prod_mod_;
+        // product of all small modulus's hat in this base, stored in 2d vector
+        std::vector<std::uint64_t> prod_hat_;
+        // vector of qiHat mod qi
+        std::vector<uint64_t> hat_mod_;
+        std::vector<uint64_t> hat_mod_shoup_;
+        // vector of qiHatInv mod qi
+        std::vector<uint64_t> hatInv_mod_;
+        std::vector<uint64_t> hatInv_mod_shoup_;
+        // vector of 1.0 / qi
+        std::vector<double> inv_;
+
     public:
         RNSBase() : size_(0) {}
 
@@ -93,44 +114,39 @@ namespace phantom::util {
         // When the poly degree is count, perform the CRT compose in one invocation
         void compose_array(std::uint64_t *value, std::size_t count) const;
 
-        const Modulus *base() const noexcept { return mod_.data(); }
+        [[nodiscard]] const Modulus *base() const noexcept { return mod_.data(); }
 
-        const std::uint64_t *big_modulus() const noexcept { return prod_mod_.data(); }
+        [[nodiscard]] const std::uint64_t *big_modulus() const noexcept { return prod_mod_.data(); }
 
-        const std::uint64_t *big_qiHat() const noexcept { return prod_hat_.data(); }
+        [[nodiscard]] const std::uint64_t *big_qiHat() const noexcept { return prod_hat_.data(); }
 
-        const uint64_t *qiHat_mod_qi() const noexcept { return hat_mod_.data(); }
+        [[nodiscard]] const uint64_t *qiHat_mod_qi() const noexcept { return hat_mod_.data(); }
 
-        const uint64_t *qiHat_mod_qi_shoup() const noexcept { return hat_mod_shoup_.data(); }
+        [[nodiscard]] const uint64_t *qiHat_mod_qi_shoup() const noexcept { return hat_mod_shoup_.data(); }
 
-        const uint64_t *QHatInvModq() const noexcept { return hatInv_mod_.data(); }
+        [[nodiscard]] const uint64_t *QHatInvModq() const noexcept { return hatInv_mod_.data(); }
 
-        const uint64_t *QHatInvModq_shoup() const noexcept { return hatInv_mod_shoup_.data(); }
+        [[nodiscard]] const uint64_t *QHatInvModq_shoup() const noexcept { return hatInv_mod_shoup_.data(); }
 
-        const double *inv() const noexcept { return inv_.data(); }
+        [[nodiscard]] const double *inv() const noexcept { return inv_.data(); }
 
-    private:
-        bool initialize();
-
-        // total number of small modulus in this base
-        std::size_t size_;
-        // vector of small modulus in this base
-        std::vector<Modulus> mod_;
-        // product of all small modulus in this base, stored in 1d vector
-        std::vector<std::uint64_t> prod_mod_;
-        // product of all small modulus's hat in this base, stored in 2d vector
-        std::vector<std::uint64_t> prod_hat_;
-        // vector of qiHat mod qi
-        std::vector<uint64_t> hat_mod_;
-        std::vector<uint64_t> hat_mod_shoup_;
-        // vector of qiHatInv mod qi
-        std::vector<uint64_t> hatInv_mod_;
-        std::vector<uint64_t> hatInv_mod_shoup_;
-        // vector of 1.0 / qi
-        std::vector<double> inv_;
     };
 
     class BaseConverter {
+
+    private:
+        void initialize();
+
+        RNSBase ibase_;
+        RNSBase obase_;
+        std::vector<std::vector<std::uint64_t>> QHatModp_;
+        std::vector<std::vector<std::uint64_t>> alphaQModp_;
+        std::vector<uint64_t> negPQHatInvModq_;
+        std::vector<uint64_t> negPQHatInvModq_shoup_;
+        std::vector<std::vector<std::uint64_t>> QInvModp_;
+        std::vector<uint64_t> PModq_;
+        std::vector<uint64_t> PModq_shoup_;
+
     public:
         BaseConverter(const RNSBase &ibase, const RNSBase &obase) : ibase_(std::move(ibase)), obase_(std::move(obase)) {
             initialize();
@@ -179,17 +195,5 @@ namespace phantom::util {
 
         auto *PModq_shoup() { return PModq_shoup_.data(); }
 
-    private:
-        void initialize();
-
-        RNSBase ibase_;
-        RNSBase obase_;
-        std::vector<std::vector<std::uint64_t>> QHatModp_;
-        std::vector<std::vector<std::uint64_t>> alphaQModp_;
-        std::vector<uint64_t> negPQHatInvModq_;
-        std::vector<uint64_t> negPQHatInvModq_shoup_;
-        std::vector<std::vector<std::uint64_t>> QInvModp_;
-        std::vector<uint64_t> PModq_;
-        std::vector<uint64_t> PModq_shoup_;
     };
 } // namespace phantom::util

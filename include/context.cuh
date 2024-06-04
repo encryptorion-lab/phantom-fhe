@@ -20,12 +20,14 @@ namespace phantom {
     // stores pre-computation data for a given set of encryption parameters.
     class ContextData {
     public:
-        explicit ContextData(const EncryptionParameters &params,
-                             const std::shared_ptr<phantom::util::cuda_stream_wrapper> &stream_wrapper);
+        explicit ContextData(const EncryptionParameters &params, const cudaStream_t &stream);
 
         ContextData() = delete;
+
         ContextData(const ContextData &copy) = delete;
+
         ContextData(ContextData &&move) = default;
+
         ContextData &operator=(ContextData &&move) = delete;
 
         // Returns a const reference to the underlying encryption parameters.
@@ -91,6 +93,7 @@ namespace phantom {
 
         // Return the index (start from 0) for the parameters, when context chain is generated
         [[nodiscard]] std::size_t chain_index() const noexcept { return chain_index_; }
+
         void set_chain_index(const std::size_t chain_index) noexcept { chain_index_ = chain_index; }
 
     private:
@@ -147,6 +150,9 @@ namespace phantom {
 
 typedef struct PhantomContext {
 
+    // must be destroyed at last
+    std::vector<std::shared_ptr<phantom::util::cuda_stream_wrapper>> cuda_streams_wrappers_;
+
     std::vector<phantom::ContextData> context_data_;
 
     bool using_keyswitching_;
@@ -155,7 +161,6 @@ typedef struct PhantomContext {
 
     phantom::mul_tech_type mul_tech_;
 
-    std::vector<std::shared_ptr<phantom::util::cuda_stream_wrapper>> cuda_streams_wrappers_;
 
     DNTTTable gpu_rns_tables_;
 
@@ -177,9 +182,13 @@ typedef struct PhantomContext {
     std::size_t poly_degree_ = 0; // unchanged
     std::shared_ptr<PhantomGaloisTool> key_galois_tool_;
 
-    explicit PhantomContext(const phantom::EncryptionParameters &params);
+    explicit PhantomContext(const phantom::EncryptionParameters &params,
+                            const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
+
     PhantomContext(const PhantomContext &) = delete;
+
     void operator=(const PhantomContext &) = delete;
+
     ~PhantomContext() = default;
     //        phantom::util::global_variables::global_memory_pool->Release();
 

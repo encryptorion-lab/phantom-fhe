@@ -43,14 +43,6 @@ typedef struct PhantomPublicKey {
 
     ~PhantomPublicKey() = default;
 
-    void save(std::ostream &stream) {
-        pk_.save(stream);
-    }
-
-    void load(const PhantomContext &context, std::istream &stream) {
-        pk_.load(context, stream);
-    }
-
     /**
     Returns a const reference to parms_id.
     */
@@ -199,60 +191,6 @@ typedef struct PhantomRelinKey {
 
     ~PhantomRelinKey() = default;
 
-    void save(std::ostream &stream) {
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-            stream.write(reinterpret_cast<const char *>(&parms_id_), sizeof(phantom::parms_id_type));
-            stream.write(reinterpret_cast<const char *>(&gen_flag_), sizeof(bool));
-            stream.write(reinterpret_cast<const char *>(&pk_num_), sizeof(size_t));
-            for (size_t i = 0; i < pk_num_; i++) {
-                public_keys_[i].save(stream);
-            }
-        }
-        catch (const std::ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw std::runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-    }
-
-    void load(const PhantomContext &context, std::istream &stream) {
-        std::vector<PhantomPublicKey> new_data;
-
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-
-            phantom::parms_id_type parms_id{};
-            stream.read(reinterpret_cast<char *>(&parms_id), sizeof(phantom::parms_id_type));
-            parms_id_ = parms_id;
-            stream.read(reinterpret_cast<char *>(&gen_flag_), sizeof(bool));
-            stream.read(reinterpret_cast<char *>(&pk_num_), sizeof(size_t));
-            new_data.resize(pk_num_);
-            for (size_t i = 0; i < pk_num_; i++) {
-                new_data[i].load(context, stream);
-            }
-        }
-        catch (const std::ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw std::runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-
-        swap(public_keys_, new_data);
-    }
-
     /**
     Returns a reference to parms_id.
 
@@ -340,60 +278,6 @@ typedef struct PhantomGaloisKey {
     }
 
     ~PhantomGaloisKey() = default;
-
-    void save(std::ostream &stream) {
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-            stream.write(reinterpret_cast<const char *>(&parms_id_), sizeof(phantom::parms_id_type));
-            stream.write(reinterpret_cast<const char *>(&gen_flag_), sizeof(bool));
-            stream.write(reinterpret_cast<const char *>(&relin_key_num_), sizeof(size_t));
-            for (size_t i = 0; i < relin_key_num_; i++) {
-                relin_keys_[i].save(stream);
-            }
-        }
-        catch (const std::ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw std::runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-    }
-
-    void load(const PhantomContext &context, std::istream &stream) {
-        std::vector<PhantomRelinKey> new_data;
-
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-
-            phantom::parms_id_type parms_id{};
-            stream.read(reinterpret_cast<char *>(&parms_id), sizeof(phantom::parms_id_type));
-            parms_id_ = parms_id;
-            stream.read(reinterpret_cast<char *>(&gen_flag_), sizeof(bool));
-            stream.read(reinterpret_cast<char *>(&relin_key_num_), sizeof(size_t));
-            new_data.resize(relin_key_num_);
-            for (size_t i = 0; i < relin_key_num_; i++) {
-                new_data[i].load(context, stream);
-            }
-        }
-        catch (const std::ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw std::runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-
-        swap(relin_keys_, new_data);
-    }
 
     /**
     Returns a reference to parms_id.

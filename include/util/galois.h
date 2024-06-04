@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <memory>
 
-namespace phantom::util {
+namespace phantom::arith {
     class GaloisTool {
     public:
         explicit GaloisTool(int coeff_count_power) {

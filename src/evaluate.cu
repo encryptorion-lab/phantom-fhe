@@ -1,4 +1,4 @@
-#include "evaluate.h"
+#include "evaluate.cuh"
 
 #include "mempool.cuh"
 #include "rns_bconv.cuh"
@@ -8,8 +8,13 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
-static void negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, const cudaStream_t stream) {
+static void
+negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,
+                const cuda_stream_wrapper *p_stream_wrapper) {
+    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
@@ -21,21 +26,22 @@ static void negate_internal(const PhantomContext &context, PhantomCiphertext &en
 
     uint64_t gridDimGlb = rns_coeff_count / blockDimGlb.x;
     for (size_t i = 0; i < encrypted.size(); i++) {
-        negate_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(encrypted.data() + i * rns_coeff_count, base_rns,
-                                                                encrypted.data() + i * rns_coeff_count,
-                                                                poly_degree,
-                                                                coeff_mod_size);
+        negate_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                encrypted.data() + i * rns_coeff_count, base_rns,
+                encrypted.data() + i * rns_coeff_count,
+                poly_degree,
+                coeff_mod_size);
     }
+    cudaStreamSynchronize(stream);
 }
 
-void negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted) {
-    negate_internal(context, encrypted, cudaStreamLegacy);
+void
+negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+               const cuda_stream_wrapper *p_stream_wrapper) {
+    negate_internal(context, encrypted, p_stream_wrapper);
 }
 
-void negate_inplace_async(const PhantomContext &context, PhantomCiphertext &encrypted, const cudaStream_t stream) {
-    negate_internal(context, encrypted, stream);
-}
-
+//TODO: remove recursive chain
 /**
  * Adds two ciphertexts. This function adds together encrypted1 and encrypted2 and stores the result in encrypted1.
  * @param[in] encrypted1 The first ciphertext to add
@@ -151,7 +157,7 @@ void add_many(const PhantomContext &context, const vector<PhantomCiphertext> &en
     destination.is_ntt_form() = encrypteds[0].is_ntt_form();
     destination.scale() = encrypteds[0].scale();
 
-    if (parms.scheme() == phantom::scheme_type::bgv) // TODO: any optimizations?
+    if (parms.scheme() == scheme_type::bgv) // TODO: any optimizations?
     {
         PHANTOM_CHECK_CUDA(cudaMemcpy(destination.data(), encrypteds[0].data(),
                                       poly_degree * coeff_mod_size * encrypteds[0].size() * sizeof(uint64_t),
@@ -355,8 +361,8 @@ void BEHZ_mul_1(const PhantomContext &context, const PhantomCiphertext &encrypte
 // (6) Multiply the result by t (plain_modulus)
 // (7) Scale the result by q using a divide-and-floor algorithm, switching base to Bsk
 // (8) Use Shenoy-Kumaresan method to convert the result to base q
-void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                       const PhantomCiphertext &encrypted2) {
+static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &encrypted1,
+                              const PhantomCiphertext &encrypted2) {
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -552,8 +558,10 @@ size_t FindLevelsToDrop(const PhantomContext &context, size_t multiplicativeDept
 // encrypted1 = encrypted1 * encrypted2
 // (c0, c1) * (c0', c1') = (c0*c0', c0'c1+c0c1', c1c1')
 // HPS
-void bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                      const PhantomCiphertext &encrypted2) {
+static void
+bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+                 const cudaStream_t &stream) {
+
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -578,7 +586,7 @@ void bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypte
 
     // handle no relin scenario
     size_t gpu_rns_tool_index = 0;
-    if (context.using_keyswitching() == true) {
+    if (context.using_keyswitching()) {
         gpu_rns_tool_index = 1;
     }
 
@@ -611,11 +619,13 @@ void bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypte
         uint64_t *ct1_Ql_ptr = ct1_ptr;
         uint64_t *ct1_Rl_ptr = ct1_Ql_ptr + size_Ql * n;
 
+        cudaDeviceSynchronize();
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped)
-            rns_tool.scaleAndRound_HPS_Q_Ql(ct1_Ql_ptr, encrypted1_ptr);
+            rns_tool.scaleAndRound_HPS_Q_Ql(ct1_Ql_ptr, encrypted1_ptr, stream);
         else
-            PHANTOM_CHECK_CUDA(
-                    cudaMemcpy(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+            cudaMemcpyAsync(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, stream);
+        cudaDeviceSynchronize();
 
         rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct1_Rl_ptr, ct1_Ql_ptr, n);
     }
@@ -711,20 +721,23 @@ void bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypte
 
 // encrypted1 = encrypted1 * encrypted2
 // (c0, c1) * (c0', c1') = (c0*c0', c0'c1+c0c1', c1c1')
-void bfv_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2) {
+static void
+bfv_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+             const cudaStream_t &stream) {
     auto mul_tech = context.mul_tech();
     if (mul_tech == mul_tech_type::behz) {
         bfv_multiply_behz(context, encrypted1, encrypted2);
     } else if (mul_tech == mul_tech_type::hps || mul_tech == mul_tech_type::hps_overq ||
                mul_tech == mul_tech_type::hps_overq_leveled) {
-        bfv_multiply_hps(context, encrypted1, encrypted2);
+        bfv_multiply_hps(context, encrypted1, encrypted2, stream);
     } else {
         throw invalid_argument("mul_tech not supported for bfv_multiply");
     }
 }
 
-void bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                       const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys) {
+static void
+bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+                  const PhantomRelinKey &relin_keys, const cudaStream_t &stream) {
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -776,11 +789,13 @@ void bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypt
         uint64_t *ct1_Ql_ptr = ct1_ptr;
         uint64_t *ct1_Rl_ptr = ct1_Ql_ptr + size_Ql * n;
 
+        cudaDeviceSynchronize();
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped)
-            rns_tool.scaleAndRound_HPS_Q_Ql(ct1_Ql_ptr, encrypted1_ptr);
+            rns_tool.scaleAndRound_HPS_Q_Ql(ct1_Ql_ptr, encrypted1_ptr, stream);
         else
-            PHANTOM_CHECK_CUDA(
-                    cudaMemcpy(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+            PHANTOM_CHECK_CUDA(cudaMemcpyAsync(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t),
+                                               cudaMemcpyDeviceToDevice, stream));
+        cudaDeviceSynchronize();
 
         rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct1_Rl_ptr, ct1_Ql_ptr, n);
     }
@@ -942,8 +957,8 @@ void bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypt
 }
 
 // encrypted1 = encrypted1 * encrypted2
-void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                      const PhantomCiphertext &encrypted2) {
+void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+                      const phantom::util::cuda_stream_wrapper *p_stream_wrapper) {
     // Verify parameters.
     if (encrypted1.parms_id() != encrypted2.parms_id()) {
         throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
@@ -957,13 +972,12 @@ void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypte
     if (encrypted1.size_ != encrypted2.size_)
         throw std::invalid_argument("poly number mismatch");
 
-    // Extract encryption parameters.
+    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
     auto &context_data = context.get_context_data(encrypted1.chain_index());
-    auto &parms = context_data.parms();
 
-    switch (parms.scheme()) {
+    switch (context_data.parms().scheme()) {
         case scheme_type::bfv:
-            bfv_multiply(context, encrypted1, encrypted2);
+            bfv_multiply(context, encrypted1, encrypted2, stream);
             break;
         case scheme_type::ckks:
         case scheme_type::bgv:
@@ -978,7 +992,8 @@ void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypte
 // encrypted1 = encrypted1 * encrypted2
 // relin(encrypted1)
 void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                                const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys) {
+                                const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys,
+                                const cuda_stream_wrapper *p_stream_wrapper) {
     // Verify parameters.
     if (encrypted1.parms_id() != encrypted2.parms_id()) {
         throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
@@ -994,19 +1009,21 @@ void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext
 
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted1.chain_index());
-    auto &parms = context_data.parms();
-    auto scheme = parms.scheme();
-    auto mul_tech = parms.mul_tech();
+    auto &params = context_data.parms();
+    auto scheme = params.scheme();
+    auto mul_tech = params.mul_tech();
+
+    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
 
     switch (scheme) {
         case scheme_type::bfv:
             if (mul_tech == mul_tech_type::hps || mul_tech == mul_tech_type::hps_overq ||
                 mul_tech == mul_tech_type::hps_overq_leveled) {
                 // enable fast mul&relin
-                bfv_mul_relin_hps(context, encrypted1, encrypted2, relin_keys);
+                bfv_mul_relin_hps(context, encrypted1, encrypted2, relin_keys, stream);
             } else if (mul_tech == mul_tech_type::behz) {
                 bfv_multiply_behz(context, encrypted1, encrypted2);
-                relinearize_inplace(context, encrypted1, relin_keys);
+                relinearize_inplace(context, encrypted1, relin_keys, p_stream_wrapper);
             } else {
                 throw invalid_argument("unsupported mul tech in BFV mul&relin");
             }
@@ -1323,7 +1340,7 @@ void transform_from_ntt_inplace(const PhantomContext &context, PhantomCiphertext
 }
 
 void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                         const PhantomRelinKey &relin_keys) {
+                         const PhantomRelinKey &relin_keys, const cuda_stream_wrapper *p_stream_wrapper) {
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
@@ -1352,7 +1369,8 @@ void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encry
     }
 
     uint64_t *c2 = encrypted.data() + 2 * decomp_modulus_size * n;
-    switch_key_inplace(context, encrypted, c2, relin_keys, true);
+
+    switch_key_inplace(context, encrypted, c2, relin_keys, true, p_stream_wrapper);
 
     // update the encrypted
     encrypted.resize(key_component_count, decomp_modulus_size, n);
@@ -1513,8 +1531,9 @@ void mod_switch_drop_to_next(const PhantomContext &context, const PhantomCiphert
         for (size_t i = 0; i < encrypted_size; i++) {
             auto destination_iter = destination.data() + i * next_coeff_modulus_size * N;
             auto encrypted_iter = encrypted.data() + i * coeff_modulus_size * N;
-            PHANTOM_CHECK_CUDA(cudaMemcpy(destination_iter, encrypted_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
-                                  cudaMemcpyDeviceToDevice));
+            PHANTOM_CHECK_CUDA(
+                    cudaMemcpy(destination_iter, encrypted_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
+                               cudaMemcpyDeviceToDevice));
         }
         // Set other attributes
         destination.scale() = encrypted.scale();
@@ -1608,7 +1627,9 @@ void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted
 }
 
 void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, const PhantomGaloisKey &glk,
-                      const std::vector<int> &steps) {
+                      const std::vector<int> &steps, const cuda_stream_wrapper *p_stream_wrapper) {
+    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+
     if (ct.size() > 2)
         throw invalid_argument("ciphertext size must be 2");
 
@@ -1670,11 +1691,14 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     // ------------------------------------------ automorphism c0 ------------------------------------------------------
 
     // specific operations for HPSOverQLeveled
+    cudaDeviceSynchronize();
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        rns_tool.scaleAndRound_HPS_Q_Ql(c0.get(), ct.data());
+        rns_tool.scaleAndRound_HPS_Q_Ql(c0.get(), ct.data(), stream);
     } else {
-        PHANTOM_CHECK_CUDA(cudaMemcpy(c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+        PHANTOM_CHECK_CUDA(cudaMemcpyAsync(c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
+                                           stream));
     }
+    cudaDeviceSynchronize();
 
     Pointer<uint64_t> acc_c0;
     acc_c0.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
@@ -1696,11 +1720,14 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     // ----------------------------------------------- modup c1 --------------------------------------------------------
 
     // specific operations for HPSOverQLeveled
+    cudaDeviceSynchronize();
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        rns_tool.scaleAndRound_HPS_Q_Ql(c1.get(), ct.data() + size_Q_n);
+        rns_tool.scaleAndRound_HPS_Q_Ql(c1.get(), ct.data() + size_Q_n, stream);
     } else {
-        PHANTOM_CHECK_CUDA(cudaMemcpy(c1.get(), ct.data() + size_Ql_n, size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+        PHANTOM_CHECK_CUDA(cudaMemcpyAsync(c1.get(), ct.data() + size_Ql_n, size_Ql_n * sizeof(uint64_t),
+                                           cudaMemcpyDeviceToDevice, stream));
     }
+    cudaDeviceSynchronize();
 
     // Prepare key
     auto &key_vector = glk.relin_keys_[first_elt_index].public_keys_;
@@ -1805,12 +1832,12 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
         rns_tool.ExpandCRTBasis_Ql_Q(ct.data() + size_Q_n, acc_cx.get() + size_QlP_n);
     } else {
         PHANTOM_CHECK_CUDA(cudaMemcpy(ct.data() + size_Ql_n, acc_cx.get() + size_QlP_n, size_Ql_n * sizeof(uint64_t),
-                              cudaMemcpyDeviceToDevice));
+                                      cudaMemcpyDeviceToDevice));
     }
 }
 
 void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,
-                          const PhantomGaloisKey &galois_keys) {
+                          const PhantomGaloisKey &galois_keys, const cuda_stream_wrapper *p_stream_wrapper) {
     auto &context_data = context.get_context_data(encrypted.chain_index_);
     auto &parms = context_data.parms();
     auto &coeff_modulus = parms.coeff_modulus();
@@ -1836,7 +1863,8 @@ void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encr
         // First transform c0
         key_galois_tool->apply_galois(c0, context.gpu_rns_tables(), coeff_modulus_size, galois_elt_index, temp.get());
         // Copy result to c0
-        PHANTOM_CHECK_CUDA(cudaMemcpy(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+        PHANTOM_CHECK_CUDA(
+                cudaMemcpy(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
         // Next transform c1
         key_galois_tool->apply_galois(c1, context.gpu_rns_tables(), coeff_modulus_size, galois_elt_index, temp.get());
     } else if (parms.scheme() == scheme_type::ckks || parms.scheme() == scheme_type::bgv) {
@@ -1844,7 +1872,8 @@ void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encr
         // First transform c0
         key_galois_tool->apply_galois_ntt(c0, coeff_modulus_size, galois_elt_index, temp.get());
         // Copy result to c0
-        PHANTOM_CHECK_CUDA(cudaMemcpy(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+        PHANTOM_CHECK_CUDA(
+                cudaMemcpy(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
         // Next transform c1
         key_galois_tool->apply_galois_ntt(c1, coeff_modulus_size, galois_elt_index, temp.get());
     } else {
@@ -1857,7 +1886,8 @@ void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encr
     // END: Apply Galois for each ciphertext
     // REORDERING IS SAFE NOW
     // Calculate (temp * galois_key[0], temp * galois_key[1]) + (c0, 0)
-    switch_key_inplace(context, encrypted, temp.get(), galois_keys.relin_keys_[galois_elt_index]);
+    switch_key_inplace(context, encrypted, temp.get(), galois_keys.relin_keys_[galois_elt_index], false,
+                       p_stream_wrapper);
 }
 
 void conjugate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,

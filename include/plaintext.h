@@ -5,7 +5,6 @@
 #include "context.cuh"
 #include "polymath.cuh"
 #include "mempool.cuh"
-#include "util/polycore.h"
 
 typedef struct PhantomPlaintext {
     phantom::parms_id_type parms_id_ = phantom::parms_id_zero;
@@ -97,106 +96,6 @@ typedef struct PhantomPlaintext {
     }
 
     ~PhantomPlaintext() = default;
-
-    [[nodiscard]] std::string to_string() const {
-        if (is_ntt_form())
-            throw std::invalid_argument("cannot convert NTT transformed plaintext to string");
-        return phantom::util::poly_to_hex_string(data(), coeff_modulus_size_ * poly_modulus_degree_, 1);
-    }
-
-    void save(std::ostream &stream) {
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-            stream.write(reinterpret_cast<const char *>(&parms_id_), sizeof(phantom::parms_id_type));
-            uint64_t coeff_modulus_size = static_cast<uint64_t>(coeff_modulus_size_);
-            uint64_t chain64 = static_cast<uint64_t>(chain_index_);
-            uint64_t poly_modulus_degree = static_cast<uint64_t>(poly_modulus_degree_);
-            stream.write(reinterpret_cast<const char *>(&coeff_modulus_size), sizeof(uint64_t));
-            stream.write(reinterpret_cast<const char *>(&chain64), sizeof(uint64_t));
-            stream.write(reinterpret_cast<const char *>(&poly_modulus_degree), sizeof(uint64_t));
-            stream.write(reinterpret_cast<const char *>(&scale_), sizeof(double));
-
-            uint64_t data_size = coeff_modulus_size_ * poly_modulus_degree_;
-            stream.write(reinterpret_cast<const char *>(&data_size), sizeof(std::uint64_t));
-
-            std::vector<uint64_t> temp_data;
-            temp_data.resize(coeff_modulus_size_ * poly_modulus_degree_);
-            PHANTOM_CHECK_CUDA(cudaMemcpy(temp_data.data(), data_.get(),
-                coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
-                cudaMemcpyDeviceToHost));
-            stream.write(
-                reinterpret_cast<const char *>(temp_data.data()),
-                static_cast<std::streamsize>(phantom::util::mul_safe(data_size, sizeof(uint64_t))));
-        }
-        catch (const std::ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw std::runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-    }
-
-    void load(const PhantomContext &context, std::istream &stream) {
-        PhantomPlaintext new_data(context);
-
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-
-            phantom::parms_id_type parms_id{};
-            stream.read(reinterpret_cast<char *>(&parms_id), sizeof(phantom::parms_id_type));
-
-            uint64_t coeff_modulus64 = 0;
-            stream.read(reinterpret_cast<char *>(&coeff_modulus64), sizeof(uint64_t));
-            uint64_t chain64 = 0;
-            stream.read(reinterpret_cast<char *>(&chain64), sizeof(uint64_t));
-            uint64_t poly_degree64 = 0;
-            stream.read(reinterpret_cast<char *>(&poly_degree64), sizeof(uint64_t));
-            double scale = 0;
-            stream.read(reinterpret_cast<char *>(&scale), sizeof(double));
-
-            // Set the metadata
-            new_data.parms_id_ = parms_id;
-            new_data.coeff_modulus_size_ = static_cast<size_t>(coeff_modulus64);
-            new_data.chain_index_ = static_cast<size_t>(chain64);
-            new_data.poly_modulus_degree_ = static_cast<size_t>(poly_degree64);
-            new_data.scale_ = scale;
-
-            auto total_uint64_count =
-                    phantom::util::mul_safe(new_data.poly_modulus_degree_, new_data.coeff_modulus_size_);
-
-            new_data.data_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), total_uint64_count));
-
-            uint64_t data_size;
-            stream.read(reinterpret_cast<char *>(&data_size), sizeof(std::uint64_t));
-
-            std::vector<uint64_t> temp_data;
-            temp_data.resize(total_uint64_count);
-            stream.read(
-                reinterpret_cast<char *>(temp_data.data()),
-                static_cast<std::streamsize>(phantom::util::mul_safe(total_uint64_count, sizeof(uint64_t))));
-
-            PHANTOM_CHECK_CUDA(cudaMemcpy(new_data.data_.get(), temp_data.data(), total_uint64_count * sizeof(uint64_t),
-                cudaMemcpyHostToDevice));
-        }
-        catch (const std::ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw std::runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-
-        std::swap(*this, new_data);
-    }
 
     /**
     Resizes the plaintext to have a given coefficient count. The plaintext

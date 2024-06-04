@@ -9,7 +9,7 @@
 
 using namespace std;
 
-namespace phantom::util {
+namespace phantom::arith {
     /** Return the product of operand1 (multiple uint64_t) with operand2 (multiple uint64_t)
      * @param[in] operand1 Pointer to first operand
      * @param[in] operand1_uint64_count The number of uint64_t in operand1
@@ -19,8 +19,8 @@ namespace phantom::util {
      * @param[in] result The pointer to hold the product.
      */
     void multiply_uint(
-        const uint64_t *operand1, size_t operand1_uint64_count, const uint64_t *operand2,
-        size_t operand2_uint64_count, size_t result_uint64_count, uint64_t *result) {
+            const uint64_t *operand1, size_t operand1_uint64_count, const uint64_t *operand2,
+            size_t operand2_uint64_count, size_t result_uint64_count, uint64_t *result) {
         if (!operand1_uint64_count || !operand2_uint64_count) {
             // If either operand is 0, then result is 0.
             set_zero_uint(result_uint64_count, result);
@@ -82,8 +82,8 @@ namespace phantom::util {
      * @param[in] result The pointer to hold the product.
      */
     void multiply_uint(
-        const uint64_t *operand1, size_t operand1_uint64_count, uint64_t operand2, size_t result_uint64_count,
-        uint64_t *result) {
+            const uint64_t *operand1, size_t operand1_uint64_count, uint64_t operand2, size_t result_uint64_count,
+            uint64_t *result) {
         if (!operand1_uint64_count || !operand2) {
             // If either operand is 0, then result is 0.
             set_zero_uint(result_uint64_count, result);
@@ -122,7 +122,7 @@ namespace phantom::util {
      * @param quotient output as quotient
      */
     void divide_uint_inplace(
-        uint64_t *numerator, const uint64_t *denominator, size_t uint64_count, uint64_t *quotient) {
+            uint64_t *numerator, const uint64_t *denominator, size_t uint64_count, uint64_t *quotient) {
         if (!uint64_count) {
             return;
         }
@@ -204,8 +204,7 @@ namespace phantom::util {
             if (numerator_bits > 0) {
                 left_shift_uint(difference, numerator_shift, uint64_count, numerator);
                 numerator_bits += numerator_shift;
-            }
-            else {
+            } else {
                 // Difference is zero so no need to shift, just set to zero.
                 set_zero_uint(uint64_count, numerator);
             }
@@ -394,8 +393,7 @@ namespace phantom::util {
             if (numerator_bits > 0) {
                 left_shift_uint192(difference.data(), numerator_shift, numerator);
                 numerator_bits += numerator_shift;
-            }
-            else {
+            } else {
                 // Difference is zero so no need to shift, just set to zero.
                 set_zero_uint(uint64_count, numerator);
             }

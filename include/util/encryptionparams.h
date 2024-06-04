@@ -45,7 +45,6 @@ namespace phantom {
     constexpr parms_id_type parms_id_zero = util::HashFunction::hash_zero_block;
 
     class EncryptionParameters {
-        friend class PhantomCPUContext;
 
     public:
         // Creates an empty set of encryption parameters.
@@ -168,7 +167,7 @@ namespace phantom {
         is non-empty
         @throws std::invalid_argument if size of coeff_modulus is invalid
         */
-        inline void set_coeff_modulus(const std::vector<Modulus> &coeff_modulus) {
+        inline void set_coeff_modulus(const std::vector<arith::Modulus> &coeff_modulus) {
             // Check that a scheme is set
             if (scheme_ == scheme_type::none) {
                 if (!coeff_modulus.empty()) {
@@ -200,7 +199,7 @@ namespace phantom {
         @throws std::logic_error if scheme is not scheme_type::BFV and plain_modulus
         is non-zero
         */
-        inline void set_plain_modulus(const Modulus &plain_modulus) {
+        inline void set_plain_modulus(const arith::Modulus &plain_modulus) {
             // Check that scheme is BFV
             if (scheme_ != scheme_type::bfv && scheme_ != scheme_type::bgv && !plain_modulus.is_zero()) {
                 throw std::logic_error("plain_modulus is not supported for this scheme");
@@ -222,7 +221,7 @@ namespace phantom {
         @throws std::invalid_argument if plain_modulus is invalid
         */
         inline void set_plain_modulus(std::uint64_t plain_modulus) {
-            set_plain_modulus(Modulus(plain_modulus));
+            set_plain_modulus(arith::Modulus(plain_modulus));
         }
 
         // Returns the encryption scheme type.
@@ -254,22 +253,22 @@ namespace phantom {
         /**
          * Returns a const reference to key modulus parameter.
          */
-        [[nodiscard]] inline const std::vector<Modulus> &key_modulus() const noexcept {
+        [[nodiscard]] inline const std::vector<arith::Modulus> &key_modulus() const noexcept {
             return key_modulus_;
         }
 
         // Returns a const reference to the currently set coefficient modulus parameter.
-        [[nodiscard]] inline auto coeff_modulus() const noexcept -> const std::vector<Modulus> & {
+        [[nodiscard]] inline auto coeff_modulus() const noexcept -> const std::vector<arith::Modulus> & {
             return coeff_modulus_;
         }
 
         // Returns a const reference to the currently set coefficient modulus parameter.
-        [[nodiscard]] inline auto coeff_modulus() noexcept -> std::vector<Modulus> & {
+        [[nodiscard]] inline auto coeff_modulus() noexcept -> std::vector<arith::Modulus> & {
             return coeff_modulus_;
         }
 
         // Returns a const reference to the currently set plaintext modulus parameter.
-        [[nodiscard]] inline const Modulus &plain_modulus() const noexcept {
+        [[nodiscard]] inline const arith::Modulus &plain_modulus() const noexcept {
             return plain_modulus_;
         }
 
@@ -291,11 +290,6 @@ namespace phantom {
         [[nodiscard]] inline bool operator!=(const EncryptionParameters &other) const noexcept {
             return (parms_id_ != other.parms_id_);
         }
-
-        /**
-        Enables access to private members of phantom::EncryptionParameters for C
-        */
-        struct EncryptionParametersPrivateHelper;
 
         /**
         Returns the parms_id of the current parameters. This function is intended
@@ -449,14 +443,14 @@ namespace phantom {
                 }
 
                 // Read the coeff_modulus
-                std::vector<Modulus> coeff_modulus;
+                std::vector<arith::Modulus> coeff_modulus;
                 for (uint64_t i = 0; i < coeff_modulus_size64; i++) {
                     coeff_modulus.emplace_back();
                     coeff_modulus.back().load(stream);
                 }
 
                 // Read the plain_modulus
-                Modulus plain_modulus;
+                arith::Modulus plain_modulus;
                 plain_modulus.load(stream);
 
                 // Supposedly everything worked so set the values of member variables
@@ -494,13 +488,13 @@ namespace phantom {
         std::size_t special_modulus_size_ = 1;
 
         // used for hybrid key-switching
-        std::vector<Modulus> key_modulus_{};
+        std::vector<arith::Modulus> key_modulus_{};
 
-        std::vector<Modulus> coeff_modulus_{};
+        std::vector<arith::Modulus> coeff_modulus_{};
 
         std::vector<uint32_t> galois_elts_{};
 
-        Modulus plain_modulus_{};
+        arith::Modulus plain_modulus_{};
 
         parms_id_type parms_id_ = parms_id_zero;
     };

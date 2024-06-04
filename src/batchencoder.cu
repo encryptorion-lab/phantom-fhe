@@ -23,7 +23,7 @@ PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context) {
 
 void PhantomBatchEncoder::populate_matrix_reps_index_map() const {
     vector<uint64_t> temp;
-    int logn = get_power_of_two(slots_);
+    int logn = phantom::arith::get_power_of_two(slots_);
     // Copy from the matrix to the value vectors
     size_t row_size = slots_ >> 1;
     size_t m = slots_ << 1;
@@ -36,8 +36,8 @@ void PhantomBatchEncoder::populate_matrix_reps_index_map() const {
         uint64_t index2 = (m - pos - 1) >> 1;
 
         // Set the bit-reversed locations
-        temp[i] = (uint64_t)(util::reverse_bits(index1, logn));
-        temp[row_size | i] = static_cast<size_t>(util::reverse_bits(index2, logn));
+        temp[i] = (uint64_t)(arith::reverse_bits(index1, logn));
+        temp[row_size | i] = static_cast<size_t>(arith::reverse_bits(index2, logn));
 
         // Next primitive root
         pos *= gen;

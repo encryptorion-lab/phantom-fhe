@@ -50,8 +50,8 @@ namespace phantom::util::global_variables {
               rmm::mr::set_current_device_resource(nullptr);
           }*/
 
-    const map<size_t, vector<Modulus>> &GetDefaultCoeffModulus128() {
-        static const map<size_t, vector<Modulus>> default_coeff_modulus_128{
+    const map<size_t, vector<arith::Modulus>> &GetDefaultCoeffModulus128() {
+        static const map<size_t, vector<arith::Modulus>> default_coeff_modulus_128{
             /*
             Polynomial modulus: 1x^1024 + 1
             Modulus count: 1
@@ -130,8 +130,8 @@ namespace phantom::util::global_variables {
         return default_coeff_modulus_128;
     }
 
-    const map<size_t, vector<Modulus>> &GetDefaultCoeffModulus192() {
-        static const map<size_t, vector<Modulus>> default_coeff_modulus_192{
+    const map<size_t, vector<arith::Modulus>> &GetDefaultCoeffModulus192() {
+        static const map<size_t, vector<arith::Modulus>> default_coeff_modulus_192{
             /*
                     Polynomial modulus: 1x^1024 + 1
                     Modulus count: 1
@@ -207,8 +207,8 @@ namespace phantom::util::global_variables {
         return default_coeff_modulus_192;
     }
 
-    const map<size_t, vector<Modulus>> &GetDefaultCoeffModulus256() {
-        static const map<size_t, vector<Modulus>> default_coeff_modulus_256{
+    const map<size_t, vector<arith::Modulus>> &GetDefaultCoeffModulus256() {
+        static const map<size_t, vector<arith::Modulus>> default_coeff_modulus_256{
             /*
                     Polynomial modulus: 1x^1024 + 1
                     Modulus count: 1

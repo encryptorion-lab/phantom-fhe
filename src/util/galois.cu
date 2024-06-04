@@ -7,7 +7,7 @@
 
 using namespace std;
 
-namespace phantom::util {
+namespace phantom::arith {
     void GaloisTool::generate_table_ntt(uint32_t galois_elt, std::shared_ptr<uint32_t> &result) const {
         if (result) {
             return;

@@ -7,21 +7,22 @@
 #include "ntt.cuh"
 #include "plaintext.h"
 #include "secretkey.h"
+#include "cuda_wrapper.cuh"
 
-size_t FindLevelsToDrop(const PhantomContext& context, size_t multiplicativeDepth, double dcrtBits, bool isKeySwitch,
+size_t FindLevelsToDrop(const PhantomContext &context, size_t multiplicativeDepth, double dcrtBits, bool isKeySwitch,
                         bool isAsymmetric);
 
-__global__ void key_switch_inner_prod_c2_and_evk(uint64_t* dst, const uint64_t* c2, const uint64_t* const * evks,
-                                                 const DModulus* modulus, size_t n, size_t size_QP, size_t size_QP_n,
+__global__ void key_switch_inner_prod_c2_and_evk(uint64_t *dst, const uint64_t *c2, const uint64_t *const *evks,
+                                                 const DModulus *modulus, size_t n, size_t size_QP, size_t size_QP_n,
                                                  size_t size_QlP, size_t size_QlP_n, size_t size_Q, size_t size_Ql,
                                                  size_t beta, size_t reduction_threshold);
 
 // used by switch_key_inplace
-void key_switch_inner_prod(uint64_t* p_cx, const uint64_t* p_t_mod_up, const uint64_t* const * rlk,
-                           const phantom::DRNSTool& rns_tool, const DModulus* modulus_QP,
+void key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uint64_t *const *rlk,
+                           const phantom::DRNSTool &rns_tool, const DModulus *modulus_QP,
                            const size_t reduction_threshold);
 
-[[nodiscard]] inline bool is_scale_within_bounds(double scale, const phantom::ContextData& context_data) noexcept {
+[[nodiscard]] inline bool is_scale_within_bounds(double scale, const phantom::ContextData &context_data) noexcept {
     int scale_bit_count_bound = 0;
     switch (context_data.parms().scheme()) {
         case phantom::scheme_type::bfv:
@@ -46,8 +47,8 @@ Returns (f, e1, e2) such that
 (3) abs(e1_bal) + abs(e2_bal) is minimal, where e1_bal and e2_bal represent e1 and e2 in (-p/2, p/2].
 */
 [[nodiscard]] inline auto balance_correction_factors(uint64_t factor1, uint64_t factor2,
-                                                     const phantom::Modulus& plain_modulus)
-    -> std::tuple<uint64_t, uint64_t, uint64_t> {
+                                                     const phantom::arith::Modulus &plain_modulus)
+-> std::tuple<uint64_t, uint64_t, uint64_t> {
     uint64_t t = plain_modulus.value();
     uint64_t half_t = t / 2;
 
@@ -59,10 +60,10 @@ Returns (f, e1, e2) such that
 
     // ratio = f2 / f1 mod p
     uint64_t ratio = 1;
-    if (!phantom::util::try_invert_uint_mod(factor1, plain_modulus, ratio)) {
+    if (!phantom::arith::try_invert_uint_mod(factor1, plain_modulus, ratio)) {
         throw std::logic_error("invalid correction factor1");
     }
-    ratio = phantom::util::multiply_uint_mod(ratio, factor2, plain_modulus);
+    ratio = phantom::arith::multiply_uint_mod(ratio, factor2, plain_modulus);
     uint64_t e1 = ratio;
     uint64_t e2 = 1;
     int64_t sum = sum_abs(e1, e2);
@@ -79,19 +80,19 @@ Returns (f, e1, e2) such that
         prev_a = a;
         a = temp;
 
-        temp = phantom::util::sub_safe(prev_b, phantom::util::mul_safe(b, q));
+        temp = phantom::arith::sub_safe(prev_b, phantom::arith::mul_safe(b, q));
         prev_b = b;
         b = temp;
 
-        uint64_t a_mod = phantom::util::barrett_reduce_64(static_cast<uint64_t>(abs(a)), plain_modulus);
+        uint64_t a_mod = phantom::arith::barrett_reduce_64(static_cast<uint64_t>(abs(a)), plain_modulus);
         if (a < 0) {
-            a_mod = phantom::util::negate_uint_mod(a_mod, plain_modulus);
+            a_mod = phantom::arith::negate_uint_mod(a_mod, plain_modulus);
         }
-        uint64_t b_mod = phantom::util::barrett_reduce_64(static_cast<uint64_t>(abs(b)), plain_modulus);
+        uint64_t b_mod = phantom::arith::barrett_reduce_64(static_cast<uint64_t>(abs(b)), plain_modulus);
         if (b < 0) {
-            b_mod = phantom::util::negate_uint_mod(b_mod, plain_modulus);
+            b_mod = phantom::arith::negate_uint_mod(b_mod, plain_modulus);
         }
-        if (a_mod != 0 && phantom::util::gcd(a_mod, t) == 1) // which also implies gcd(b_mod, t) == 1
+        if (a_mod != 0 && phantom::arith::gcd(a_mod, t) == 1) // which also implies gcd(b_mod, t) == 1
         {
             int64_t new_sum = sum_abs(a_mod, b_mod);
             if (new_sum < sum) {
@@ -101,47 +102,49 @@ Returns (f, e1, e2) such that
             }
         }
     }
-    return std::make_tuple(phantom::util::multiply_uint_mod(e1, factor1, plain_modulus), e1, e2);
+    return std::make_tuple(phantom::arith::multiply_uint_mod(e1, factor1, plain_modulus), e1, e2);
 }
 
 /***************************************************** Core APIs ******************************************************/
 
 // encrypted = -encrypted
-void negate_inplace(const PhantomContext& context, PhantomCiphertext& encrypted);
-
-void negate_inplace_async(const PhantomContext& context, PhantomCiphertext& encrypted, cudaStream_t stream);
+void negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                    const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
 // encrypted1 += encrypted2
-void add_inplace(const PhantomContext& context, PhantomCiphertext& encrypted1, const PhantomCiphertext& encrypted2);
+void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2);
 
 // destination = encrypteds[0] + encrypteds[1] + ...
-void add_many(const PhantomContext& context, const std::vector<PhantomCiphertext>& encrypteds,
-              PhantomCiphertext& destination);
+void add_many(const PhantomContext &context, const std::vector<PhantomCiphertext> &encrypteds,
+              PhantomCiphertext &destination);
 
 // if negate = false (default): encrypted1 -= encrypted2
 // if negate = true: encrypted1 = encrypted2 - encrypted1
-void sub_inplace(const PhantomContext& context, PhantomCiphertext& encrypted1, const PhantomCiphertext& encrypted2,
-                 const bool& negate = false);
+void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+                 const bool &negate = false);
 
 // encrypted += plain
-void add_plain_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, const PhantomPlaintext& plain);
+void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain);
 
 // encrypted -= plain
-void sub_plain_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, const PhantomPlaintext& plain);
+void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain);
 
 // encrypted *= plain
-void multiply_plain_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, const PhantomPlaintext& plain);
+void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain);
 
 // encrypted1 *= encrypted2
-void multiply_inplace(const PhantomContext& context, PhantomCiphertext& encrypted1,
-                      const PhantomCiphertext& encrypted2);
+void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+                      const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
 // encrypted1 *= encrypted2
-void multiply_and_relin_inplace(const PhantomContext& context, PhantomCiphertext& encrypted1,
-                                const PhantomCiphertext& encrypted2, const PhantomRelinKey& relin_keys);
+void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
+                                const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys,
+                                const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
-void switch_key_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, uint64_t* c2,
-                        const PhantomRelinKey& relin_keys, bool is_relin = false);
+void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, uint64_t *c2,
+                        const PhantomRelinKey &relin_keys,
+                        bool is_relin, // false
+                        const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
 /**
  * Relinearizes a ciphertext. This functions relinearizes encrypted, reducing its size down to 2.
@@ -149,14 +152,15 @@ void switch_key_inplace(const PhantomContext& context, PhantomCiphertext& encryp
  * @param[inout] encrypted The ciphertext to relinearize
  * @param[in] relin_keys The relinearization keys
  */
-void relinearize_inplace(const PhantomContext& context, PhantomCiphertext& encrypted,
-                         const PhantomRelinKey& relin_keys);
+void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                         const PhantomRelinKey &relin_keys,
+                         const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
 /** Modulus switches an NTT transformed plaintext from modulo q_1...q_k down to modulo q_1...q_{k-1}.
  * @param[in] context PhantomContext
  * @param[inout] plain PhantomPlaintext
  */
-void mod_switch_to_next_inplace(const PhantomContext& context, PhantomPlaintext& plain);
+void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain);
 
 /** Given an NTT transformed plaintext modulo q_1...q_k, this function switches the modulus down until the
 parameters reach the given chain_index.
@@ -170,13 +174,13 @@ parameters reach the given chain_index.
 corresponding to parms_id
  * @throws std::invalid_argument if the scale is too large for the new encryption parameters
   */
-void mod_switch_to_inplace(const PhantomContext& context, PhantomPlaintext& plain, size_t chain_index);
+void mod_switch_to_inplace(const PhantomContext &context, PhantomPlaintext &plain, size_t chain_index);
 
-void mod_switch_scale_to_next(const PhantomContext& context, const PhantomCiphertext& encrypted,
-                              PhantomCiphertext& destination);
+void mod_switch_scale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                              PhantomCiphertext &destination);
 
-void mod_switch_drop_to_next(const PhantomContext& context, const PhantomCiphertext& encrypted,
-                             PhantomCiphertext& destination);
+void mod_switch_drop_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                             PhantomCiphertext &destination);
 
 /** Given a ciphertext encrypted modulo q_1...q_k, this function switches the modulus down to q_1...q_{k-1} and
 stores the result in the destination parameter.
@@ -184,8 +188,8 @@ stores the result in the destination parameter.
  * @param[in] encrypted The ciphertext to mod switch
  * @param[out] destination The result
  */
-void mod_switch_to_next(const PhantomContext& context, const PhantomCiphertext& encrypted,
-                        PhantomCiphertext& destination);
+void
+mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted, PhantomCiphertext &destination);
 
 /**
  * @param[in] context PhantomContext
@@ -197,7 +201,7 @@ void mod_switch_to_next(const PhantomContext& context, const PhantomCiphertext& 
  * @throws std::invalid_argument if pool is uninitialized
  * @throws std::logic_error if result ciphertext is transparent
  */
-inline void mod_switch_to_next_inplace(const PhantomContext& context, PhantomCiphertext& encrypted) {
+inline void mod_switch_to_next_inplace(const PhantomContext &context, PhantomCiphertext &encrypted) {
     mod_switch_to_next(context, encrypted, encrypted);
 }
 
@@ -208,7 +212,7 @@ reach the given chain_index.
  * @param[in] encrypted The ciphertext to be switched to a smaller modulus
  * @param[in] chain_index The target chain_index
  */
-void mod_switch_to_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, size_t chain_index);
+void mod_switch_to_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t chain_index);
 
 /**Given a ciphertext encrypted modulo q_1...q_k, this function switches the modulus down to q_1...q_{k-1}, scales
   the message down accordingly, and stores the result in the destination parameter.
@@ -216,9 +220,9 @@ void mod_switch_to_inplace(const PhantomContext& context, PhantomCiphertext& enc
  * @param[in] encrypted The ciphertext to  Rescale
  * @param[out] destination The result
  */
-void rescale_to_next(const PhantomContext& context, const PhantomCiphertext& encrypted, PhantomCiphertext& destination);
+void rescale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted, PhantomCiphertext &destination);
 
-inline void rescale_to_next_inplace(const PhantomContext& context, PhantomCiphertext& encrypted) {
+inline void rescale_to_next_inplace(const PhantomContext &context, PhantomCiphertext &encrypted) {
     rescale_to_next(context, encrypted, encrypted);
 }
 
@@ -227,7 +231,7 @@ inline void rescale_to_next_inplace(const PhantomContext& context, PhantomCipher
  * @param context PhantomContext
  * @param encrypted The ciphertext to transform
  */
-void transform_to_ntt_inplace(const PhantomContext& context, PhantomCiphertext& encrypted);
+void transform_to_ntt_inplace(const PhantomContext &context, PhantomCiphertext &encrypted);
 
 /**Transforms a ciphertext to NTT domain. This functions applies David Harvey's Number Theoretic Transform
    separately to each polynomial of a ciphertext.
@@ -235,15 +239,17 @@ void transform_to_ntt_inplace(const PhantomContext& context, PhantomCiphertext& 
  * @param context PhantomContext
  * @param encrypted The ciphertext to transform
  */
-void transform_from_ntt_inplace(const PhantomContext& context, PhantomCiphertext& encrypted_ntt);
+void transform_from_ntt_inplace(const PhantomContext &context, PhantomCiphertext &encrypted_ntt);
 
-void hoisting_inplace(const PhantomContext& context, PhantomCiphertext& ct, const PhantomGaloisKey& glk,
-                      const std::vector<int>& steps);
+void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, const PhantomGaloisKey &glk,
+                      const std::vector<int> &steps,
+                      const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
-inline auto hoisting(const PhantomContext& context, const PhantomCiphertext& encrypted, const PhantomGaloisKey& glk,
-                     const std::vector<int>& steps) {
+inline auto hoisting(const PhantomContext &context, const PhantomCiphertext &encrypted, const PhantomGaloisKey &glk,
+                     const std::vector<int> &steps,
+                     const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr) {
     PhantomCiphertext destination = encrypted;
-    hoisting_inplace(context, destination, glk, steps);
+    hoisting_inplace(context, destination, glk, steps, p_stream_wrapper);
     return destination;
 }
 
@@ -262,16 +268,17 @@ inline auto hoisting(const PhantomContext& context, const PhantomCiphertext& enc
  * @param galois_elt_index The index of galois_elt in galois_elts
  * @param galois_keys The Galois keys
  */
-void apply_galois_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, size_t galois_elt_index,
-                          const PhantomGaloisKey& galois_keys);
+void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,
+                          const PhantomGaloisKey &galois_keys,
+                          const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
 
 // using by complex_conjugate_inplace and rotate_columns_inplace
-void conjugate_internal(const PhantomContext& context, PhantomCiphertext& encrypted,
-                        const PhantomGaloisKey& galois_key);
+void conjugate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,
+                        const PhantomGaloisKey &galois_key);
 
 // used by other rotate functions
-void rotate_internal(const PhantomContext& context, PhantomCiphertext& encrypted, int step,
-                     const PhantomGaloisKey& galois_key);
+void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
+                     const PhantomGaloisKey &galois_key);
 
 /**
   Rotates plaintext matrix rows cyclically. When batching is used with the BFV scheme, this function rotates the
@@ -282,8 +289,8 @@ void rotate_internal(const PhantomContext& context, PhantomCiphertext& encrypted
  * @param[in] encrypted The ciphertext to rotate
  * @param[in] galois_keys The Galois keys
  */
-inline void rotate_rows_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, int steps,
-                                const PhantomGaloisKey& galois_key) {
+inline void rotate_rows_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, int steps,
+                                const PhantomGaloisKey &galois_key) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::bfv &&
         context.key_context_data().parms().scheme() != phantom::scheme_type::bgv) {
         throw std::logic_error("unsupported scheme");
@@ -299,8 +306,8 @@ inline void rotate_rows_inplace(const PhantomContext& context, PhantomCiphertext
  * @param[in] encrypted The ciphertext to rotate
  * @param[in] galois_key The Galois keys
  */
-inline void rotate_columns_inplace(const PhantomContext& context, PhantomCiphertext& encrypted,
-                                   const PhantomGaloisKey& galois_key) {
+inline void rotate_columns_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                                   const PhantomGaloisKey &galois_key) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::bfv &&
         context.key_context_data().parms().scheme() != phantom::scheme_type::bgv) {
         throw std::logic_error("unsupported scheme");
@@ -318,8 +325,8 @@ inline void rotate_columns_inplace(const PhantomContext& context, PhantomCiphert
  * @param[in] step The number of steps to rotate (positive left, negative right)
  * @param[in] galois_key The Galois keys
  */
-inline void rotate_vector_inplace(const PhantomContext& context, PhantomCiphertext& encrypted, int step,
-                                  const PhantomGaloisKey& galois_key) {
+inline void rotate_vector_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
+                                  const PhantomGaloisKey &galois_key) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::ckks) {
         throw std::logic_error("unsupported scheme");
     }
@@ -333,8 +340,8 @@ inline void rotate_vector_inplace(const PhantomContext& context, PhantomCipherte
  * @param[in] encrypted The ciphertext to rotate
  * @param[in] galois_key The Galois keys
  */
-inline void complex_conjugate_inplace(const PhantomContext& context, PhantomCiphertext& encrypted,
-                                      const PhantomGaloisKey& galois_key) {
+inline void complex_conjugate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                                      const PhantomGaloisKey &galois_key) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::ckks) {
         throw std::logic_error("unsupported scheme");
     }

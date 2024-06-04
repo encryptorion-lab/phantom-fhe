@@ -1,25 +1,18 @@
-#include "example.h"
-#include "phantom.h"
-#include "util.cuh"
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <limits>
-#include <memory>
 #include <mutex>
-#include <numeric>
 #include <random>
-#include <sstream>
-#include <string>
-#include <thread>
-#include <utility>
 #include <vector>
+
+#include "example.h"
+#include "phantom.h"
+#include "util.cuh"
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void example_bfv_encrypt_decrypt_hps() {
     std::cout << std::endl
@@ -335,7 +328,7 @@ bfv_multiply_bench(mul_tech_type mul_tech, size_t poly_modulus_degree, const std
 
     secret_key.gen_secretkey(context);
 
-    if (context.using_keyswitching() == true) {
+    if (context.using_keyswitching()) {
         secret_key.gen_relinkey(context, relin_keys);
     }
     batchEncoder.encode(context, pod_matrix, plain_matrix);

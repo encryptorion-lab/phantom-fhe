@@ -416,7 +416,7 @@ __global__ static void exact_convert_array_kernel(uint64_t *dst, const uint64_t 
     }
 }
 
-void DBaseConverter::exact_convert_array(uint64_t *dst, const uint64_t *src, const uint64_t poly_degree) const {
+void DBaseConverter::exact_convert_array(uint64_t *dst, const uint64_t *src, uint64_t poly_degree) const {
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
     uint64_t gridDimGlb = poly_degree / blockDimGlb.x;
@@ -448,8 +448,7 @@ __global__ static void modup_bconv_single_p_kernel(uint64_t *dst, const uint64_t
             else
                 result = coeff;
             dst[tid] = result;
-        }
-        else {
+        } else {
             dst[tid] = src_raw[coeff_idx];
         }
     }
@@ -554,8 +553,7 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
             nwt_2d_radix8_backward(t_cks.get(), cks, ntt_tables, size_Ql, 0);
             // copy partQl to t_mod_up is fused with modup_bconv_single_p_kernel
         }
-    }
-    else {
+    } else {
         // In CKKS and BGV t_target is in NTT form; switch back to normal form
         if (scheme == scheme_type::ckks || scheme == scheme_type::bgv) {
             // fuse with base converter kernel 1 (multiply qiHatInv_mod_qi)
@@ -584,16 +582,13 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
                 modup_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb>>>(t_modup_part_i, cks_part_i,
                                                                          t_cks.get() + startPartIdx * n, startPartIdx,
                                                                          n, base_QlP_.base(), size_QlP);
-            }
-            else if (scheme == scheme_type::bfv) {
+            } else if (scheme == scheme_type::bfv) {
                 modup_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb>>>(t_modup_part_i, cks_part_i, cks_part_i,
                                                                          startPartIdx, n, base_QlP_.base(), size_QlP);
-            }
-            else {
+            } else {
                 throw invalid_argument("unsupported scheme");
             }
-        }
-        else {
+        } else {
             auto &base_part_Ql_to_compl_part_QlP_conv = v_base_part_Ql_to_compl_part_QlP_conv_[beta_idx];
 
             auto &ibase = base_part_Ql_to_compl_part_QlP_conv.ibase();
@@ -621,11 +616,9 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
             // some part of t_mod_up_i is already in NTT domain, no need to perform NTT
             nwt_2d_radix8_forward_inplace_include_special_mod_exclude_range(t_modup_part_i, ntt_tables, size_QlP, 0,
                                                                             size_QP, size_P, startPartIdx, endPartIdx);
-        }
-        else if (scheme == scheme_type::bfv) {
+        } else if (scheme == scheme_type::bfv) {
             nwt_2d_radix8_forward_inplace_include_special_mod(t_modup_part_i, ntt_tables, size_QlP, 0, size_QP, size_P);
-        }
-        else {
+        } else {
             throw invalid_argument("unsupported scheme");
         }
     }
@@ -727,8 +720,7 @@ void DRNSTool::moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tabl
     if (scheme == scheme_type::ckks) {
         // Transform cx_i[P] to normal domain
         nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_P_, size_Ql, size_QP_, size_P_);
-    }
-    else if (scheme == scheme_type::bgv) {
+    } else if (scheme == scheme_type::bgv) {
         // Transform cx_i[QlP] to normal domain
         nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_QlP, 0, size_QP_, size_P_);
     }
@@ -747,8 +739,7 @@ void DRNSTool::moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tabl
                 n);
 
         nwt_2d_radix8_forward_inplace(ct_i, ntt_tables, size_Ql, 0);
-    }
-    else {
+    } else {
         // BFV and CKKS
         base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n);
 
@@ -791,8 +782,7 @@ void DRNSTool::moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable 
     if (scheme == scheme_type::ckks) {
         // Transform cx_i[P] to normal domain
         nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_P_, size_Ql, size_QP_, size_P_);
-    }
-    else if (scheme == scheme_type::bgv || scheme == scheme_type::bfv) {
+    } else if (scheme == scheme_type::bgv || scheme == scheme_type::bfv) {
         // Transform cx_i[QlP] to normal domain
         nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_QlP, 0, size_QP_, size_P_);
     }
@@ -801,8 +791,7 @@ void DRNSTool::moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable 
         uint64_t gridDimGlb = n * size_Ql / blockDimGlb.x;
         moddown_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb>>>(delta.get(), cx_i + size_Ql_n, n, base_QlP_.base(),
                                                                    size_QlP);
-    }
-    else {
+    } else {
         base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n);
     }
 
@@ -820,14 +809,12 @@ void DRNSTool::moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable 
                 n);
 
         nwt_2d_radix8_forward_inplace(ct_i, ntt_tables, size_Ql, 0);
-    }
-    else if (scheme == scheme_type::ckks) {
+    } else if (scheme == scheme_type::ckks) {
         // CKKS can compute the last step in NTT domain
         // ct_i += (cxi - delta) * factor mod qi
         nwt_2d_radix8_forward_inplace_fuse_moddown(ct_i, cx_i, bigPInv_mod_q_.get(), bigPInv_mod_q_shoup_.get(),
                                                    delta.get(), ntt_tables, size_Ql, 0);
-    }
-    else if (scheme == scheme_type::bfv) {
+    } else if (scheme == scheme_type::bfv) {
         // ct_i += (cxi - delta) * factor mod qi
         moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(ct_i, cx_i, delta.get(), ntt_tables.modulus(),
                                                                    bigPInv_mod_q(), bigPInv_mod_q_shoup(), n, size_Ql);

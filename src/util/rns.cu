@@ -11,7 +11,7 @@
 
 using namespace std;
 
-namespace phantom::util {
+namespace phantom::arith {
     // Construct the RNSBase from the parm, calcuate
     // 1. the product of all coeff (big_Q_)
     // 2. the product of all coeff except myself (big_qiHat_)
@@ -443,7 +443,7 @@ namespace phantom::util {
         // Verify that the size_QP is not too large
         size_t size_Q = ibase_.size();
         size_t size_P = obase_.size();
-        auto size_QP = util::mul_safe(size_Q, size_P);
+        auto size_QP = mul_safe(size_Q, size_P);
         if (!fits_in<std::size_t>(size_QP)) {
             throw logic_error("invalid parameters");
         }
