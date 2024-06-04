@@ -21,17 +21,17 @@ PYBIND11_MODULE(pyPhantom, m) {
             .value("hps_overq_leveled", phantom::mul_tech_type::hps_overq_leveled)
             .export_values();
 
-    py::enum_<phantom::sec_level_type>(m, "sec_level_type")
-            .value("none", phantom::sec_level_type::none)
-            .value("tc128", phantom::sec_level_type::tc128)
-            .value("tc192", phantom::sec_level_type::tc192)
-            .value("tc256", phantom::sec_level_type::tc256)
+    py::enum_<phantom::arith::sec_level_type>(m, "sec_level_type")
+            .value("none", phantom::arith::sec_level_type::none)
+            .value("tc128", phantom::arith::sec_level_type::tc128)
+            .value("tc192", phantom::arith::sec_level_type::tc192)
+            .value("tc256", phantom::arith::sec_level_type::tc256)
             .export_values();
 
-    py::class_<phantom::Modulus>(m, "modulus")
+    py::class_<phantom::arith::Modulus>(m, "modulus")
             .def(py::init<std::uint64_t>());
 
-    m.def("coeff_modulus_create", &phantom::CoeffModulus::Create);
+    m.def("coeff_modulus_create", &phantom::arith::CoeffModulus::Create);
 
     py::class_<phantom::EncryptionParameters>(m, "params")
             .def(py::init<phantom::scheme_type>())
