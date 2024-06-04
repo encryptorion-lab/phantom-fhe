@@ -5,6 +5,7 @@
 
 using namespace phantom;
 using namespace phantom::util;
+using namespace phantom::arith;
 
 void modup_bench(nvbench::state& state) {
     const auto dropped_levels = state.get_int64("Dropped Levels");

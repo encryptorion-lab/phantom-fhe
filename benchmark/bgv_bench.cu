@@ -3,6 +3,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void bgv_performance_test(EncryptionParameters &parms) {
     PhantomContext context(parms);

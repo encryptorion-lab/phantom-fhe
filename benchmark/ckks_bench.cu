@@ -3,6 +3,7 @@
 
 using namespace std;
 using namespace phantom;
+using namespace phantom::arith;
 
 void ckks_performance_test(EncryptionParameters &parms, double scale) {
     PhantomContext context(parms);
