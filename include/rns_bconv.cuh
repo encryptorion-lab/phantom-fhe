@@ -61,11 +61,11 @@ public:
         cudaStreamSynchronize(stream);
     }
 
-    void bConv_BEHZ(uint64_t *dst, const uint64_t *src, size_t n) const;
+    void bConv_BEHZ(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const;
 
-    void bConv_BEHZ_var1(uint64_t *dst, const uint64_t *src, size_t n) const;
+    void bConv_BEHZ_var1(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const;
 
-    void bConv_HPS(uint64_t *dst, const uint64_t *src, size_t n) const;
+    void bConv_HPS(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const;
 
     void exact_convert_array(uint64_t *dst, const uint64_t *src, uint64_t poly_degree) const;
 

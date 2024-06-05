@@ -4,7 +4,6 @@
 #include "polymath.cuh"
 #include "rns.cuh"
 #include "rns_bconv.cuh"
-#include "util.cuh"
 
 using namespace std;
 using namespace phantom;
@@ -67,8 +66,9 @@ __global__ void key_switch_inner_prod_c2_and_evk(uint64_t *dst, const uint64_t *
     }
 }
 
-void key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uint64_t *const *rlk,
-                           const DRNSTool &rns_tool, const DModulus *modulus_QP, const size_t reduction_threshold) {
+void
+key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uint64_t *const *rlk, const DRNSTool &rns_tool,
+                      const DModulus *modulus_QP, size_t reduction_threshold, const cudaStream_t &stream) {
 
     const size_t size_QP = rns_tool.size_QP();
     const size_t size_P = rns_tool.size_P();
@@ -83,7 +83,7 @@ void key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uin
 
     const size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
-    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb>>>(
+    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
             p_cx, p_t_mod_up, rlk, modulus_QP, n, size_QP, size_QP_n, size_QlP, size_QlP_n, size_Q, size_Ql, beta,
             reduction_threshold);
 }
@@ -92,6 +92,7 @@ void key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uin
 void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, uint64_t *cks,
                         const PhantomRelinKey &relin_keys, bool is_relin, const cuda_stream_wrapper *p_stream_wrapper) {
     const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+    cudaDeviceSynchronize();
 
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
@@ -136,44 +137,35 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
     // auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    cudaDeviceSynchronize();
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
         auto t_cks = phantom::util::cuda_make_shared<uint64_t>(size_Q * n, stream);
         cudaMemcpyAsync(t_cks.get(), cks, size_Q * n * sizeof(uint64_t),
                         cudaMemcpyDeviceToDevice, stream);
         rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get(), stream);
     }
-    cudaDeviceSynchronize();
 
     // Prepare key
     auto &key_vector = relin_keys.public_keys_;
     auto key_poly_num = key_vector[0].pk_.size_;
-
     if (key_poly_num != 2)
         throw std::invalid_argument("key_poly_num != 2");
 
-    size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
-
     // mod up
-
-    Pointer<uint64_t> t_mod_up;
-    t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
-
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme);
+    size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
+    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    Pointer<uint64_t> cx;
-    cx.acquire(allocate<uint64_t>(global_pool(), 2 * size_QlP_n));
-
+    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
     key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), rns_tool, modulus_QP,
-                          reduction_threshold);
+                          reduction_threshold, stream);
 
     // mod down
     for (size_t i = 0; i < 2; i++) {
         auto cx_i = cx.get() + i * size_QlP_n;
-        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme);
+        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, stream);
     }
 
     for (size_t i = 0; i < 2; i++) {
@@ -181,16 +173,15 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
 
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
             auto ct_i = encrypted.data() + i * size_Q * n;
-            Pointer<uint64_t> t_cx;
-            t_cx.acquire(allocate<uint64_t>(global_pool(), size_Q * n));
-            rns_tool.ExpandCRTBasis_Ql_Q(t_cx.get(), cx_i);
-            add_to_ct_kernel<<<(size_Q * n) / blockDimGlb.x, blockDimGlb>>>(ct_i, t_cx.get(), rns_tool.base_Q().base(),
-                                                                            n, size_Q);
-            t_cx.release();
+            auto t_cx = cuda_make_shared<uint64_t>(size_Q * n, stream);
+            rns_tool.ExpandCRTBasis_Ql_Q(t_cx.get(), cx_i, stream);
+            add_to_ct_kernel<<<(size_Q * n) / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                    ct_i, t_cx.get(), rns_tool.base_Q().base(), n, size_Q);
         } else {
             auto ct_i = encrypted.data() + i * size_Ql_n;
-            add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(ct_i, cx_i, rns_tool.base_Ql().base(), n,
-                                                                         size_Ql);
+            add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                    ct_i, cx_i, rns_tool.base_Ql().base(), n, size_Ql);
         }
     }
+    cudaStreamSynchronize(stream);
 }

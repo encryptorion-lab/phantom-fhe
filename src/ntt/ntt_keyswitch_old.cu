@@ -93,8 +93,7 @@ inplace_fnwt_radix8_phase1_single_mod_mod_up_fuse(uint64_t *out,
             ct_butterfly(samples[2], samples[3], psi[tw_idx2 + 1], psi_shoup[tw_idx2 + 1], mod_value);
             ct_butterfly(samples[4], samples[5], psi[tw_idx2 + 2], psi_shoup[tw_idx2 + 2], mod_value);
             ct_butterfly(samples[6], samples[7], psi[tw_idx2 + 3], psi_shoup[tw_idx2 + 3], mod_value);
-        }
-        else if (remain_iters == 2) {
+        } else if (remain_iters == 2) {
             size_t tw_idx2 = 2 * group * tw_idx + 2 * pad_idx;
             fntt4(samples, psi, psi_shoup, tw_idx2, mod_value);
             fntt4(samples + 4, psi, psi_shoup, tw_idx2 + 1, mod_value);
@@ -196,8 +195,7 @@ inplace_fnwt_radix8_phase2_single_mod(uint64_t *inout,
             ct_butterfly(samples[2], samples[3], psi[tw_idx2 + 1], psi_shoup[tw_idx2 + 1], modulus);
             ct_butterfly(samples[4], samples[5], psi[tw_idx2 + 2], psi_shoup[tw_idx2 + 2], modulus);
             ct_butterfly(samples[6], samples[7], psi[tw_idx2 + 3], psi_shoup[tw_idx2 + 3], modulus);
-        }
-        else if (tail == 2) {
+        } else if (tail == 2) {
             size_t tw_idx2 = (t / 2) * tw_idx + 2 * t_idx;
             fntt4(samples, psi, psi_shoup, tw_idx2, modulus);
             fntt4(samples + 4, psi, psi_shoup, tw_idx2 + 1, modulus);
@@ -305,8 +303,7 @@ inplace_fnwt_radix8_phase1_mod_down_fuse(uint64_t *out,
             ct_butterfly(samples[2], samples[3], psi[tw_idx2 + 1], psi_shoup[tw_idx2 + 1], mod_value);
             ct_butterfly(samples[4], samples[5], psi[tw_idx2 + 2], psi_shoup[tw_idx2 + 2], mod_value);
             ct_butterfly(samples[6], samples[7], psi[tw_idx2 + 3], psi_shoup[tw_idx2 + 3], mod_value);
-        }
-        else if (remain_iters == 2) {
+        } else if (remain_iters == 2) {
             size_t tw_idx2 = 2 * group * tw_idx + 2 * pad_idx;
             fntt4(samples, psi, psi_shoup, tw_idx2, mod_value);
             fntt4(samples + 4, psi, psi_shoup, tw_idx2 + 1, mod_value);
@@ -404,8 +401,7 @@ inplace_fnwt_radix8_phase2_mod_down_fuse(uint64_t *out,
             ct_butterfly(samples[2], samples[3], psi[tw_idx2 + 1], psi_shoup[tw_idx2 + 1], mod_value);
             ct_butterfly(samples[4], samples[5], psi[tw_idx2 + 2], psi_shoup[tw_idx2 + 2], mod_value);
             ct_butterfly(samples[6], samples[7], psi[tw_idx2 + 3], psi_shoup[tw_idx2 + 3], mod_value);
-        }
-        else if (tail == 2) {
+        } else if (tail == 2) {
             size_t tw_idx2 = (t / 2) * tw_idx + 2 * t_idx;
             fntt4(samples, psi, psi_shoup, tw_idx2, mod_value);
             fntt4(samples + 4, psi, psi_shoup, tw_idx2 + 1, mod_value);
@@ -444,87 +440,39 @@ void nwt_2d_radix8_forward_modup_fuse(uint64_t *out,
                                       size_t modulus_index,
                                       const DNTTTable &ntt_tables,
                                       size_t coeff_modulus_size,
-                                      size_t start_modulus_idx) {
+                                      size_t start_modulus_idx,
+                                      const cudaStream_t &stream) {
     size_t poly_degree = ntt_tables.n();
     size_t phase1_sample_size = SAMPLE_SIZE(poly_degree);
 
     const size_t phase2_sample_size = poly_degree / phase1_sample_size;
     const size_t per_block_memory = phantom::util::blockDimNTT.x * per_thread_sample_size * sizeof(uint64_t);
-    //
+
     inplace_fnwt_radix8_phase1_single_mod_mod_up_fuse<<<
-            phantom::util::gridDimNTT,
-            (phase1_sample_size / 8) * per_block_pad,
-            (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t)>>>(
-                out,
-                in,
-                ntt_tables.twiddle(),
-                ntt_tables.twiddle_shoup(),
-                ntt_tables.modulus(),
-                coeff_modulus_size,
-                start_modulus_idx,
-                poly_degree,
-                phase1_sample_size,
-                per_block_pad,
-                modulus_index);
+    gridDimNTT, (phase1_sample_size / 8) * per_block_pad,
+    (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t), stream>>>(
+            out,
+            in,
+            ntt_tables.twiddle(),
+            ntt_tables.twiddle_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            poly_degree,
+            phase1_sample_size,
+            per_block_pad,
+            modulus_index);
     // max 512 threads per block
-    inplace_fnwt_radix8_phase2_single_mod<<<phantom::util::gridDimNTT, phantom::util::blockDimNTT, per_block_memory>>>(
-        out,
-        ntt_tables.twiddle(),
-        ntt_tables.twiddle_shoup(),
-        ntt_tables.modulus(),
-        coeff_modulus_size,
-        start_modulus_idx,
-        poly_degree,
-        phase1_sample_size,
-        phase2_sample_size,
-        modulus_index);
-}
-
-// fuse in CKKS key switching mod down
-void nwt_2d_radix8_forward_moddown_fuse(uint64_t *encrypted,
-                                        const uint64_t *cx,
-                                        const uint64_t *cx_last,
-                                        uint64_t *reduced_cx_last,
-                                        const DNTTTable &ntt_tables,
-                                        const uint64_t *inv_q_last_mod_q,
-                                        size_t coeff_modulus_size,
-                                        size_t q_coeff_count,
-                                        size_t pq_coeff_count,
-                                        size_t start_modulus_idx) {
-    size_t poly_degree = ntt_tables.n();
-    auto base_rns = ntt_tables.modulus();
-    size_t phase1_sample_size = SAMPLE_SIZE(poly_degree);
-    const size_t phase2_sample_size = poly_degree / phase1_sample_size;
-    const size_t per_block_memory = phantom::util::blockDimNTT.x * per_thread_sample_size * sizeof(uint64_t);
-    //
-    inplace_fnwt_radix8_phase1_mod_down_fuse<<<
-            phantom::util::gridDimNTT,
-            (phase1_sample_size / 8) * per_block_pad,
-            (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t)>>>(
-                reduced_cx_last,
-                cx_last,
-                ntt_tables.twiddle(),
-                ntt_tables.twiddle_shoup(),
-                ntt_tables.modulus(),
-                coeff_modulus_size,
-                start_modulus_idx,
-                poly_degree,
-                phase1_sample_size,
-                per_block_pad);
-    // max 512 threads per block
-    inplace_fnwt_radix8_phase2_mod_down_fuse<<<
-            phantom::util::gridDimNTT, phantom::util::blockDimNTT, per_block_memory>>>(
-                encrypted,
-                encrypted,
-                cx,
-                reduced_cx_last,
-                ntt_tables.twiddle(),
-                ntt_tables.twiddle_shoup(),
-                ntt_tables.modulus(),
-                inv_q_last_mod_q,
-                coeff_modulus_size,
-                start_modulus_idx,
-                poly_degree,
-                phase1_sample_size,
-                phase2_sample_size);
+    inplace_fnwt_radix8_phase2_single_mod<<<
+    gridDimNTT, blockDimNTT, per_block_memory, stream>>>(
+            out,
+            ntt_tables.twiddle(),
+            ntt_tables.twiddle_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            poly_degree,
+            phase1_sample_size,
+            phase2_sample_size,
+            modulus_index);
 }

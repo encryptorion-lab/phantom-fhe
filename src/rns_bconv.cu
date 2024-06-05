@@ -209,39 +209,39 @@ __global__ void bconv_matmul_unroll4_kernel(uint64_t *dst, const uint64_t *xi_qi
     }
 }
 
-void DBaseConverter::bConv_BEHZ(uint64_t *dst, const uint64_t *src, size_t n) const {
+void DBaseConverter::bConv_BEHZ(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const {
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
 
-    Pointer<uint64_t> temp;
-    temp.acquire(allocate<uint64_t>(global_pool(), ibase_size * n));
+    auto temp = cuda_make_shared<uint64_t>(ibase_size * n, stream);
 
     constexpr int unroll_factor = 2;
 
     uint64_t gridDimGlb = ibase_size * n / unroll_factor / blockDimGlb.x;
-    bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb>>>(temp.get(), src, ibase_.QHatInvModq(),
-                                                           ibase_.QHatInvModq_shoup(), ibase_.base(), ibase_size, n);
+    bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            temp.get(), src, ibase_.QHatInvModq(),
+            ibase_.QHatInvModq_shoup(), ibase_.base(), ibase_size, n);
 
     gridDimGlb = obase_size * n / unroll_factor / blockDimGlb.x;
-    bconv_matmul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size>>>(
+    bconv_matmul_unroll2_kernel<<<
+    gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size, stream>>>(
             dst, temp.get(), QHatModp(), ibase_.base(), ibase_size, obase_.base(), obase_size, n);
 }
 
-void DBaseConverter::bConv_BEHZ_var1(uint64_t *dst, const uint64_t *src, size_t n) const {
+void DBaseConverter::bConv_BEHZ_var1(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const {
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
 
-    Pointer<uint64_t> temp;
-    temp.acquire(allocate<uint64_t>(global_pool(), ibase_size * n));
+    auto temp = cuda_make_shared<uint64_t>(ibase_size * n, stream);
 
     constexpr int unroll_factor = 2;
 
     uint64_t gridDimGlb = ibase_size * n / unroll_factor / blockDimGlb.x;
-    bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb>>>(temp.get(), src, negPQHatInvModq(), negPQHatInvModq_shoup(),
-                                                           ibase_.base(), ibase_size, n);
+    bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            temp.get(), src, negPQHatInvModq(), negPQHatInvModq_shoup(), ibase_.base(), ibase_size, n);
 
     gridDimGlb = obase_size * n / unroll_factor / blockDimGlb.x;
-    bconv_matmul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size>>>(
+    bconv_matmul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size, stream>>>(
             dst, temp.get(), QInvModp(), ibase_.base(), ibase_size, obase_.base(), obase_size, n);
 }
 
@@ -351,25 +351,22 @@ base_convert_matmul_hps_unroll4_kernel(uint64_t *dst, const uint64_t *xi_qiHatIn
     }
 }
 
-void DBaseConverter::bConv_HPS(uint64_t *dst, const uint64_t *src, size_t n) const {
+void DBaseConverter::bConv_HPS(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const {
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
 
-    Pointer<uint64_t> temp;
-    temp.acquire(allocate<uint64_t>(global_pool(), ibase_size * n));
-
-    //    cudaDeviceProp deviceProp{};
-    //    cudaGetDeviceProperties(&deviceProp, 0);
-    //    int gpu_cores = deviceProp.multiProcessorCount;
+    auto temp = cuda_make_shared<uint64_t>(ibase_size * n, stream);
 
     constexpr int unroll_factor = 2;
 
     uint64_t gridDimGlb = ibase_size * n / unroll_factor / blockDimGlb.x;
-    bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb>>>(temp.get(), src, ibase_.QHatInvModq(),
-                                                           ibase_.QHatInvModq_shoup(), ibase_.base(), ibase_size, n);
+    bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(temp.get(), src, ibase_.QHatInvModq(),
+                                                                      ibase_.QHatInvModq_shoup(), ibase_.base(),
+                                                                      ibase_size, n);
 
     gridDimGlb = obase_size * n / unroll_factor / blockDimGlb.x;
-    base_convert_matmul_hps_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size>>>(
+    base_convert_matmul_hps_unroll2_kernel<<<
+    gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size, stream>>>(
             dst, temp.get(), QHatModp(), alpha_Q_mod_pj(), ibase_.qiInv(), ibase_.base(), ibase_size, obase_.base(),
             obase_size, n);
 }
@@ -529,7 +526,8 @@ __global__ static void modup_copy_partQl_kernel(uint64_t *t_mod_up, const uint64
     }
 }
 
-void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_tables, const scheme_type &scheme) const {
+void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_tables, const scheme_type &scheme,
+                     const cudaStream_t &stream) const {
     size_t n = n_;
     size_t size_Ql = base_Ql_.size();
     size_t size_P = size_P_;
@@ -542,15 +540,14 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
     size_t alpha = size_P;
     size_t beta = v_base_part_Ql_to_compl_part_QlP_conv_.size();
 
-    Pointer<uint64_t> t_cks;
-    t_cks.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
+    auto t_cks = cuda_make_shared<uint64_t>(size_Ql_n, stream);
 
     // cks is in NTT domain, t_cks is in normal domain
     if (alpha == 1) {
         // In CKKS and BGV t_target is in NTT form; switch back to normal form
         if (scheme == scheme_type::ckks || scheme == scheme_type::bgv) {
             // no need to multiply qiHatInv_mod_qi
-            nwt_2d_radix8_backward(t_cks.get(), cks, ntt_tables, size_Ql, 0);
+            nwt_2d_radix8_backward(t_cks.get(), cks, ntt_tables, size_Ql, 0, stream);
             // copy partQl to t_mod_up is fused with modup_bconv_single_p_kernel
         }
     } else {
@@ -558,12 +555,12 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
         if (scheme == scheme_type::ckks || scheme == scheme_type::bgv) {
             // fuse with base converter kernel 1 (multiply qiHatInv_mod_qi)
             nwt_2d_radix8_backward_scale(t_cks.get(), cks, ntt_tables, size_Ql, 0, partQlHatInv_mod_Ql_concat_.get(),
-                                         partQlHatInv_mod_Ql_concat_shoup_.get());
+                                         partQlHatInv_mod_Ql_concat_shoup_.get(), stream);
         }
 
         // copy partQl to t_mod_up
-        modup_copy_partQl_kernel<<<n * size_Ql / blockDimGlb.x, blockDimGlb>>>(dst, cks, size_Ql_n, size_QlP_n,
-                                                                               alpha * n);
+        modup_copy_partQl_kernel<<<n * size_Ql / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                dst, cks, size_Ql_n, size_QlP_n, alpha * n);
     }
 
     for (size_t beta_idx = 0; beta_idx < beta; beta_idx++) {
@@ -579,12 +576,13 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
             uint64_t gridDimGlb = n * size_QlP / blockDimGlb.x;
 
             if (scheme == scheme_type::ckks || scheme == scheme_type::bgv) {
-                modup_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb>>>(t_modup_part_i, cks_part_i,
-                                                                         t_cks.get() + startPartIdx * n, startPartIdx,
-                                                                         n, base_QlP_.base(), size_QlP);
+                modup_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                        t_modup_part_i, cks_part_i, t_cks.get() + startPartIdx * n,
+                        startPartIdx, n, base_QlP_.base(), size_QlP);
             } else if (scheme == scheme_type::bfv) {
-                modup_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb>>>(t_modup_part_i, cks_part_i, cks_part_i,
-                                                                         startPartIdx, n, base_QlP_.base(), size_QlP);
+                modup_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                        t_modup_part_i, cks_part_i, cks_part_i,
+                        startPartIdx, n, base_QlP_.base(), size_QlP);
             } else {
                 throw invalid_argument("unsupported scheme");
             }
@@ -601,23 +599,27 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
             // bfv need to scale while ckks and bgv already scaled
             if (scheme == scheme_type::bfv) {
                 gridDimGlb = n * ibase_size / blockDimGlb.x;
-                bconv_mult_kernel<<<gridDimGlb, blockDimGlb>>>(t_cks_part_i, cks_part_i, ibase.QHatInvModq(),
-                                                               ibase.QHatInvModq_shoup(), ibase.base(), ibase_size, n);
+                bconv_mult_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                        t_cks_part_i, cks_part_i, ibase.QHatInvModq(),
+                        ibase.QHatInvModq_shoup(), ibase.base(), ibase_size, n);
             }
 
             constexpr int unroll_factor = 2;
             gridDimGlb = n * obase_size / blockDimGlb.x / unroll_factor;
-            bconv_matmul_padded_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size>>>(
+            bconv_matmul_padded_unroll2_kernel<<<
+            gridDimGlb, blockDimGlb, sizeof(uint64_t) * obase_size * ibase_size, stream>>>(
                     t_modup_part_i, t_cks_part_i, qiHat_mod_pj, ibase.base(), ibase_size, obase.base(), obase_size, n,
                     startPartIdx, size_PartQl);
         }
 
         if (scheme == scheme_type::ckks || scheme == scheme_type::bgv) {
             // some part of t_mod_up_i is already in NTT domain, no need to perform NTT
-            nwt_2d_radix8_forward_inplace_include_special_mod_exclude_range(t_modup_part_i, ntt_tables, size_QlP, 0,
-                                                                            size_QP, size_P, startPartIdx, endPartIdx);
+            nwt_2d_radix8_forward_inplace_include_special_mod_exclude_range(
+                    t_modup_part_i, ntt_tables, size_QlP, 0,
+                    size_QP, size_P, startPartIdx, endPartIdx, stream);
         } else if (scheme == scheme_type::bfv) {
-            nwt_2d_radix8_forward_inplace_include_special_mod(t_modup_part_i, ntt_tables, size_QlP, 0, size_QP, size_P);
+            nwt_2d_radix8_forward_inplace_include_special_mod(
+                    t_modup_part_i, ntt_tables, size_QlP, 0, size_QP, size_P, stream);
         } else {
             throw invalid_argument("unsupported scheme");
         }
@@ -639,7 +641,6 @@ __global__ static void bgv_moddown_kernel(uint64_t *dst, const uint64_t *cx, con
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n * size_Ql; tid += blockDim.x * gridDim.x) {
         size_t i = tid / n;
         auto qi = base_Ql[i].value();
-        auto qi_ratio = base_Ql[i].const_ratio();
 
         uint64_t temp = multiply_and_reduce_shoup(cp_mod_t[tid % n], PInv_mod_t, PInv_mod_t_shoup, t);
         uint64_t correction = multiply_and_reduce_shoup(temp, P_mod_qi[i], P_mod_qi_shoup[i], qi);
@@ -708,50 +709,52 @@ __global__ static void moddown_bconv_single_p_kernel(uint64_t *dst, const uint64
 /*
  * input: CKKS and BGV in NTT domain, BFV in normal domain
  */
-void DRNSTool::moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tables, const scheme_type &scheme) const {
+void DRNSTool::moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tables, const scheme_type &scheme,
+                       const cudaStream_t &stream) const {
     size_t n = n_;
     size_t size_Ql = base_Ql_.size();
     size_t size_QlP = size_Ql + size_P_;
     size_t size_Ql_n = size_Ql * n;
 
-    Pointer<uint64_t> delta;
-    delta.acquire(allocate<uint64_t>(global_pool(), size_QlP * n));
+    auto delta = cuda_make_shared<uint64_t>(size_QlP * n, stream);
 
     if (scheme == scheme_type::ckks) {
         // Transform cx_i[P] to normal domain
-        nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_P_, size_Ql, size_QP_, size_P_);
+        nwt_2d_radix8_backward_inplace_include_special_mod(
+                cx_i, ntt_tables, size_P_, size_Ql, size_QP_, size_P_, stream);
     } else if (scheme == scheme_type::bgv) {
         // Transform cx_i[QlP] to normal domain
-        nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_QlP, 0, size_QP_, size_P_);
+        nwt_2d_radix8_backward_inplace_include_special_mod(
+                cx_i, ntt_tables, size_QlP, 0, size_QP_, size_P_, stream);
     }
 
     if (scheme == scheme_type::bgv) {
-        base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n);
+        base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n, stream);
 
-        Pointer<uint64_t> temp_t;
-        temp_t.acquire(allocate<uint64_t>(global_pool(), n));
+        auto temp_t = cuda_make_shared<uint64_t>(n, stream);
 
-        base_P_to_t_conv_.bConv_BEHZ(temp_t.get(), cx_i + size_Ql_n, n);
+        base_P_to_t_conv_.bConv_BEHZ(temp_t.get(), cx_i + size_Ql_n, n, stream);
 
-        bgv_moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(
+        bgv_moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
                 ct_i, cx_i, delta.get(), temp_t.get(), bigP_mod_q(), bigP_mod_q_shoup(), bigPInv_mod_q(),
                 bigPInv_mod_q_shoup(), bigPInv_mod_t_, bigPInv_mod_t_shoup_, ntt_tables.modulus(), size_Ql, t_.value(),
                 n);
 
-        nwt_2d_radix8_forward_inplace(ct_i, ntt_tables, size_Ql, 0);
+        nwt_2d_radix8_forward_inplace(ct_i, ntt_tables, size_Ql, 0, stream);
     } else {
         // BFV and CKKS
-        base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n);
+        base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n, stream);
 
         if (scheme == scheme_type::ckks) {
             // CKKS can compute the last step in NTT domain
-            nwt_2d_radix8_forward_inplace(delta.get(), ntt_tables, size_Ql, 0);
+            nwt_2d_radix8_forward_inplace(delta.get(), ntt_tables, size_Ql, 0, stream);
         }
 
         // CKKS and BGV in NTT domain while BFV in normal domain
         // cx_i[k] = qk^(-1) * (cx_i[k] - (cx_i[last] mod qk)) mod qk
-        moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(ct_i, cx_i, delta.get(), ntt_tables.modulus(),
-                                                                   bigPInv_mod_q(), bigPInv_mod_q_shoup(), n, size_Ql);
+        moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                ct_i, cx_i, delta.get(), ntt_tables.modulus(),
+                bigPInv_mod_q(), bigPInv_mod_q_shoup(), n, size_Ql);
     }
 }
 
@@ -769,54 +772,55 @@ __global__ void add_to_ct_kernel(uint64_t *ct, const uint64_t *cx, const DModulu
  * output: CKKS and BGV in NTT domain, BFV in normal domain
  */
 void DRNSTool::moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tables,
-                                const scheme_type &scheme) const {
+                                const scheme_type &scheme, const cudaStream_t &stream) const {
     size_t n = n_;
     size_t size_Ql = base_Ql_.size();
     size_t size_QlP = size_Ql + size_P_;
     size_t alpha = size_P_;
     size_t size_Ql_n = size_Ql * n;
 
-    Pointer<uint64_t> delta;
-    delta.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
+    auto delta = cuda_make_shared<uint64_t>(size_Ql_n, stream);
 
     if (scheme == scheme_type::ckks) {
         // Transform cx_i[P] to normal domain
-        nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_P_, size_Ql, size_QP_, size_P_);
+        nwt_2d_radix8_backward_inplace_include_special_mod(
+                cx_i, ntt_tables, size_P_, size_Ql, size_QP_, size_P_, stream);
     } else if (scheme == scheme_type::bgv || scheme == scheme_type::bfv) {
         // Transform cx_i[QlP] to normal domain
-        nwt_2d_radix8_backward_inplace_include_special_mod(cx_i, ntt_tables, size_QlP, 0, size_QP_, size_P_);
+        nwt_2d_radix8_backward_inplace_include_special_mod(
+                cx_i, ntt_tables, size_QlP, 0, size_QP_, size_P_, stream);
     }
 
     if (alpha == 1) {
         uint64_t gridDimGlb = n * size_Ql / blockDimGlb.x;
-        moddown_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb>>>(delta.get(), cx_i + size_Ql_n, n, base_QlP_.base(),
-                                                                   size_QlP);
+        moddown_bconv_single_p_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                delta.get(), cx_i + size_Ql_n, n, base_QlP_.base(), size_QlP);
     } else {
-        base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n);
+        base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n, stream);
     }
 
     if (scheme == scheme_type::bgv) {
-        Pointer<uint64_t> temp_t;
-        temp_t.acquire(allocate<uint64_t>(global_pool(), n));
+        auto temp_t = cuda_make_shared<uint64_t>(n, stream);
 
-        base_P_to_t_conv_.bConv_BEHZ(temp_t.get(), cx_i + size_Ql_n, n);
+        base_P_to_t_conv_.bConv_BEHZ(temp_t.get(), cx_i + size_Ql_n, n, stream);
 
         // delta = [Cp + [-Cp * pInv]_t * p]_qi
         // ci' = [(ci - delta) * pInv]_qi
-        bgv_moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(
+        bgv_moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
                 ct_i, cx_i, delta.get(), temp_t.get(), bigP_mod_q(), bigP_mod_q_shoup(), bigPInv_mod_q(),
                 bigPInv_mod_q_shoup(), bigPInv_mod_t_, bigPInv_mod_t_shoup_, ntt_tables.modulus(), size_Ql, t_.value(),
                 n);
 
-        nwt_2d_radix8_forward_inplace(ct_i, ntt_tables, size_Ql, 0);
+        nwt_2d_radix8_forward_inplace(ct_i, ntt_tables, size_Ql, 0, stream);
     } else if (scheme == scheme_type::ckks) {
         // CKKS can compute the last step in NTT domain
         // ct_i += (cxi - delta) * factor mod qi
         nwt_2d_radix8_forward_inplace_fuse_moddown(ct_i, cx_i, bigPInv_mod_q_.get(), bigPInv_mod_q_shoup_.get(),
-                                                   delta.get(), ntt_tables, size_Ql, 0);
+                                                   delta.get(), ntt_tables, size_Ql, 0, stream);
     } else if (scheme == scheme_type::bfv) {
         // ct_i += (cxi - delta) * factor mod qi
-        moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(ct_i, cx_i, delta.get(), ntt_tables.modulus(),
-                                                                   bigPInv_mod_q(), bigPInv_mod_q_shoup(), n, size_Ql);
+        moddown_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                ct_i, cx_i, delta.get(), ntt_tables.modulus(),
+                bigPInv_mod_q(), bigPInv_mod_q_shoup(), n, size_Ql);
     }
 }

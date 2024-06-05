@@ -994,7 +994,7 @@ namespace phantom {
 
     void DRNSTool::behz_decrypt_scale_and_round(uint64_t *src, uint64_t *temp, const DNTTTable &rns_table,
                                                 uint64_t temp_mod_size, uint64_t poly_modulus_degree,
-                                                uint64_t *dst) const {
+                                                uint64_t *dst, const cudaStream_t &stream) const {
         size_t base_q_size = base_Ql_.size();
         size_t base_t_gamma_size = base_t_gamma_.size();
         size_t coeff_mod_size = rns_table.size();
@@ -1002,26 +1002,27 @@ namespace phantom {
         // Compute |gamma * t|_qi * ct(s)
         uint64_t gridDimGlb;
         gridDimGlb = n_ * base_q_size / blockDimGlb.x;
-        multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(src, prod_t_gamma_mod_q(), prod_t_gamma_mod_q_shoup(),
-                                                              base_Ql_.base(), temp, n_, base_q_size);
+        multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                src, prod_t_gamma_mod_q(), prod_t_gamma_mod_q_shoup(),
+                base_Ql_.base(), temp, n_, base_q_size);
 
         // Do not need additional memory
         if (temp_mod_size >= base_t_gamma_size) {
             // Convert from q to {t, gamma}
-            base_q_to_t_gamma_conv_.bConv_BEHZ(temp, temp, n_);
+            base_q_to_t_gamma_conv_.bConv_BEHZ(temp, temp, n_, stream);
 
             // Multiply by -prod(q)^(-1) mod {t, gamma}
             if (coeff_mod_size >= base_t_gamma_size) {
                 gridDimGlb = n_ * base_t_gamma_size / blockDimGlb.x;
-                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
-                        temp, neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(), base_t_gamma_.base(), temp, n_,
-                        base_t_gamma_size);
+                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                        temp, neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(),
+                        base_t_gamma_.base(), temp, n_, base_t_gamma_size);
             } else {
                 // coeff_mod_size = 1
                 gridDimGlb = n_ * coeff_mod_size / blockDimGlb.x;
-                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(temp, neg_inv_q_mod_t_gamma(),
-                                                                      neg_inv_q_mod_t_gamma_shoup(),
-                                                                      base_t_gamma_.base(), temp, n_, coeff_mod_size);
+                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                        temp, neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(),
+                        base_t_gamma_.base(), temp, n_, coeff_mod_size);
             }
 
             // Need to correct values in temp_t_gamma (gamma component only) which are
@@ -1030,25 +1031,25 @@ namespace phantom {
             // Now compute the subtraction to remove error and perform final multiplication by
             // gamma inverse mod t
             gridDimGlb = n_ / blockDimGlb.x;
-            perform_final_multiplication<<<gridDimGlb, blockDimGlb>>>(dst, temp, inv_gamma_mod_t_,
-                                                                      inv_gamma_mod_t_shoup_, n_, base_t_gamma_.base());
+            perform_final_multiplication<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    dst, temp, inv_gamma_mod_t_, inv_gamma_mod_t_shoup_,
+                    n_, base_t_gamma_.base());
         } else {
             // Need additional memory
-            Pointer<uint64_t> t_gamma;
-            t_gamma.acquire(allocate<uint64_t>(global_pool(), base_t_gamma_size * n_));
+            auto t_gamma = cuda_make_shared<uint64_t>(base_t_gamma_size * n_, stream);
 
             // Convert from q to {t, gamma}
-            base_q_to_t_gamma_conv_.bConv_BEHZ(t_gamma.get(), temp, n_);
+            base_q_to_t_gamma_conv_.bConv_BEHZ(t_gamma.get(), temp, n_, stream);
 
             // Multiply by -prod(q)^(-1) mod {t, gamma}
             if (coeff_mod_size >= base_t_gamma_size) {
                 gridDimGlb = n_ * base_t_gamma_size / blockDimGlb.x;
-                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                         t_gamma.get(), neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(), base_t_gamma_.base(),
                         t_gamma.get(), n_, base_t_gamma_size);
             } else {
                 gridDimGlb = n_ * coeff_mod_size / blockDimGlb.x;
-                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+                multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                         t_gamma.get(), neg_inv_q_mod_t_gamma(), neg_inv_q_mod_t_gamma_shoup(), base_t_gamma_.base(),
                         t_gamma.get(), n_, coeff_mod_size);
             }
@@ -1059,8 +1060,9 @@ namespace phantom {
             // Now compute the subtraction to remove error and perform final multiplication by
             // gamma inverse mod t
             gridDimGlb = n_ / blockDimGlb.x;
-            perform_final_multiplication<<<gridDimGlb, blockDimGlb>>>(dst, t_gamma.get(), inv_gamma_mod_t_,
-                                                                      inv_gamma_mod_t_shoup_, n_, base_t_gamma_.base());
+            perform_final_multiplication<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    dst, t_gamma.get(), inv_gamma_mod_t_, inv_gamma_mod_t_shoup_,
+                    n_, base_t_gamma_.base());
         }
     }
 
@@ -1660,12 +1662,12 @@ namespace phantom {
         }
     }
 
-    void DRNSTool::scaleAndRound_HPS_QR_R(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::scaleAndRound_HPS_QR_R(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         uint64_t gridDimGlb = n_ / blockDimGlb.x;
         size_t n = n_;
         size_t size_Ql = base_Ql_.size();
         size_t size_Rl = base_Rl_.size();
-        scaleAndRound_HPS_QR_R_kernel<<<gridDimGlb, blockDimGlb>>>(
+        scaleAndRound_HPS_QR_R_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 dst, src, tRSHatInvModsDivsModr(), tRSHatInvModsDivsFrac(), base_Rl_.base(), n, size_Ql, size_Rl);
     }
 
@@ -1710,12 +1712,12 @@ namespace phantom {
         }
     }
 
-    void DRNSTool::scaleAndRound_HPS_QlRl_Ql(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::scaleAndRound_HPS_QlRl_Ql(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         uint64_t gridDimGlb = n_ / blockDimGlb.x;
         size_t n = n_;
         size_t size_Ql = base_Ql_.size();
         size_t size_Rl = base_Rl_.size();
-        scaleAndRound_HPS_QlRl_Ql_kernel<<<gridDimGlb, blockDimGlb>>>(
+        scaleAndRound_HPS_QlRl_Ql_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 dst, src, tQlSlHatInvModsDivsModq(), tQlSlHatInvModsDivsFrac(), base_Ql_.base(), n, size_Ql, size_Rl);
     }
 
@@ -1747,15 +1749,16 @@ namespace phantom {
         }
     }
 
-    void DRNSTool::ExpandCRTBasis_Ql_Q(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::ExpandCRTBasis_Ql_Q(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         size_t size_Ql = base_Ql_.size();
         size_t size_Q = base_Q_.size();
 
         size_t n = n_;
         uint64_t gridDimGlb = n * size_Q / blockDimGlb.x;
-        ExpandCRTBasisQlHat_kernel<<<gridDimGlb, blockDimGlb>>>(dst, src, base_Ql_to_QlDrop_conv_.PModq(),
-                                                                base_Ql_to_QlDrop_conv_.PModq_shoup(), base_Ql_.base(),
-                                                                size_Ql, size_Q, n);
+        ExpandCRTBasisQlHat_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                dst, src, base_Ql_to_QlDrop_conv_.PModq(),
+                base_Ql_to_QlDrop_conv_.PModq_shoup(), base_Ql_.base(),
+                size_Ql, size_Q, n);
     }
 
     __global__ void ExpandCRTBasisQlHat_add_to_ct_kernel(uint64_t *out, const uint64_t *in, const uint64_t *QlDropModq,
@@ -1769,13 +1772,13 @@ namespace phantom {
         }
     }
 
-    void DRNSTool::ExpandCRTBasis_Ql_Q_add_to_ct(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::ExpandCRTBasis_Ql_Q_add_to_ct(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         size_t size_Ql = base_Ql_.size();
 
         size_t n = n_;
         uint64_t gridDimGlb = n * size_Ql / blockDimGlb.x;
-        ExpandCRTBasisQlHat_add_to_ct_kernel<<<gridDimGlb, blockDimGlb>>>(dst, src, base_Ql_to_QlDrop_conv_.PModq(),
-                                                                          base_Ql_to_QlDrop_conv_.PModq_shoup(),
-                                                                          base_Ql_.base(), size_Ql, n);
+        ExpandCRTBasisQlHat_add_to_ct_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                dst, src, base_Ql_to_QlDrop_conv_.PModq(), base_Ql_to_QlDrop_conv_.PModq_shoup(),
+                base_Ql_.base(), size_Ql, n);
     }
-} // namespace phantom
+}

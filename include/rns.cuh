@@ -150,28 +150,29 @@ namespace phantom {
         DRNSTool() = default;
 
         void modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_tables,
-                   const scheme_type &scheme) const;
+                   const scheme_type &scheme, const cudaStream_t &stream) const;
 
         void moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tables,
-                     const scheme_type &scheme) const;
+                     const scheme_type &scheme, const cudaStream_t &stream) const;
 
         void moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tables,
-                              const scheme_type &scheme) const;
+                              const scheme_type &scheme, const cudaStream_t &stream) const;
 
         void behz_decrypt_scale_and_round(uint64_t *src, uint64_t *temp, const DNTTTable &rns_table,
-                                          uint64_t temp_mod_size, uint64_t poly_modulus_degree, uint64_t *dst) const;
+                                          uint64_t temp_mod_size, uint64_t poly_modulus_degree, uint64_t *dst,
+                                          const cudaStream_t &stream) const;
 
         void hps_decrypt_scale_and_round(uint64_t *dst, const uint64_t *src) const;
 
-        void scaleAndRound_HPS_QR_R(uint64_t *dst, const uint64_t *src) const;
+        void scaleAndRound_HPS_QR_R(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
-        void scaleAndRound_HPS_QlRl_Ql(uint64_t *dst, const uint64_t *src) const;
+        void scaleAndRound_HPS_QlRl_Ql(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
         void scaleAndRound_HPS_Q_Ql(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
-        void ExpandCRTBasis_Ql_Q(uint64_t *dst, const uint64_t *src) const;
+        void ExpandCRTBasis_Ql_Q(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
-        void ExpandCRTBasis_Ql_Q_add_to_ct(uint64_t *dst, const uint64_t *src) const;
+        void ExpandCRTBasis_Ql_Q_add_to_ct(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
         void divide_and_round_q_last(const uint64_t *src, size_t cipher_size, uint64_t *dst) const;
 

@@ -20,7 +20,7 @@ __global__ void key_switch_inner_prod_c2_and_evk(uint64_t *dst, const uint64_t *
 // used by switch_key_inplace
 void key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uint64_t *const *rlk,
                            const phantom::DRNSTool &rns_tool, const DModulus *modulus_QP,
-                           const size_t reduction_threshold);
+                           size_t reduction_threshold, const cudaStream_t &stream);
 
 [[nodiscard]] inline bool is_scale_within_bounds(double scale, const phantom::ContextData &context_data) noexcept {
     int scale_bit_count_bound = 0;
@@ -225,21 +225,6 @@ void rescale_to_next(const PhantomContext &context, const PhantomCiphertext &enc
 inline void rescale_to_next_inplace(const PhantomContext &context, PhantomCiphertext &encrypted) {
     rescale_to_next(context, encrypted, encrypted);
 }
-
-/**Transforms a ciphertext to NTT domain. This functions applies David Harvey's Number Theoretic Transform
-   separately to each polynomial of a ciphertext.
- * @param context PhantomContext
- * @param encrypted The ciphertext to transform
- */
-void transform_to_ntt_inplace(const PhantomContext &context, PhantomCiphertext &encrypted);
-
-/**Transforms a ciphertext to NTT domain. This functions applies David Harvey's Number Theoretic Transform
-   separately to each polynomial of a ciphertext.
-
- * @param context PhantomContext
- * @param encrypted The ciphertext to transform
- */
-void transform_from_ntt_inplace(const PhantomContext &context, PhantomCiphertext &encrypted_ntt);
 
 void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, const PhantomGaloisKey &glk,
                       const std::vector<int> &steps,

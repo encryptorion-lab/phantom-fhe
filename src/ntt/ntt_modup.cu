@@ -7,11 +7,11 @@ using namespace phantom::util;
 using namespace phantom::arith;
 
 __global__ static void
-inwt_radix8_phase1(uint64_t* out,
-                   const uint64_t* in,
-                   const uint64_t* itwiddles,
-                   const uint64_t* itwiddles_shoup,
-                   const DModulus* modulus,
+inwt_radix8_phase1(uint64_t *out,
+                   const uint64_t *in,
+                   const uint64_t *itwiddles,
+                   const uint64_t *itwiddles_shoup,
+                   const DModulus *modulus,
                    const size_t coeff_mod_size,
                    const size_t start_mod_idx,
                    const size_t n,
@@ -36,9 +36,9 @@ inwt_radix8_phase1(uint64_t* out,
         // base address
         auto in_ptr = in + twr_idx * n;
         auto out_ptr = out + twr_idx * n;
-        const uint64_t* psi = itwiddles + n * twr_idx;
-        const uint64_t* psi_shoup = itwiddles_shoup + n * twr_idx;
-        const DModulus* modulus_table = modulus;
+        const uint64_t *psi = itwiddles + n * twr_idx;
+        const uint64_t *psi_shoup = itwiddles_shoup + n * twr_idx;
+        const DModulus *modulus_table = modulus;
         uint64_t modulus = modulus_table[twr_idx].value();
         size_t n_init = 2 * m_idx * t + t_idx;
 
@@ -106,12 +106,12 @@ inwt_radix8_phase1(uint64_t* out,
 }
 
 __global__ static void
-inplace_inwt_radix8_phase2(uint64_t* inout,
-                           const uint64_t* itwiddles,
-                           const uint64_t* itwiddles_shoup,
-                           const uint64_t* inv_degree_modulo,
-                           const uint64_t* inv_degree_modulo_shoup,
-                           const DModulus* modulus,
+inplace_inwt_radix8_phase2(uint64_t *inout,
+                           const uint64_t *itwiddles,
+                           const uint64_t *itwiddles_shoup,
+                           const uint64_t *inv_degree_modulo,
+                           const uint64_t *inv_degree_modulo_shoup,
+                           const DModulus *modulus,
                            const size_t coeff_mod_size,
                            const size_t start_mod_idx,
                            const size_t n,
@@ -134,10 +134,10 @@ inplace_inwt_radix8_phase2(uint64_t* inout,
         size_t n_idx = i % (n / 8);
 
         // base address
-        uint64_t* data_ptr = inout + twr_idx * n;
-        const uint64_t* psi = itwiddles + n * twr_idx;
-        const uint64_t* psi_shoup = itwiddles_shoup + n * twr_idx;
-        const DModulus* modulus_table = modulus;
+        uint64_t *data_ptr = inout + twr_idx * n;
+        const uint64_t *psi = itwiddles + n * twr_idx;
+        const uint64_t *psi_shoup = itwiddles_shoup + n * twr_idx;
+        const DModulus *modulus_table = modulus;
         uint64_t modulus_value = modulus_table[twr_idx].value();
         uint64_t inv_degree_mod = inv_degree_modulo[twr_idx];
         uint64_t inv_degree_mod_shoup = inv_degree_modulo_shoup[twr_idx];
@@ -210,19 +210,19 @@ inplace_inwt_radix8_phase2(uint64_t* inout,
 }
 
 __global__ static void
-inplace_inwt_radix8_phase2_scale(uint64_t* inout,
-                                 const uint64_t* itwiddles,
-                                 const uint64_t* itwiddles_shoup,
-                                 const uint64_t* inv_degree_modulo,
-                                 const uint64_t* inv_degree_modulo_shoup,
-                                 const DModulus* modulus,
+inplace_inwt_radix8_phase2_scale(uint64_t *inout,
+                                 const uint64_t *itwiddles,
+                                 const uint64_t *itwiddles_shoup,
+                                 const uint64_t *inv_degree_modulo,
+                                 const uint64_t *inv_degree_modulo_shoup,
+                                 const DModulus *modulus,
                                  const size_t coeff_mod_size,
                                  const size_t start_mod_idx,
                                  const size_t n,
                                  const size_t n1,
                                  const size_t pad,
-                                 const uint64_t* scale,
-                                 const uint64_t* scale_shoup) {
+                                 const uint64_t *scale,
+                                 const uint64_t *scale_shoup) {
     extern __shared__ uint64_t buffer[];
     for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < (n / 8 * coeff_mod_size);
          i += blockDim.x * gridDim.x) {
@@ -240,10 +240,10 @@ inplace_inwt_radix8_phase2_scale(uint64_t* inout,
         size_t n_idx = i % (n / 8);
 
         // base address
-        uint64_t* data_ptr = inout + twr_idx * n;
-        const uint64_t* psi = itwiddles + n * twr_idx;
-        const uint64_t* psi_shoup = itwiddles_shoup + n * twr_idx;
-        const DModulus* modulus_table = modulus;
+        uint64_t *data_ptr = inout + twr_idx * n;
+        const uint64_t *psi = itwiddles + n * twr_idx;
+        const uint64_t *psi_shoup = itwiddles_shoup + n * twr_idx;
+        const DModulus *modulus_table = modulus;
         uint64_t modulus_value = modulus_table[twr_idx].value();
         uint64_t inv_degree_mod = inv_degree_modulo[twr_idx];
         uint64_t inv_degree_mod_shoup = inv_degree_modulo_shoup[twr_idx];
@@ -312,91 +312,91 @@ inplace_inwt_radix8_phase2_scale(uint64_t* inout,
 #pragma unroll
         for (size_t j = 0; j < 8; j++) {
             *(data_ptr + n_init + t / 4 * j) = multiply_and_reduce_shoup(
-                samples[j], scale_q, scale_q_shoup, modulus_value);
+                    samples[j], scale_q, scale_q_shoup, modulus_value);
         }
     }
 }
 
-void nwt_2d_radix8_backward(uint64_t* out,
-                            const uint64_t* in,
-                            const DNTTTable& ntt_tables,
+void nwt_2d_radix8_backward(uint64_t *out,
+                            const uint64_t *in,
+                            const DNTTTable &ntt_tables,
                             size_t coeff_modulus_size,
-                            size_t start_modulus_idx) {
+                            size_t start_modulus_idx,
+                            const cudaStream_t &stream) {
     size_t poly_degree = ntt_tables.n();
     size_t phase2_sample_size = SAMPLE_SIZE(poly_degree);
 
     const size_t phase1_sample_size = poly_degree / phase2_sample_size;
     const size_t per_block_memory = blockDimNTT.x * per_thread_sample_size * sizeof(uint64_t);
-    inwt_radix8_phase1<<<gridDimNTT, blockDimNTT, per_block_memory>>>(
-        out,
-        in,
-        ntt_tables.itwiddle(),
-        ntt_tables.itwiddle_shoup(),
-        ntt_tables.modulus(),
-        coeff_modulus_size,
-        start_modulus_idx,
-        poly_degree,
-        phase1_sample_size,
-        phase2_sample_size);
+    inwt_radix8_phase1<<<gridDimNTT, blockDimNTT, per_block_memory, stream>>>(
+            out,
+            in,
+            ntt_tables.itwiddle(),
+            ntt_tables.itwiddle_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            poly_degree,
+            phase1_sample_size,
+            phase2_sample_size);
     inplace_inwt_radix8_phase2<<<
-            gridDimNTT,
-            (phase1_sample_size / 8) * per_block_pad,
-            (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t)>>>(
-                out,
-                ntt_tables.itwiddle(), ntt_tables.itwiddle_shoup(),
-                ntt_tables.n_inv_mod_q(), ntt_tables.n_inv_mod_q_shoup(),
-                ntt_tables.modulus(),
-                coeff_modulus_size,
-                start_modulus_idx,
-                poly_degree,
-                phase1_sample_size,
-                per_block_pad);
+    gridDimNTT, (phase1_sample_size / 8) * per_block_pad,
+    (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t), stream>>>(
+            out,
+            ntt_tables.itwiddle(), ntt_tables.itwiddle_shoup(),
+            ntt_tables.n_inv_mod_q(), ntt_tables.n_inv_mod_q_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            poly_degree,
+            phase1_sample_size,
+            per_block_pad);
 }
 
-void nwt_2d_radix8_backward_scale(uint64_t* out,
-                                  const uint64_t* in,
-                                  const DNTTTable& ntt_tables,
+void nwt_2d_radix8_backward_scale(uint64_t *out,
+                                  const uint64_t *in,
+                                  const DNTTTable &ntt_tables,
                                   size_t coeff_modulus_size,
                                   size_t start_modulus_idx,
-                                  const uint64_t* scale,
-                                  const uint64_t* scale_shoup) {
+                                  const uint64_t *scale,
+                                  const uint64_t *scale_shoup,
+                                  const cudaStream_t &stream) {
     size_t poly_degree = ntt_tables.n();
     size_t phase2_sample_size = SAMPLE_SIZE(poly_degree);
 
     const size_t phase1_sample_size = poly_degree / phase2_sample_size;
     const size_t per_block_memory = blockDimNTT.x * per_thread_sample_size * sizeof(uint64_t);
-    inwt_radix8_phase1<<<gridDimNTT, blockDimNTT, per_block_memory>>>(
-        out,
-        in,
-        ntt_tables.itwiddle(),
-        ntt_tables.itwiddle_shoup(),
-        ntt_tables.modulus(),
-        coeff_modulus_size,
-        start_modulus_idx,
-        poly_degree,
-        phase1_sample_size,
-        phase2_sample_size);
+    inwt_radix8_phase1<<<gridDimNTT, blockDimNTT, per_block_memory, stream>>>(
+            out,
+            in,
+            ntt_tables.itwiddle(),
+            ntt_tables.itwiddle_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            poly_degree,
+            phase1_sample_size,
+            phase2_sample_size);
     inplace_inwt_radix8_phase2_scale<<<
-            gridDimNTT,
-            (phase1_sample_size / 8) * per_block_pad,
-            (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t)>>>(
-                out,
-                ntt_tables.itwiddle(), ntt_tables.itwiddle_shoup(),
-                ntt_tables.n_inv_mod_q(), ntt_tables.n_inv_mod_q_shoup(),
-                ntt_tables.modulus(),
-                coeff_modulus_size,
-                start_modulus_idx,
-                poly_degree,
-                phase1_sample_size,
-                per_block_pad,
-                scale, scale_shoup);
+    gridDimNTT, (phase1_sample_size / 8) * per_block_pad,
+    (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t), stream>>>(
+            out,
+            ntt_tables.itwiddle(), ntt_tables.itwiddle_shoup(),
+            ntt_tables.n_inv_mod_q(), ntt_tables.n_inv_mod_q_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            poly_degree,
+            phase1_sample_size,
+            per_block_pad,
+            scale, scale_shoup);
 }
 
 __global__ static void
-inplace_fnwt_radix8_phase1_include_special_mod_exclude_range(uint64_t* inout,
-                                                             const uint64_t* twiddles,
-                                                             const uint64_t* twiddles_shoup,
-                                                             const DModulus* modulus,
+inplace_fnwt_radix8_phase1_include_special_mod_exclude_range(uint64_t *inout,
+                                                             const uint64_t *twiddles,
+                                                             const uint64_t *twiddles_shoup,
+                                                             const DModulus *modulus,
                                                              size_t coeff_mod_size,
                                                              size_t start_mod_idx,
                                                              size_t size_QP, size_t size_P,
@@ -421,15 +421,15 @@ inplace_fnwt_radix8_phase1_include_special_mod_exclude_range(uint64_t* inout,
         size_t twr_idx = tid / (n / 8) + start_mod_idx;
         if (twr_idx >= excluded_range_start && twr_idx < excluded_range_end) continue;
         size_t twr_idx2 = (twr_idx >= start_mod_idx + coeff_mod_size - size_P
-                               ? size_QP - (start_mod_idx + coeff_mod_size - twr_idx)
-                               : twr_idx);
+                           ? size_QP - (start_mod_idx + coeff_mod_size - twr_idx)
+                           : twr_idx);
         // index in n/8 range (in each tower)
         size_t n_idx = tid % (n / 8);
         // base address
-        uint64_t* data_ptr = inout + twr_idx * n;
-        const uint64_t* psi = twiddles + twr_idx2 * n;
-        const uint64_t* psi_shoup = twiddles_shoup + twr_idx2 * n;
-        const DModulus* modulus_table = modulus;
+        uint64_t *data_ptr = inout + twr_idx * n;
+        const uint64_t *psi = twiddles + twr_idx2 * n;
+        const uint64_t *psi_shoup = twiddles_shoup + twr_idx2 * n;
+        const DModulus *modulus_table = modulus;
         uint64_t modulus = modulus_table[twr_idx2].value();
         size_t n_init = t / 4 / group * pad_idx + pad_tid + pad * (n_idx / (group * pad));
 
@@ -496,10 +496,10 @@ inplace_fnwt_radix8_phase1_include_special_mod_exclude_range(uint64_t* inout,
 }
 
 __global__ static void
-inplace_fnwt_radix8_phase2_include_special_mod_exclude_range(uint64_t* inout,
-                                                             const uint64_t* twiddles,
-                                                             const uint64_t* twiddles_shoup,
-                                                             const DModulus* modulus,
+inplace_fnwt_radix8_phase2_include_special_mod_exclude_range(uint64_t *inout,
+                                                             const uint64_t *twiddles,
+                                                             const uint64_t *twiddles_shoup,
+                                                             const DModulus *modulus,
                                                              size_t coeff_mod_size,
                                                              size_t start_mod_idx,
                                                              size_t size_QP, size_t size_P,
@@ -521,18 +521,18 @@ inplace_fnwt_radix8_phase2_include_special_mod_exclude_range(uint64_t* inout,
         size_t twr_idx = coeff_mod_size - 1 - (tid / (n / 8)) + start_mod_idx;
         if (twr_idx >= excluded_range_start && twr_idx < excluded_range_end) continue;
         size_t twr_idx2 = (twr_idx >= start_mod_idx + coeff_mod_size - size_P
-                               ? size_QP - (start_mod_idx + coeff_mod_size - twr_idx)
-                               : twr_idx);
+                           ? size_QP - (start_mod_idx + coeff_mod_size - twr_idx)
+                           : twr_idx);
         // index in n/2 range
         size_t n_idx = tid % (n / 8);
         // tid'th block
         size_t m_idx = n_idx / (t / 4);
         size_t t_idx = n_idx % (t / 4);
         // base address
-        uint64_t* data_ptr = inout + twr_idx * n;
-        const uint64_t* psi = twiddles + n * twr_idx2;
-        const uint64_t* psi_shoup = twiddles_shoup + n * twr_idx2;
-        const DModulus* modulus_table = modulus;
+        uint64_t *data_ptr = inout + twr_idx * n;
+        const uint64_t *psi = twiddles + n * twr_idx2;
+        const uint64_t *psi_shoup = twiddles_shoup + n * twr_idx2;
+        const DModulus *modulus_table = modulus;
         uint64_t modulus = modulus_table[twr_idx2].value();
         size_t n_init = 2 * m_idx * t + t_idx;
 #pragma unroll
@@ -608,12 +608,13 @@ inplace_fnwt_radix8_phase2_include_special_mod_exclude_range(uint64_t* inout,
 }
 
 void nwt_2d_radix8_forward_inplace_include_special_mod_exclude_range(
-    uint64_t* inout,
-    const DNTTTable& ntt_tables,
-    size_t coeff_modulus_size,
-    size_t start_modulus_idx,
-    size_t size_QP, size_t size_P,
-    size_t excluded_range_start, size_t excluded_range_end) {
+        uint64_t *inout,
+        const DNTTTable &ntt_tables,
+        size_t coeff_modulus_size,
+        size_t start_modulus_idx,
+        size_t size_QP, size_t size_P,
+        size_t excluded_range_start, size_t excluded_range_end,
+        const cudaStream_t &stream) {
     if (excluded_range_start < start_modulus_idx ||
         excluded_range_end > (start_modulus_idx + coeff_modulus_size)) {
         throw std::invalid_argument("Excluded range in NTT is invalid.");
@@ -626,32 +627,31 @@ void nwt_2d_radix8_forward_inplace_include_special_mod_exclude_range(
     const size_t per_block_memory = blockDimNTT.x * per_thread_sample_size * sizeof(uint64_t);
     //
     inplace_fnwt_radix8_phase1_include_special_mod_exclude_range<<<
-            gridDimNTT,
-            (phase1_sample_size / 8) * per_block_pad,
-            (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t)>>>(
-                inout,
-                ntt_tables.twiddle(),
-                ntt_tables.twiddle_shoup(),
-                ntt_tables.modulus(),
-                coeff_modulus_size,
-                start_modulus_idx,
-                size_QP, size_P,
-                poly_degree,
-                phase1_sample_size,
-                per_block_pad,
-                excluded_range_start, excluded_range_end);
+    gridDimNTT, (phase1_sample_size / 8) * per_block_pad,
+    (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t), stream>>>(
+            inout,
+            ntt_tables.twiddle(),
+            ntt_tables.twiddle_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            size_QP, size_P,
+            poly_degree,
+            phase1_sample_size,
+            per_block_pad,
+            excluded_range_start, excluded_range_end);
     // max 512 threads per block
     inplace_fnwt_radix8_phase2_include_special_mod_exclude_range<<<
-            gridDimNTT, blockDimNTT, per_block_memory>>>(
-                inout,
-                ntt_tables.twiddle(),
-                ntt_tables.twiddle_shoup(),
-                ntt_tables.modulus(),
-                coeff_modulus_size,
-                start_modulus_idx,
-                size_QP, size_P,
-                poly_degree,
-                phase1_sample_size,
-                phase2_sample_size,
-                excluded_range_start, excluded_range_end);
+    gridDimNTT, blockDimNTT, per_block_memory, stream>>>(
+            inout,
+            ntt_tables.twiddle(),
+            ntt_tables.twiddle_shoup(),
+            ntt_tables.modulus(),
+            coeff_modulus_size,
+            start_modulus_idx,
+            size_QP, size_P,
+            poly_degree,
+            phase1_sample_size,
+            phase2_sample_size,
+            excluded_range_start, excluded_range_end);
 }

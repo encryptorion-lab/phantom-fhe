@@ -25,8 +25,7 @@ void poly_infty_norm_coeffmod(const uint64_t *poly, size_t coeff_count, size_t c
         if (is_greater_than_or_equal_uint(poly + i * coeff_uint64_count, modulus_neg_threshold.data(),
                                           coeff_uint64_count)) {
             sub_uint(modulus, poly + i * coeff_uint64_count, coeff_uint64_count, coeff_abs_value.data());
-        }
-        else {
+        } else {
             set_uint(poly + i * coeff_uint64_count, coeff_uint64_count, coeff_abs_value.data());
         }
 
@@ -95,8 +94,7 @@ void PhantomPublicKey::encrypt_zero_asymmetric(const PhantomContext &context, Ph
             multiply_and_add_rns_poly<<<gridDimGlb, blockDimGlb>>>(context.in(), pki, ci, base_rns, ci, poly_degree,
                                                                    coeff_mod_size);
         }
-    }
-    else {
+    } else {
         Pointer<uint64_t> error;
         error.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
 
@@ -135,8 +133,7 @@ void PhantomPublicKey::encrypt_zero_asymmetric_internal(const PhantomContext &co
     bool is_ntt_form = false;
     if (parms.scheme() == scheme_type::ckks || parms.scheme() == scheme_type::bgv) {
         is_ntt_form = true;
-    }
-    else if (parms.scheme() != scheme_type::bfv) {
+    } else if (parms.scheme() != scheme_type::bfv) {
         throw invalid_argument("unsupported scheme");
     }
 
@@ -156,7 +153,10 @@ void PhantomPublicKey::encrypt_zero_asymmetric_internal(const PhantomContext &co
     for (size_t i = 0; i < temp_cipher.size(); i++) {
         uint64_t *cx_i = temp_cipher.data() + i * poly_degree * (coeff_mod_size + size_P);
         uint64_t *ct_i = cipher.data() + i * poly_degree * coeff_mod_size;
-        context.get_context_data(1).gpu_rns_tool().moddown(ct_i, cx_i, context.gpu_rns_tables(), parms.scheme());
+        cudaDeviceSynchronize();
+        context.get_context_data(1).gpu_rns_tool().moddown(ct_i, cx_i, context.gpu_rns_tables(), parms.scheme(),
+                                                           context.get_cuda_stream(0));
+        cudaDeviceSynchronize();
     }
 
     cipher.is_ntt_form() = is_ntt_form;
@@ -184,8 +184,7 @@ void PhantomPublicKey::encrypt_asymmetric(const PhantomContext &context, const P
         // calcuate [plain * coeff / plain-modulus].
         // return [plain * coeff / plain-modulus + c0, c1]
         multiply_add_plain_with_scaling_variant(context, plain, context.get_first_index(), cipher);
-    }
-    else if (scheme == scheme_type::ckks) {
+    } else if (scheme == scheme_type::ckks) {
         if (!plain.is_ntt_form()) {
             throw std::invalid_argument("CKKS plain must be in NTT form");
         }
@@ -207,8 +206,7 @@ void PhantomPublicKey::encrypt_asymmetric(const PhantomContext &context, const P
 
         pk_.chain_index() = plain.chain_index();
         cipher.scale() = plain.scale();
-    }
-    else if (scheme == scheme_type::bgv) {
+    } else if (scheme == scheme_type::bgv) {
         if (plain.is_ntt_form()) {
             throw std::invalid_argument("BGV plain must not be in NTT form");
         }
@@ -234,8 +232,7 @@ void PhantomPublicKey::encrypt_asymmetric(const PhantomContext &context, const P
         uint64_t gridDimGlb = poly_degree * bgv_coeff_mod_size / blockDimGlb.x;
         add_rns_poly<<<gridDimGlb, blockDimGlb>>>(cipher.data(), plain_copy.get(), base_rns, cipher.data(), poly_degree,
                                                   bgv_coeff_mod_size);
-    }
-    else {
+    } else {
         throw std::invalid_argument("unsupported scheme.");
     }
 
@@ -297,7 +294,8 @@ void PhantomSecretKey::compute_secret_key_array(const PhantomContext &context, s
     new_secret_key_array.acquire(allocate<uint64_t>(global_pool(), max_power * poly_degree * coeff_mod_size));
     // Copy the power of secret key
     PHANTOM_CHECK_CUDA(cudaMemcpy(new_secret_key_array.get(), secret_key_array(),
-                          sk_max_power_ * poly_degree * coeff_mod_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+                                  sk_max_power_ * poly_degree * coeff_mod_size * sizeof(uint64_t),
+                                  cudaMemcpyDeviceToDevice));
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     for (size_t i = 0; i < max_power - sk_max_power_; i++) {
@@ -475,8 +473,7 @@ void PhantomSecretKey::encrypt_zero_symmetric(const PhantomContext &context, Pha
         // c0 = -(as + e) or c0 = -(as + te), c1 = a
         multiply_and_add_negate_rns_poly<<<gridDimGlb, blockDimGlb>>>(c1, secret_key_array(), context.in(), base_rns,
                                                                       c0, poly_degree, coeff_mod_size);
-    }
-    else {
+    } else {
         // uniform random generator
         sample_uniform_poly<<<gridDimGlb, blockDimGlb>>>(c1, context.prng_seed(), base_rns, poly_degree,
                                                          coeff_mod_size);
@@ -514,8 +511,7 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
         // calcuate [plain * coeff / plain-modulus].
         // return [plain * coeff / plain-modulus + c0, c1]
         multiply_add_plain_with_scaling_variant(context, plain, context.get_first_index(), cipher);
-    }
-    else if (scheme == phantom::scheme_type::ckks) {
+    } else if (scheme == phantom::scheme_type::ckks) {
         is_ntt_form = true;
         if (!plain.is_ntt_form()) {
             throw std::invalid_argument("CKKS plain must be in NTT form");
@@ -535,8 +531,7 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
                                                   cipher.data(), poly_degree, ckks_coeff_mod_size);
 
         cipher.scale() = plain.scale();
-    }
-    else if (scheme == phantom::scheme_type::bgv) {
+    } else if (scheme == phantom::scheme_type::bgv) {
         is_ntt_form = true;
         if (plain.is_ntt_form()) {
             throw std::invalid_argument("BGV plain must not be in NTT form");
@@ -554,16 +549,16 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
         Pointer<uint64_t> plain_copy;
         plain_copy.acquire(allocate<uint64_t>(global_pool(), bgv_coeff_mod_size * poly_degree));
         for (size_t i = 0; i < bgv_coeff_mod_size; i++) {
-            PHANTOM_CHECK_CUDA(cudaMemcpy(plain_copy.get() + i * poly_degree, plain.data(), sizeof(uint64_t) * poly_degree,
-                                  cudaMemcpyDeviceToDevice));
+            PHANTOM_CHECK_CUDA(
+                    cudaMemcpy(plain_copy.get() + i * poly_degree, plain.data(), sizeof(uint64_t) * poly_degree,
+                               cudaMemcpyDeviceToDevice));
         }
 
         nwt_2d_radix8_forward_inplace(plain_copy.get(), context.gpu_rns_tables(), bgv_coeff_mod_size, 0);
         uint64_t gridDimGlb = poly_degree * bgv_coeff_mod_size / blockDimGlb.x;
         add_rns_poly<<<gridDimGlb, blockDimGlb>>>(cipher.data(), plain_copy.get(), base_rns, cipher.data(), poly_degree,
                                                   bgv_coeff_mod_size);
-    }
-    else {
+    } else {
         throw std::invalid_argument("unsupported scheme.");
     }
 }
@@ -595,7 +590,7 @@ void PhantomSecretKey::ckks_decrypt(const PhantomContext &context, const Phantom
     destination.chain_index() = 0;
     destination.resize(coeff_mod_size, poly_degree);
     PHANTOM_CHECK_CUDA(cudaMemcpy(destination.data(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
-                          cudaMemcpyDeviceToDevice));
+                                  cudaMemcpyDeviceToDevice));
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     for (size_t i = 1; i <= needed_sk_power; i++) {
         uint64_t *ci = encrypted.data() + i * coeff_mod_size * poly_degree;
@@ -663,19 +658,19 @@ void PhantomSecretKey::bfv_decrypt(const PhantomContext &context, const PhantomC
 
     if (mul_tech == mul_tech_type::behz) {
         // Divide scaling variant using BEHZ FullRNS techniques
+        cudaDeviceSynchronize();
         context.get_context_data(chain_index)
                 .gpu_rns_tool()
                 .behz_decrypt_scale_and_round(inner_prod.get(), temp.get(), context.gpu_rns_tables(), coeff_mod_size,
-                                              poly_degree, destination.data());
-    }
-    else if (mul_tech == mul_tech_type::hps || mul_tech == mul_tech_type::hps_overq ||
-             mul_tech == mul_tech_type::hps_overq_leveled) {
+                                              poly_degree, destination.data(), context.get_cuda_stream(0));
+        cudaDeviceSynchronize();
+    } else if (mul_tech == mul_tech_type::hps || mul_tech == mul_tech_type::hps_overq ||
+               mul_tech == mul_tech_type::hps_overq_leveled) {
         // HPS scale and round
         context.get_context_data(chain_index)
                 .gpu_rns_tool()
                 .hps_decrypt_scale_and_round(destination.data(), inner_prod.get());
-    }
-    else {
+    } else {
         throw std::invalid_argument("BFV decrypt mul_tech not supported");
     }
 
@@ -709,7 +704,7 @@ void PhantomSecretKey::bgv_decrypt(const PhantomContext &context, const PhantomC
     Pointer<uint64_t> inner_prod;
     inner_prod.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
     PHANTOM_CHECK_CUDA(cudaMemcpy(inner_prod.get(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
-                          cudaMemcpyDeviceToDevice));
+                                  cudaMemcpyDeviceToDevice));
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     for (size_t i = 1; i <= needed_sk_power; i++) {
@@ -747,14 +742,11 @@ void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphe
 
     if (scheme == phantom::scheme_type::bfv) {
         bfv_decrypt(context, cipher, plain);
-    }
-    else if (scheme == phantom::scheme_type::ckks) {
+    } else if (scheme == phantom::scheme_type::ckks) {
         ckks_decrypt(context, cipher, plain);
-    }
-    else if (scheme == phantom::scheme_type::bgv) {
+    } else if (scheme == phantom::scheme_type::bgv) {
         bgv_decrypt(context, cipher, plain);
-    }
-    else {
+    } else {
         throw std::invalid_argument("unsupported scheme.");
     }
 }
@@ -791,8 +783,7 @@ void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphe
         if (i == 1) {
             // c1 = c1 * s^1
             multiply_rns_poly<<<gridDimGlb, blockDimGlb>>>(ci, si, base_rns, ci, poly_degree, coeff_mod_size);
-        }
-        else {
+        } else {
             // c1 = c1*s^1 + c2*s^2 + ......
             multiply_and_add_rns_poly<<<gridDimGlb, blockDimGlb>>>(ci, si, c1, base_rns, c1, poly_degree,
                                                                    coeff_mod_size);
@@ -810,7 +801,7 @@ void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphe
 
     // Copy noise_poly to Host
     uint64_t *host_noise_poly;
-    host_noise_poly = (uint64_t *)malloc(coeff_mod_size * poly_degree * sizeof(uint64_t));
+    host_noise_poly = (uint64_t *) malloc(coeff_mod_size * poly_degree * sizeof(uint64_t));
     PHANTOM_CHECK_CUDA(
             cudaMemcpy(host_noise_poly, c0, coeff_mod_size * poly_degree * sizeof(uint64_t), cudaMemcpyDeviceToHost));
 

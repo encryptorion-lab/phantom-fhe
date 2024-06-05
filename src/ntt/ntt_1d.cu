@@ -53,8 +53,7 @@ __global__ void inplace_fnwt_radix2(uint64_t *inout,
             if (numOfGroups == 1) {
                 samples[0] = inout[glbIdx];
                 samples[1] = inout[glbIdx + pairsInGroup];
-            }
-            else {
+            } else {
                 samples[0] = buffer[bufIdx];
                 samples[1] = buffer[bufIdx + pairsInGroup];
             }
@@ -67,8 +66,7 @@ __global__ void inplace_fnwt_radix2(uint64_t *inout,
                 csub_q(samples[1], mod);
                 inout[glbIdx] = samples[0];
                 inout[glbIdx + pairsInGroup] = samples[1];
-            }
-            else {
+            } else {
                 buffer[bufIdx] = samples[0];
                 buffer[bufIdx + pairsInGroup] = samples[1];
                 __syncthreads();
@@ -151,17 +149,18 @@ void fnwt_1d(uint64_t *inout,
              const DModulus *modulus,
              size_t dim,
              size_t coeff_modulus_size,
-             size_t start_modulus_idx) {
+             size_t start_modulus_idx,
+             const cudaStream_t &stream) {
     const size_t per_block_memory = dim * sizeof(uint64_t);
 
-    inplace_fnwt_radix2<<<coeff_modulus_size, dim / 2, per_block_memory>>>(
-        inout,
-        twiddles,
-        twiddles_shoup,
-        modulus,
-        coeff_modulus_size,
-        start_modulus_idx,
-        dim);
+    inplace_fnwt_radix2<<<coeff_modulus_size, dim / 2, per_block_memory, stream>>>(
+            inout,
+            twiddles,
+            twiddles_shoup,
+            modulus,
+            coeff_modulus_size,
+            start_modulus_idx,
+            dim);
 }
 
 void fnwt_1d_opt(uint64_t *inout,
@@ -170,15 +169,16 @@ void fnwt_1d_opt(uint64_t *inout,
                  const DModulus *modulus,
                  size_t dim,
                  size_t coeff_modulus_size,
-                 size_t start_modulus_idx) {
+                 size_t start_modulus_idx,
+                 const cudaStream_t &stream) {
     const size_t per_block_memory = dim * sizeof(uint64_t);
 
-    inplace_fnwt_radix2_opt<<<coeff_modulus_size, dim / 2, per_block_memory>>>(
-        inout,
-        twiddles,
-        twiddles_shoup,
-        modulus,
-        dim);
+    inplace_fnwt_radix2_opt<<<coeff_modulus_size, dim / 2, per_block_memory, stream>>>(
+            inout,
+            twiddles,
+            twiddles_shoup,
+            modulus,
+            dim);
 }
 
 /** backward NTT transformation, with N (num of operands) up to 2048,
@@ -229,8 +229,7 @@ __global__ void inplace_inwt_radix2(uint64_t *inout,
             if (_numOfGroups == n >> 1) {
                 samples[0] = inout[glbIdx];
                 samples[1] = inout[glbIdx + pairsInGroup];
-            }
-            else {
+            } else {
                 samples[0] = buffer[bufIdx];
                 samples[1] = buffer[bufIdx + pairsInGroup];
             }
@@ -247,8 +246,7 @@ __global__ void inplace_inwt_radix2(uint64_t *inout,
                 samples[0] = multiply_and_reduce_shoup(samples[0], scalar_, scalar_shoup_, mod);
                 inout[glbIdx] = samples[0];
                 inout[glbIdx + pairsInGroup] = samples[1];
-            }
-            else {
+            } else {
                 buffer[bufIdx] = samples[0];
                 buffer[bufIdx + pairsInGroup] = samples[1];
                 __syncthreads();
@@ -260,33 +258,35 @@ __global__ void inplace_inwt_radix2(uint64_t *inout,
 void inwt_1d(uint64_t *inout,
              const uint64_t *itwiddles, const uint64_t *itwiddles_shoup, const DModulus *modulus,
              const uint64_t *scalar, const uint64_t *scalar_shoup,
-             size_t dim, size_t coeff_modulus_size, size_t start_modulus_idx) {
+             size_t dim, size_t coeff_modulus_size, size_t start_modulus_idx,
+             const cudaStream_t &stream) {
     const size_t per_block_memory = dim * sizeof(uint64_t);
 
-    inplace_inwt_radix2<<<coeff_modulus_size, dim / 2, per_block_memory>>>(
-        inout,
-        itwiddles,
-        itwiddles_shoup,
-        modulus,
-        scalar, scalar_shoup,
-        coeff_modulus_size,
-        start_modulus_idx,
-        dim);
+    inplace_inwt_radix2<<<coeff_modulus_size, dim / 2, per_block_memory, stream>>>(
+            inout,
+            itwiddles,
+            itwiddles_shoup,
+            modulus,
+            scalar, scalar_shoup,
+            coeff_modulus_size,
+            start_modulus_idx,
+            dim);
 }
 
 void inwt_1d_opt(uint64_t *inout,
                  const uint64_t *itwiddles, const uint64_t *itwiddles_shoup, const DModulus *modulus,
                  const uint64_t *scalar, const uint64_t *scalar_shoup,
-                 size_t dim, size_t coeff_modulus_size, size_t start_modulus_idx) {
+                 size_t dim, size_t coeff_modulus_size, size_t start_modulus_idx,
+                 const cudaStream_t &stream) {
     const size_t per_block_memory = dim * sizeof(uint64_t);
 
-    inplace_inwt_radix2<<<coeff_modulus_size, dim / 2, per_block_memory>>>(
-        inout,
-        itwiddles,
-        itwiddles_shoup,
-        modulus,
-        scalar, scalar_shoup,
-        coeff_modulus_size,
-        start_modulus_idx,
-        dim);
+    inplace_inwt_radix2<<<coeff_modulus_size, dim / 2, per_block_memory, stream>>>(
+            inout,
+            itwiddles,
+            itwiddles_shoup,
+            modulus,
+            scalar, scalar_shoup,
+            coeff_modulus_size,
+            start_modulus_idx,
+            dim);
 }

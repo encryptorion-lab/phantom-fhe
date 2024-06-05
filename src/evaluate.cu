@@ -470,7 +470,7 @@ size_t FindLevelsToDrop(const PhantomContext &context, size_t multiplicativeDept
 
     // handle no relin scenario
     size_t gpu_rns_tool_index = 0;
-    if (context.using_keyswitching() == true) {
+    if (context.using_keyswitching()) {
         gpu_rns_tool_index = 1;
     }
 
@@ -562,6 +562,8 @@ static void
 bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
                  const cudaStream_t &stream) {
 
+    cudaDeviceSynchronize();
+
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -611,23 +613,20 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
     const size_t size_QlRl = size_Ql + size_Rl;
 
     /* --------------------------------- ct1 BConv -------------------------------- */
-    Pointer<uint64_t> ct1;
-    ct1.acquire(allocate<uint64_t>(global_pool(), dest_size * size_QlRl * n));
+    auto ct1 = cuda_make_shared<uint64_t>(dest_size * size_QlRl * n, stream);
     for (size_t i = 0; i < ct1_size; i++) {
         const uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
         uint64_t *ct1_Ql_ptr = ct1_ptr;
         uint64_t *ct1_Rl_ptr = ct1_Ql_ptr + size_Ql * n;
 
-        cudaDeviceSynchronize();
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped)
             rns_tool.scaleAndRound_HPS_Q_Ql(ct1_Ql_ptr, encrypted1_ptr, stream);
         else
             cudaMemcpyAsync(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t),
                             cudaMemcpyDeviceToDevice, stream);
-        cudaDeviceSynchronize();
 
-        rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct1_Rl_ptr, ct1_Ql_ptr, n);
+        rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct1_Rl_ptr, ct1_Ql_ptr, n, stream);
     }
 
     if (&encrypted1 == &encrypted2) {
@@ -636,18 +635,17 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         // forward NTT
         for (size_t i = 0; i < ct1_size; i++) {
             uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
-            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0);
+            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
         }
 
         // (c0, c1, c2, ...) * (c0', c1', c2', ...)
         //    = (c0 * c0', c0*c1' + c1*c0', c0*c2'+c1*c1'+c2*c0', ...)
         uint64_t gridDimGlb = n * size_QlRl / blockDimGlb.x;
-        tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(ct1.get(), base_QlRl, ct1.get(), n, size_QlRl);
+        tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                ct1.get(), base_QlRl, ct1.get(), n, size_QlRl);
     } else {
         /* --------------------------------- ct2 BConv -------------------------------- */
-        Pointer<uint64_t> ct2;
-        // allocate enough space
-        ct2.acquire(allocate<uint64_t>(global_pool(), ct2_size * size_QlRl * n));
+        auto ct2 = cuda_make_shared<uint64_t>(ct2_size * size_QlRl * n, stream);
         for (size_t i = 0; i < ct2_size; i++) {
             const uint64_t *encrypted2_ptr = encrypted2.data() + i * size_Q * n;
             uint64_t *ct2_ptr = ct2.get() + i * size_QlRl * n;
@@ -655,15 +653,15 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
             uint64_t *ct2_Rl_ptr = ct2_Ql_ptr + size_Ql * n;
 
             if (mul_tech == mul_tech_type::hps) {
-                PHANTOM_CHECK_CUDA(cudaMemcpy(ct2_Ql_ptr, encrypted2_ptr, size_Ql * n * sizeof(uint64_t),
-                                              cudaMemcpyDeviceToDevice));
-                rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct2_Rl_ptr, ct2_Ql_ptr, n);
+                cudaMemcpyAsync(ct2_Ql_ptr, encrypted2_ptr, size_Ql * n * sizeof(uint64_t),
+                                cudaMemcpyDeviceToDevice, stream);
+                rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct2_Rl_ptr, ct2_Ql_ptr, n, stream);
             } else if (mul_tech == mul_tech_type::hps_overq || mul_tech == mul_tech_type::hps_overq_leveled) {
                 if (levelsDropped)
-                    rns_tool.base_Q_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n);
+                    rns_tool.base_Q_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n, stream);
                 else
-                    rns_tool.base_Ql_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n);
-                rns_tool.base_Rl_to_Ql_conv().bConv_HPS(ct2_Ql_ptr, ct2_Rl_ptr, n);
+                    rns_tool.base_Ql_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n, stream);
+                rns_tool.base_Rl_to_Ql_conv().bConv_HPS(ct2_Ql_ptr, ct2_Rl_ptr, n, stream);
             }
         }
 
@@ -671,24 +669,25 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         // forward NTT
         for (size_t i = 0; i < ct1_size; i++) {
             uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
-            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0);
+            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
         }
 
         for (size_t i = 0; i < ct2_size; i++) {
             uint64_t *ct2_ptr = ct2.get() + i * size_QlRl * n;
-            nwt_2d_radix8_forward_inplace(ct2_ptr, gpu_QlRl_tables, size_QlRl, 0);
+            nwt_2d_radix8_forward_inplace(ct2_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
         }
 
         // (c0, c1, c2, ...) * (c0', c1', c2', ...)
         //    = (c0 * c0', c0*c1' + c1*c0', c0*c2'+c1*c1'+c2*c0', ...)
         uint64_t gridDimGlb = n * size_QlRl / blockDimGlb.x;
-        tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(ct1.get(), ct2.get(), base_QlRl, ct1.get(), n, size_QlRl);
+        tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                ct1.get(), ct2.get(), base_QlRl, ct1.get(), n, size_QlRl);
     }
 
     // inverse NTT
     for (size_t i = 0; i < dest_size; i++) {
         uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
-        nwt_2d_radix8_backward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0);
+        nwt_2d_radix8_backward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
     }
 
     /* --------------------------------- ct1 BConv -------------------------------- */
@@ -697,26 +696,24 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         const uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
         if (mul_tech == mul_tech_type::hps) {
-            Pointer<uint64_t> temp;
-            temp.acquire(allocate<uint64_t>(global_pool(), size_Rl * n));
+            auto temp = cuda_make_shared<uint64_t>(size_Rl * n, stream);
             // scale and round QlRl to Rl
-            rns_tool.scaleAndRound_HPS_QR_R(temp.get(), ct1_ptr);
+            rns_tool.scaleAndRound_HPS_QR_R(temp.get(), ct1_ptr, stream);
             // Rl -> Ql
-            rns_tool.base_Rl_to_Ql_conv().bConv_HPS(encrypted1_ptr, temp.get(), n);
-            temp.release();
+            rns_tool.base_Rl_to_Ql_conv().bConv_HPS(encrypted1_ptr, temp.get(), n, stream);
         } else if (mul_tech == mul_tech_type::hps_overq || mul_tech == mul_tech_type::hps_overq_leveled) {
             // scale and round QlRl to Ql
-            rns_tool.scaleAndRound_HPS_QlRl_Ql(encrypted1_ptr, ct1_ptr);
-
-            if (levelsDropped) {
-                rns_tool.ExpandCRTBasis_Ql_Q(encrypted1_ptr, encrypted1_ptr);
-            }
+            rns_tool.scaleAndRound_HPS_QlRl_Ql(encrypted1_ptr, ct1_ptr, stream);
+            if (levelsDropped)
+                rns_tool.ExpandCRTBasis_Ql_Q(encrypted1_ptr, encrypted1_ptr, stream);
         }
     }
 
     if (mul_tech == mul_tech_type::hps_overq_leveled) {
         encrypted1.SetNoiseScaleDeg(std::max(encrypted1.GetNoiseScaleDeg(), encrypted2.GetNoiseScaleDeg()) + 1);
     }
+
+    cudaStreamSynchronize(stream);
 }
 
 // encrypted1 = encrypted1 * encrypted2
@@ -738,6 +735,9 @@ bfv_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1, const
 static void
 bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
                   const PhantomRelinKey &relin_keys, const cudaStream_t &stream) {
+
+    cudaDeviceSynchronize();
+
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -781,23 +781,20 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     const size_t size_QlRl = size_Ql + size_Rl;
 
     /* --------------------------------- ct1 BConv -------------------------------- */
-    Pointer<uint64_t> ct1;
-    ct1.acquire(allocate<uint64_t>(global_pool(), dest_size * size_QlRl * n));
+    auto ct1 = cuda_make_shared<uint64_t>(dest_size * size_QlRl * n, stream);
     for (size_t i = 0; i < ct1_size; i++) {
         const uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
         uint64_t *ct1_Ql_ptr = ct1_ptr;
         uint64_t *ct1_Rl_ptr = ct1_Ql_ptr + size_Ql * n;
 
-        cudaDeviceSynchronize();
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped)
             rns_tool.scaleAndRound_HPS_Q_Ql(ct1_Ql_ptr, encrypted1_ptr, stream);
         else
-            PHANTOM_CHECK_CUDA(cudaMemcpyAsync(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t),
-                                               cudaMemcpyDeviceToDevice, stream));
-        cudaDeviceSynchronize();
+            cudaMemcpyAsync(ct1_Ql_ptr, encrypted1_ptr, size_Ql * n * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, stream);
 
-        rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct1_Rl_ptr, ct1_Ql_ptr, n);
+        rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct1_Rl_ptr, ct1_Ql_ptr, n, stream);
     }
 
     if (&encrypted1 == &encrypted2) {
@@ -806,18 +803,17 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
         // forward NTT
         for (size_t i = 0; i < ct1_size; i++) {
             uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
-            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0);
+            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
         }
 
         // (c0, c1, c2, ...) * (c0', c1', c2', ...)
         //    = (c0 * c0', c0*c1' + c1*c0', c0*c2'+c1*c1'+c2*c0', ...)
         uint64_t gridDimGlb = n * size_QlRl / blockDimGlb.x;
-        tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(ct1.get(), base_QlRl, ct1.get(), n, size_QlRl);
+        tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                ct1.get(), base_QlRl, ct1.get(), n, size_QlRl);
     } else {
         /* --------------------------------- ct2 BConv -------------------------------- */
-        Pointer<uint64_t> ct2;
-        // allocate enough space
-        ct2.acquire(allocate<uint64_t>(global_pool(), ct2_size * size_QlRl * n));
+        auto ct2 = cuda_make_shared<uint64_t>(ct2_size * size_QlRl * n, stream);
         for (size_t i = 0; i < ct2_size; i++) {
             const uint64_t *encrypted2_ptr = encrypted2.data() + i * size_Q * n;
             uint64_t *ct2_ptr = ct2.get() + i * size_QlRl * n;
@@ -825,15 +821,15 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
             uint64_t *ct2_Rl_ptr = ct2_Ql_ptr + size_Ql * n;
 
             if (mul_tech == mul_tech_type::hps) {
-                PHANTOM_CHECK_CUDA(cudaMemcpy(ct2_Ql_ptr, encrypted2_ptr, size_Ql * n * sizeof(uint64_t),
-                                              cudaMemcpyDeviceToDevice));
-                rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct2_Rl_ptr, ct2_Ql_ptr, n);
+                cudaMemcpyAsync(ct2_Ql_ptr, encrypted2_ptr, size_Ql * n * sizeof(uint64_t),
+                                cudaMemcpyDeviceToDevice, stream);
+                rns_tool.base_Ql_to_Rl_conv().bConv_HPS(ct2_Rl_ptr, ct2_Ql_ptr, n, stream);
             } else if (mul_tech == mul_tech_type::hps_overq || mul_tech == mul_tech_type::hps_overq_leveled) {
                 if (levelsDropped)
-                    rns_tool.base_Q_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n);
+                    rns_tool.base_Q_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n, stream);
                 else
-                    rns_tool.base_Ql_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n);
-                rns_tool.base_Rl_to_Ql_conv().bConv_HPS(ct2_Ql_ptr, ct2_Rl_ptr, n);
+                    rns_tool.base_Ql_to_Rl_conv().bConv_BEHZ_var1(ct2_Rl_ptr, encrypted2_ptr, n, stream);
+                rns_tool.base_Rl_to_Ql_conv().bConv_HPS(ct2_Ql_ptr, ct2_Rl_ptr, n, stream);
             }
         }
 
@@ -841,24 +837,25 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
         // forward NTT
         for (size_t i = 0; i < ct1_size; i++) {
             uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
-            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0);
+            nwt_2d_radix8_forward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
         }
 
         for (size_t i = 0; i < ct2_size; i++) {
             uint64_t *ct2_ptr = ct2.get() + i * size_QlRl * n;
-            nwt_2d_radix8_forward_inplace(ct2_ptr, gpu_QlRl_tables, size_QlRl, 0);
+            nwt_2d_radix8_forward_inplace(ct2_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
         }
 
         // (c0, c1, c2, ...) * (c0', c1', c2', ...)
         //    = (c0 * c0', c0*c1' + c1*c0', c0*c2'+c1*c1'+c2*c0', ...)
         uint64_t gridDimGlb = n * size_QlRl / blockDimGlb.x;
-        tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(ct1.get(), ct2.get(), base_QlRl, ct1.get(), n, size_QlRl);
+        tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                ct1.get(), ct2.get(), base_QlRl, ct1.get(), n, size_QlRl);
     }
 
     // inverse NTT
     for (size_t i = 0; i < dest_size; i++) {
         uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
-        nwt_2d_radix8_backward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0);
+        nwt_2d_radix8_backward_inplace(ct1_ptr, gpu_QlRl_tables, size_QlRl, 0, stream);
     }
 
     /* --------------------------------- ct1 BConv -------------------------------- */
@@ -867,19 +864,16 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
         uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         const uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
         if (mul_tech == mul_tech_type::hps) {
-            Pointer<uint64_t> temp;
-            temp.acquire(allocate<uint64_t>(global_pool(), size_Rl * n));
+            auto temp = cuda_make_shared<uint64_t>(size_Rl * n, stream);
             // scale and round QlRl to Rl
-            rns_tool.scaleAndRound_HPS_QR_R(temp.get(), ct1_ptr);
+            rns_tool.scaleAndRound_HPS_QR_R(temp.get(), ct1_ptr, stream);
             // Rl -> Ql
-            rns_tool.base_Rl_to_Ql_conv().bConv_HPS(encrypted1_ptr, temp.get(), n);
+            rns_tool.base_Rl_to_Ql_conv().bConv_HPS(encrypted1_ptr, temp.get(), n, stream);
         } else if (mul_tech == mul_tech_type::hps_overq || mul_tech == mul_tech_type::hps_overq_leveled) {
             // scale and round QlRl to Ql
-            rns_tool.scaleAndRound_HPS_QlRl_Ql(encrypted1_ptr, ct1_ptr);
-
-            if (levelsDropped && i != dest_size - 1) {
-                rns_tool.ExpandCRTBasis_Ql_Q(encrypted1_ptr, encrypted1_ptr);
-            }
+            rns_tool.scaleAndRound_HPS_QlRl_Ql(encrypted1_ptr, ct1_ptr, stream);
+            if (levelsDropped && i != dest_size - 1)
+                rns_tool.ExpandCRTBasis_Ql_Q(encrypted1_ptr, encrypted1_ptr, stream);
         }
     }
 
@@ -921,22 +915,20 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     const size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
     // mod up
-    Pointer<uint64_t> t_mod_up;
-    t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
-    rns_tool.modup(t_mod_up.get(), c2, context.gpu_rns_tables(), scheme);
+    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    rns_tool.modup(t_mod_up.get(), c2, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    Pointer<uint64_t> cx;
-    cx.acquire(allocate<uint64_t>(global_pool(), 2 * size_QlP_n));
+    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
     auto reduction_threshold = (1 << (bits_per_uint64 - rns_tool.qMSB() - 1)) - 1;
-    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb>>>(
+    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
             cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), modulus_QP, n, size_QP, size_QP_n, size_QlP,
             size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);
 
     // mod down
     for (size_t i = 0; i < 2; i++) {
         const auto cx_i = cx.get() + i * size_QlP_n;
-        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme);
+        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, stream);
     }
 
     for (size_t i = 0; i < 2; i++) {
@@ -944,13 +936,15 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
 
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
             auto ct_i = encrypted1.data() + i * size_Q * n;
-            rns_tool.ExpandCRTBasis_Ql_Q_add_to_ct(ct_i, cx_i);
+            rns_tool.ExpandCRTBasis_Ql_Q_add_to_ct(ct_i, cx_i, stream);
         } else {
             auto ct_i = encrypted1.data() + i * size_Ql_n;
-            add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(ct_i, cx_i, rns_tool.base_Ql().base(), n,
-                                                                         size_Ql);
+            add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                    ct_i, cx_i, rns_tool.base_Ql().base(), n, size_Ql);
         }
     }
+
+    cudaStreamSynchronize(stream);
 
     // update the encrypted
     encrypted1.resize(key_component_count, decomp_modulus_size, n);
@@ -1297,48 +1291,6 @@ void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &en
     }
 }
 
-void transform_to_ntt_inplace(const PhantomContext &context, PhantomCiphertext &encrypted) {
-    if (encrypted.is_ntt_form()) {
-        throw invalid_argument("encrypted is already in NTT form");
-    }
-
-    // Extract encryption parameters.
-    auto &context_data = context.get_context_data(encrypted.chain_index());
-    auto &parms = context_data.parms();
-    size_t poly_degree = parms.poly_modulus_degree();
-    auto coeff_mod_size = parms.coeff_modulus().size();
-
-    for (size_t i = 0; i < encrypted.size(); i++) {
-        // Transform each polynomial to NTT domain
-        auto ci = encrypted.data() + i * coeff_mod_size * poly_degree;
-        nwt_2d_radix8_forward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0);
-    }
-
-    // Finally change the is_ntt_transformed flag
-    encrypted.is_ntt_form() = true;
-}
-
-void transform_from_ntt_inplace(const PhantomContext &context, PhantomCiphertext &encrypted_ntt) {
-    if (!encrypted_ntt.is_ntt_form()) {
-        throw invalid_argument("encrypted_ntt is not in NTT form");
-    }
-
-    // Extract encryption parameters.
-    auto &context_data = context.get_context_data(encrypted_ntt.chain_index());
-    auto &parms = context_data.parms();
-    size_t poly_degree = parms.poly_modulus_degree();
-    auto coeff_mod_size = parms.coeff_modulus().size();
-
-    for (size_t i = 0; i < encrypted_ntt.size(); i++) {
-        // Transform each polynomial to NTT domain
-        auto ci = encrypted_ntt.data() + i * coeff_mod_size * poly_degree;
-        nwt_2d_radix8_backward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0);
-    }
-
-    // Finally change the is_ntt_transformed flag
-    encrypted_ntt.is_ntt_form() = false;
-}
-
 void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
                          const PhantomRelinKey &relin_keys, const cuda_stream_wrapper *p_stream_wrapper) {
     // Extract encryption parameters.
@@ -1680,28 +1632,22 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    Pointer<uint64_t> c0;
-    c0.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
-
-    Pointer<uint64_t> c1;
-    c1.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
+    auto c0 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
+    auto c1 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
 
     auto elts = key_galois_tool->get_elts_from_steps(steps);
 
     // ------------------------------------------ automorphism c0 ------------------------------------------------------
 
     // specific operations for HPSOverQLeveled
-    cudaDeviceSynchronize();
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
         rns_tool.scaleAndRound_HPS_Q_Ql(c0.get(), ct.data(), stream);
     } else {
-        PHANTOM_CHECK_CUDA(cudaMemcpyAsync(c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
-                                           stream));
+        cudaMemcpyAsync(
+                c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, stream);
     }
-    cudaDeviceSynchronize();
 
-    Pointer<uint64_t> acc_c0;
-    acc_c0.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
+    auto acc_c0 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
 
     auto first_elt = elts[0];
     auto first_iter = find(galois_elts.begin(), galois_elts.end(), first_elt);
@@ -1720,14 +1666,12 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     // ----------------------------------------------- modup c1 --------------------------------------------------------
 
     // specific operations for HPSOverQLeveled
-    cudaDeviceSynchronize();
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
         rns_tool.scaleAndRound_HPS_Q_Ql(c1.get(), ct.data() + size_Q_n, stream);
     } else {
-        PHANTOM_CHECK_CUDA(cudaMemcpyAsync(c1.get(), ct.data() + size_Ql_n, size_Ql_n * sizeof(uint64_t),
-                                           cudaMemcpyDeviceToDevice, stream));
+        cudaMemcpyAsync(
+                c1.get(), ct.data() + size_Ql_n, size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, stream);
     }
-    cudaDeviceSynchronize();
 
     // Prepare key
     auto &key_vector = glk.relin_keys_[first_elt_index].public_keys_;
@@ -1738,14 +1682,12 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
     // mod up
-    Pointer<uint64_t> modup_c1;
-    modup_c1.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
-    rns_tool.modup(modup_c1.get(), c1.get(), context.gpu_rns_tables(), scheme);
+    auto modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    rns_tool.modup(modup_c1.get(), c1.get(), context.gpu_rns_tables(), scheme, stream);
 
     // ------------------------------------------ automorphism c1 ------------------------------------------------------
 
-    Pointer<uint64_t> temp_modup_c1;
-    temp_modup_c1.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
+    auto temp_modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
 
     for (size_t b = 0; b < beta; b++) {
         key_galois_tool->apply_galois_ntt(modup_c1.get() + b * size_QlP_n, size_QlP, first_elt_index,
@@ -1754,18 +1696,17 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
 
     // ----------------------------------------- inner product c1 ------------------------------------------------------
 
-    Pointer<uint64_t> acc_cx;
-    acc_cx.acquire(allocate<uint64_t>(global_pool(), 2 * size_QlP_n));
+    auto acc_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
-    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb>>>(
+    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
             acc_cx.get(), temp_modup_c1.get(), glk.relin_keys_[first_elt_index].public_keys_ptr_.get(), modulus_QP, n,
             size_QP, size_QP_n, size_QlP, size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);
 
     // ------------------------------------------ loop accumulate ------------------------------------------------------
-    Pointer<uint64_t> temp_c0;
-    temp_c0.acquire(allocate<uint64_t>(global_pool(), size_Ql_n));
+
+    auto temp_c0 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
 
     for (size_t i = 1; i < elts.size(); i++) {
         // automorphism c0
@@ -1786,8 +1727,8 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
 
         // add to acc_c0
         uint64_t gridDimGlb = size_Ql_n / blockDimGlb.x;
-        add_rns_poly<<<gridDimGlb, blockDimGlb>>>(acc_c0.get(), temp_c0.get(), rns_tool.base_Ql().base(), acc_c0.get(),
-                                                  n, size_Ql);
+        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                acc_c0.get(), temp_c0.get(), rns_tool.base_Ql().base(), acc_c0.get(), n, size_Ql);
 
         // automorphism c1
 
@@ -1797,43 +1738,47 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
         }
 
         // inner product c1
-
-        Pointer<uint64_t> temp_cx;
-        temp_cx.acquire(allocate<uint64_t>(global_pool(), 2 * size_QlP_n));
-
-        key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb>>>(
+        auto temp_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
+        key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
                 temp_cx.get(), temp_modup_c1.get(), glk.relin_keys_[elt_index].public_keys_ptr_.get(), modulus_QP, n,
                 size_QP, size_QP_n, size_QlP, size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);
 
         // add to acc_cx
         gridDimGlb = size_QlP_n / blockDimGlb.x;
-        add_rns_poly<<<gridDimGlb, blockDimGlb>>>(acc_cx.get(), temp_cx.get(), rns_tool.base_QlP().base(), acc_cx.get(),
-                                                  n, size_QlP);
-        add_rns_poly<<<gridDimGlb, blockDimGlb>>>(acc_cx.get() + size_QlP_n, temp_cx.get() + size_QlP_n,
-                                                  rns_tool.base_QlP().base(), acc_cx.get() + size_QlP_n, n, size_QlP);
+        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                acc_cx.get(), temp_cx.get(), rns_tool.base_QlP().base(), acc_cx.get(),
+                n, size_QlP);
+        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                acc_cx.get() + size_QlP_n, temp_cx.get() + size_QlP_n,
+                rns_tool.base_QlP().base(), acc_cx.get() + size_QlP_n, n, size_QlP);
     }
 
     // -------------------------------------------- mod down c1 --------------------------------------------------------
-    rns_tool.moddown_from_NTT(acc_cx.get(), acc_cx.get(), context.gpu_rns_tables(), scheme);
-    rns_tool.moddown_from_NTT(acc_cx.get() + size_QlP_n, acc_cx.get() + size_QlP_n, context.gpu_rns_tables(), scheme);
+    rns_tool.moddown_from_NTT(acc_cx.get(), acc_cx.get(), context.gpu_rns_tables(), scheme, stream);
+    rns_tool.moddown_from_NTT(acc_cx.get() + size_QlP_n, acc_cx.get() + size_QlP_n, context.gpu_rns_tables(), scheme,
+                              stream);
 
     // new c0
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(acc_c0.get(), acc_cx.get(), rns_tool.base_Ql().base(),
-                                                                 acc_cx.get(), n, size_Ql);
-        rns_tool.ExpandCRTBasis_Ql_Q(ct.data(), acc_cx.get());
+        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                acc_c0.get(), acc_cx.get(), rns_tool.base_Ql().base(),
+                acc_cx.get(), n, size_Ql);
+        rns_tool.ExpandCRTBasis_Ql_Q(ct.data(), acc_cx.get(), stream);
     } else {
-        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb>>>(acc_c0.get(), acc_cx.get(), rns_tool.base_Ql().base(),
-                                                                 ct.data(), n, size_Ql);
+        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+                acc_c0.get(), acc_cx.get(), rns_tool.base_Ql().base(),
+                ct.data(), n, size_Ql);
     }
 
     // new c1
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        rns_tool.ExpandCRTBasis_Ql_Q(ct.data() + size_Q_n, acc_cx.get() + size_QlP_n);
+        rns_tool.ExpandCRTBasis_Ql_Q(ct.data() + size_Q_n, acc_cx.get() + size_QlP_n, stream);
     } else {
-        PHANTOM_CHECK_CUDA(cudaMemcpy(ct.data() + size_Ql_n, acc_cx.get() + size_QlP_n, size_Ql_n * sizeof(uint64_t),
-                                      cudaMemcpyDeviceToDevice));
+        cudaMemcpyAsync(ct.data() + size_Ql_n, acc_cx.get() + size_QlP_n, size_Ql_n * sizeof(uint64_t),
+                        cudaMemcpyDeviceToDevice, stream);
     }
+
+    cudaStreamSynchronize(stream);
 }
 
 void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,

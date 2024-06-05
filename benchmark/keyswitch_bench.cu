@@ -7,7 +7,7 @@ using namespace phantom;
 using namespace phantom::util;
 using namespace phantom::arith;
 
-void modup_bench(nvbench::state& state) {
+void modup_bench(nvbench::state &state) {
     const auto dropped_levels = state.get_int64("Dropped Levels");
     state.collect_dram_throughput();
 
@@ -25,11 +25,11 @@ void modup_bench(nvbench::state& state) {
     size_t poly_modulus_degree = 1 << 15;
     parms.set_poly_modulus_degree(poly_modulus_degree);
     parms.set_coeff_modulus(CoeffModulus::Create(
-        poly_modulus_degree, {
-            60, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
-            50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
-            60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60
-        }));
+            poly_modulus_degree, {
+                    60, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
+                    60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60
+            }));
     parms.set_special_modulus_size(15);
     double scale = pow(2.0, 50);
 
@@ -70,18 +70,18 @@ void modup_bench(nvbench::state& state) {
 
     multiply_inplace(context, x_cipher, y_cipher);
     // relinearize_inplace(context, x_cipher, relin_keys);
-    auto& context_data = context.get_context_data(x_cipher.chain_index());
+    auto &context_data = context.get_context_data(x_cipher.chain_index());
     size_t decomp_modulus_size = context_data.parms().coeff_modulus().size();
-    auto& key_context_data = context.get_context_data(0);
-    auto& key_parms = key_context_data.parms();
+    auto &key_context_data = context.get_context_data(0);
+    auto &key_parms = key_context_data.parms();
     auto scheme = key_parms.scheme();
     auto n = key_parms.poly_modulus_degree();
     auto mul_tech = key_parms.mul_tech();
-    auto& key_modulus = key_parms.coeff_modulus();
+    auto &key_modulus = key_parms.coeff_modulus();
     size_t size_P = key_parms.special_modulus_size();
     size_t size_QP = key_modulus.size();
-    uint64_t* cks = x_cipher.data() + 2 * decomp_modulus_size * n;
-    auto& rns_tool = context.get_context_data(x_cipher.chain_index()).gpu_rns_tool();
+    uint64_t *cks = x_cipher.data() + 2 * decomp_modulus_size * n;
+    auto &rns_tool = context.get_context_data(x_cipher.chain_index()).gpu_rns_tool();
 
     auto modulus_QP = context.gpu_rns_tables().modulus();
 
@@ -94,7 +94,7 @@ void modup_bench(nvbench::state& state) {
     auto size_QlP_n = size_QlP * n;
 
     // Prepare key
-    auto& key_vector = relin_keys.public_keys_;
+    auto &key_vector = relin_keys.public_keys_;
     auto key_poly_num = key_vector[0].pk_.size_;
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
@@ -104,8 +104,10 @@ void modup_bench(nvbench::state& state) {
     Pointer<uint64_t> t_mod_up;
     t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
 
-    state.exec([&rns_tool, &t_mod_up, cks, &context, &scheme](nvbench::launch& launch) {
-        rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme);
+    const auto &stream = context.get_cuda_stream(0);
+
+    state.exec([&rns_tool, &t_mod_up, cks, &context, &scheme, &stream](nvbench::launch &launch) {
+        rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
     });
 }
 
@@ -113,7 +115,7 @@ NVBENCH_BENCH(modup_bench)
         .add_int64_axis("Dropped Levels", nvbench::range(0, 14, 1))
         .set_timeout(1); // Limit to one second per measurement.
 
-void keyswitch_bench(nvbench::state& state) {
+void keyswitch_bench(nvbench::state &state) {
     const auto dropped_levels = state.get_int64("Dropped Levels");
     state.collect_dram_throughput();
 
@@ -131,11 +133,11 @@ void keyswitch_bench(nvbench::state& state) {
     size_t poly_modulus_degree = 1 << 15;
     parms.set_poly_modulus_degree(poly_modulus_degree);
     parms.set_coeff_modulus(CoeffModulus::Create(
-        poly_modulus_degree, {
-            60, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
-            50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
-            60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60
-        }));
+            poly_modulus_degree, {
+                    60, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
+                    60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60
+            }));
     parms.set_special_modulus_size(15);
     double scale = pow(2.0, 50);
 
@@ -176,18 +178,18 @@ void keyswitch_bench(nvbench::state& state) {
 
     multiply_inplace(context, x_cipher, y_cipher);
     // relinearize_inplace(context, x_cipher, relin_keys);
-    auto& context_data = context.get_context_data(x_cipher.chain_index());
+    auto &context_data = context.get_context_data(x_cipher.chain_index());
     size_t decomp_modulus_size = context_data.parms().coeff_modulus().size();
-    auto& key_context_data = context.get_context_data(0);
-    auto& key_parms = key_context_data.parms();
+    auto &key_context_data = context.get_context_data(0);
+    auto &key_parms = key_context_data.parms();
     auto scheme = key_parms.scheme();
     auto n = key_parms.poly_modulus_degree();
     auto mul_tech = key_parms.mul_tech();
-    auto& key_modulus = key_parms.coeff_modulus();
+    auto &key_modulus = key_parms.coeff_modulus();
     size_t size_P = key_parms.special_modulus_size();
     size_t size_QP = key_modulus.size();
-    uint64_t* cks = x_cipher.data() + 2 * decomp_modulus_size * n;
-    auto& rns_tool = context.get_context_data(x_cipher.chain_index()).gpu_rns_tool();
+    uint64_t *cks = x_cipher.data() + 2 * decomp_modulus_size * n;
+    auto &rns_tool = context.get_context_data(x_cipher.chain_index()).gpu_rns_tool();
 
     auto modulus_QP = context.gpu_rns_tables().modulus();
 
@@ -200,7 +202,7 @@ void keyswitch_bench(nvbench::state& state) {
     auto size_QlP_n = size_QlP * n;
 
     // Prepare key
-    auto& key_vector = relin_keys.public_keys_;
+    auto &key_vector = relin_keys.public_keys_;
     auto key_poly_num = key_vector[0].pk_.size_;
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
@@ -209,7 +211,9 @@ void keyswitch_bench(nvbench::state& state) {
     Pointer<uint64_t> t_mod_up;
     t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
 
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme);
+    const auto &stream = context.get_cuda_stream(0);
+
+    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
     Pointer<uint64_t> cx;
@@ -218,9 +222,10 @@ void keyswitch_bench(nvbench::state& state) {
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
 
-    state.exec([&cx, &t_mod_up, &relin_keys, &rns_tool, &modulus_QP, &reduction_threshold](nvbench::launch& launch) {
+    state.exec([&cx, &t_mod_up, &relin_keys, &rns_tool, &modulus_QP, &reduction_threshold, &stream](
+            nvbench::launch &launch) {
         key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), rns_tool, modulus_QP,
-                              reduction_threshold);
+                              reduction_threshold, stream);
     });
 }
 
@@ -228,7 +233,7 @@ NVBENCH_BENCH(keyswitch_bench)
         .add_int64_axis("Dropped Levels", nvbench::range(0, 14, 1))
         .set_timeout(1); // Limit to one second per measurement.
 
-void moddown_bench(nvbench::state& state) {
+void moddown_bench(nvbench::state &state) {
     const auto dropped_levels = state.get_int64("Dropped Levels");
     state.collect_dram_throughput();
 
@@ -246,11 +251,11 @@ void moddown_bench(nvbench::state& state) {
     size_t poly_modulus_degree = 1 << 15;
     parms.set_poly_modulus_degree(poly_modulus_degree);
     parms.set_coeff_modulus(CoeffModulus::Create(
-        poly_modulus_degree, {
-            60, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
-            50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
-            60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60
-        }));
+            poly_modulus_degree, {
+                    60, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50,
+                    60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60
+            }));
     parms.set_special_modulus_size(15);
     double scale = pow(2.0, 50);
 
@@ -291,18 +296,18 @@ void moddown_bench(nvbench::state& state) {
 
     multiply_inplace(context, x_cipher, y_cipher);
     // relinearize_inplace(context, x_cipher, relin_keys);
-    auto& context_data = context.get_context_data(x_cipher.chain_index());
+    auto &context_data = context.get_context_data(x_cipher.chain_index());
     size_t decomp_modulus_size = context_data.parms().coeff_modulus().size();
-    auto& key_context_data = context.get_context_data(0);
-    auto& key_parms = key_context_data.parms();
+    auto &key_context_data = context.get_context_data(0);
+    auto &key_parms = key_context_data.parms();
     auto scheme = key_parms.scheme();
     auto n = key_parms.poly_modulus_degree();
     auto mul_tech = key_parms.mul_tech();
-    auto& key_modulus = key_parms.coeff_modulus();
+    auto &key_modulus = key_parms.coeff_modulus();
     size_t size_P = key_parms.special_modulus_size();
     size_t size_QP = key_modulus.size();
-    uint64_t* cks = x_cipher.data() + 2 * decomp_modulus_size * n;
-    auto& rns_tool = context.get_context_data(x_cipher.chain_index()).gpu_rns_tool();
+    uint64_t *cks = x_cipher.data() + 2 * decomp_modulus_size * n;
+    auto &rns_tool = context.get_context_data(x_cipher.chain_index()).gpu_rns_tool();
 
     auto modulus_QP = context.gpu_rns_tables().modulus();
 
@@ -315,7 +320,7 @@ void moddown_bench(nvbench::state& state) {
     auto size_QlP_n = size_QlP * n;
 
     // Prepare key
-    auto& key_vector = relin_keys.public_keys_;
+    auto &key_vector = relin_keys.public_keys_;
     auto key_poly_num = key_vector[0].pk_.size_;
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
@@ -324,7 +329,9 @@ void moddown_bench(nvbench::state& state) {
     Pointer<uint64_t> t_mod_up;
     t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
 
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme);
+    const auto &stream = context.get_cuda_stream(0);
+
+    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
     Pointer<uint64_t> cx;
@@ -332,14 +339,15 @@ void moddown_bench(nvbench::state& state) {
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
+
     key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), rns_tool, modulus_QP,
-                          reduction_threshold);
+                          reduction_threshold, stream);
 
     // mod down
     auto cx_i = cx.get() + 0 * size_QlP_n;
 
-    state.exec([&rns_tool, cx_i, &context, &scheme](nvbench::launch& launch) {
-        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme);
+    state.exec([&rns_tool, cx_i, &context, &scheme, &stream](nvbench::launch &launch) {
+        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, stream);
     });
 }
 
