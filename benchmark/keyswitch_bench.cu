@@ -35,11 +35,11 @@ void modup_bench(nvbench::state &state) {
 
     PhantomContext context(parms);
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
+    PhantomRelinKey relin_keys;
     secret_key.gen_relinkey(context, relin_keys);
 
     PhantomCKKSEncoder encoder(context);
@@ -48,17 +48,17 @@ void modup_bench(nvbench::state &state) {
     std::vector<double> x_msg(slot_count, 1);
     std::vector<double> y_msg(slot_count, 1);
 
-    PhantomPlaintext x_plain(context);
-    PhantomPlaintext y_plain(context);
+    PhantomPlaintext x_plain;
+    PhantomPlaintext y_plain;
 
     encoder.encode(context, x_msg, scale, x_plain);
     encoder.encode(context, y_msg, scale, y_plain);
 
-    PhantomCiphertext x_cipher(context);
-    PhantomCiphertext y_cipher(context);
+    PhantomCiphertext x_cipher;
+    PhantomCiphertext y_cipher;
 
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_cipher);
 
     for (int i = 0; i < dropped_levels; i++) {
         multiply_inplace(context, x_cipher, y_cipher);
@@ -93,19 +93,14 @@ void modup_bench(nvbench::state &state) {
     // auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    // Prepare key
-    auto &key_vector = relin_keys.public_keys_;
-    auto key_poly_num = key_vector[0].pk_.size_;
-
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
-
-    // mod up
-
-    Pointer<uint64_t> t_mod_up;
-    t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
 
     const auto &stream = context.get_cuda_stream(0);
 
+    // mod up
+    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+
+    state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
     state.exec([&rns_tool, &t_mod_up, cks, &context, &scheme, &stream](nvbench::launch &launch) {
         rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
     });
@@ -143,11 +138,11 @@ void keyswitch_bench(nvbench::state &state) {
 
     PhantomContext context(parms);
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
+    PhantomRelinKey relin_keys;
     secret_key.gen_relinkey(context, relin_keys);
 
     PhantomCKKSEncoder encoder(context);
@@ -156,17 +151,17 @@ void keyswitch_bench(nvbench::state &state) {
     std::vector<double> x_msg(slot_count, 1);
     std::vector<double> y_msg(slot_count, 1);
 
-    PhantomPlaintext x_plain(context);
-    PhantomPlaintext y_plain(context);
+    PhantomPlaintext x_plain;
+    PhantomPlaintext y_plain;
 
     encoder.encode(context, x_msg, scale, x_plain);
     encoder.encode(context, y_msg, scale, y_plain);
 
-    PhantomCiphertext x_cipher(context);
-    PhantomCiphertext y_cipher(context);
+    PhantomCiphertext x_cipher;
+    PhantomCiphertext y_cipher;
 
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_cipher);
 
     for (int i = 0; i < dropped_levels; i++) {
         multiply_inplace(context, x_cipher, y_cipher);
@@ -201,30 +196,25 @@ void keyswitch_bench(nvbench::state &state) {
     // auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    // Prepare key
-    auto &key_vector = relin_keys.public_keys_;
-    auto key_poly_num = key_vector[0].pk_.size_;
-
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
-    // mod up
-    Pointer<uint64_t> t_mod_up;
-    t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
-
     const auto &stream = context.get_cuda_stream(0);
+
+    // mod up
+    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
 
     rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    Pointer<uint64_t> cx;
-    cx.acquire(allocate<uint64_t>(global_pool(), 2 * size_QlP_n));
+    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
 
+    state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
     state.exec([&cx, &t_mod_up, &relin_keys, &rns_tool, &modulus_QP, &reduction_threshold, &stream](
             nvbench::launch &launch) {
-        key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), rns_tool, modulus_QP,
+        key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), rns_tool, modulus_QP,
                               reduction_threshold, stream);
     });
 }
@@ -261,11 +251,11 @@ void moddown_bench(nvbench::state &state) {
 
     PhantomContext context(parms);
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
+    PhantomRelinKey relin_keys;
     secret_key.gen_relinkey(context, relin_keys);
 
     PhantomCKKSEncoder encoder(context);
@@ -274,17 +264,17 @@ void moddown_bench(nvbench::state &state) {
     std::vector<double> x_msg(slot_count, 1);
     std::vector<double> y_msg(slot_count, 1);
 
-    PhantomPlaintext x_plain(context);
-    PhantomPlaintext y_plain(context);
+    PhantomPlaintext x_plain;
+    PhantomPlaintext y_plain;
 
     encoder.encode(context, x_msg, scale, x_plain);
     encoder.encode(context, y_msg, scale, y_plain);
 
-    PhantomCiphertext x_cipher(context);
-    PhantomCiphertext y_cipher(context);
+    PhantomCiphertext x_cipher;
+    PhantomCiphertext y_cipher;
 
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_cipher);
 
     for (int i = 0; i < dropped_levels; i++) {
         multiply_inplace(context, x_cipher, y_cipher);
@@ -319,33 +309,27 @@ void moddown_bench(nvbench::state &state) {
     // auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    // Prepare key
-    auto &key_vector = relin_keys.public_keys_;
-    auto key_poly_num = key_vector[0].pk_.size_;
-
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
-
-    // mod up
-    Pointer<uint64_t> t_mod_up;
-    t_mod_up.acquire(allocate<uint64_t>(global_pool(), beta * size_QlP_n));
 
     const auto &stream = context.get_cuda_stream(0);
 
+    // mod up
+    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
     rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    Pointer<uint64_t> cx;
-    cx.acquire(allocate<uint64_t>(global_pool(), 2 * size_QlP_n));
+    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
 
-    key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), rns_tool, modulus_QP,
+    key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), rns_tool, modulus_QP,
                           reduction_threshold, stream);
 
     // mod down
     auto cx_i = cx.get() + 0 * size_QlP_n;
 
+    state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
     state.exec([&rns_tool, cx_i, &context, &scheme, &stream](nvbench::launch &launch) {
         rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, stream);
     });

@@ -14,11 +14,13 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     auto &first_parms = context_data.parms();
     size_t poly_modulus_degree = first_parms.poly_modulus_degree();
 
+    const auto &stream = context.get_cuda_stream(0);
+
     print_timer_banner();
 
     auto count = 100;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     {
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
@@ -28,7 +30,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     {
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
@@ -38,8 +40,8 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
-    PhantomRelinKey relin_keys(context);
-    PhantomGaloisKey gal_keys(context);
+    PhantomRelinKey relin_keys;
+    PhantomGaloisKey gal_keys;
     // Generate relinearization keys
     {
         CUDATimer timer("gen_relinkey");
@@ -73,7 +75,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     For scale we use the square root of the last coeff_modulus prime
     from parms.
     */
-    PhantomPlaintext plain(context);
+    PhantomPlaintext plain;
     {
         CUDATimer timer("encode");
         for (auto i = 0; i < count; i++) {
@@ -98,12 +100,12 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     /*
     [Encryption]
     */
-    PhantomCiphertext encrypted(context);
+    PhantomCiphertext encrypted;
     {
         CUDATimer timer("encrypt_asymmetric");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            public_key.encrypt_asymmetric(context, plain, encrypted, false);
+            public_key.encrypt_asymmetric(context, plain, encrypted);
             timer.stop();
         }
     }
@@ -111,7 +113,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     /*
     [Decryption]
     */
-    PhantomPlaintext plain2(context);
+    PhantomPlaintext plain2;
     {
         CUDATimer timer("decrypt");
         for (auto i = 0; i < count; i++) {
@@ -123,17 +125,17 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
 
     // homomorphic operations
 
-    PhantomCiphertext encrypted1(context);
+    PhantomCiphertext encrypted1;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
         pod_vector3[j] = make_cuDoubleComplex(double(1), double(0));
     ckks_encoder.encode(context, pod_vector3, scale, plain);
-    public_key.encrypt_asymmetric(context, plain, encrypted1, false);
+    public_key.encrypt_asymmetric(context, plain, encrypted1);
 
-    PhantomCiphertext encrypted2(context);
+    PhantomCiphertext encrypted2;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
         pod_vector4[j] = make_cuDoubleComplex(double(1), double(0));
     ckks_encoder.encode(context, pod_vector4, scale, plain2);
-    public_key.encrypt_asymmetric(context, plain2, encrypted2, false);
+    public_key.encrypt_asymmetric(context, plain2, encrypted2);
 
     /*
     [Add]
@@ -168,10 +170,10 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("multiply");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start();
-            multiply_inplace(context, tmp_ct, encrypted2);
-            relinearize_inplace(context, tmp_ct, relin_keys);
-            timer.stop();
+            timer.start(stream);
+            multiply_inplace(context, tmp_ct, encrypted2, stream);
+            relinearize_inplace(context, tmp_ct, relin_keys, stream);
+            timer.stop(stream);
         }
     }
 

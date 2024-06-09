@@ -413,7 +413,8 @@ __global__ static void exact_convert_array_kernel(uint64_t *dst, const uint64_t 
     }
 }
 
-void DBaseConverter::exact_convert_array(uint64_t *dst, const uint64_t *src, uint64_t poly_degree) const {
+void DBaseConverter::exact_convert_array(uint64_t *dst, const uint64_t *src, uint64_t poly_degree,
+                                         const cudaStream_t &stream) const {
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
     uint64_t gridDimGlb = poly_degree / blockDimGlb.x;
@@ -423,7 +424,7 @@ void DBaseConverter::exact_convert_array(uint64_t *dst, const uint64_t *src, uin
         throw invalid_argument("out base in exact_convert_array must be one.");
     }
 
-    exact_convert_array_kernel<<<gridDimGlb, blockDimGlb>>>(
+    exact_convert_array_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
             dst, src, ibase_.base(), ibase_size, obase_.base(), obase_size, ibase_.big_modulus(), ibase_.QHatInvModq(),
             ibase_.QHatInvModq_shoup(), QHatModp(), poly_degree, reduction_threshold);
 }

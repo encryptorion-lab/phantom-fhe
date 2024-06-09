@@ -45,29 +45,26 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<phantom::EncryptionParameters &>());
 
     py::class_<PhantomSecretKey>(m, "secret_key")
-            .def(py::init<phantom::EncryptionParameters &>())
-            .def("gen_secretkey", &PhantomSecretKey::gen_secretkey)
-            .def("gen_publickey",
-                 &PhantomSecretKey::gen_publickey, py::arg(), py::arg(), py::arg("save_seed") = true)
-            .def("gen_relinkey",
-                 &PhantomSecretKey::gen_relinkey, py::arg(), py::arg(), py::arg("save_seed") = false)
-            .def("create_galois_keys",
-                 &PhantomSecretKey::create_galois_keys, py::arg(), py::arg(), py::arg("save_seed") = false)
-            .def("encrypt_symmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, bool>(
-                     &PhantomSecretKey::encrypt_symmetric, py::const_))
+            .def(py::init<>())
+            .def("gen_secretkey", &PhantomSecretKey::gen_secretkey, py::arg(), py::arg("stream") = nullptr)
+            .def("gen_publickey", &PhantomSecretKey::gen_publickey)
+            .def("gen_relinkey", &PhantomSecretKey::gen_relinkey)
+            .def("create_galois_keys", &PhantomSecretKey::create_galois_keys)
+            .def("encrypt_symmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &>(
+                    &PhantomSecretKey::encrypt_symmetric, py::const_))
             .def("decrypt",
                  py::overload_cast<const PhantomContext &, const PhantomCiphertext &>(&PhantomSecretKey::decrypt));
 
     py::class_<PhantomPublicKey>(m, "public_key")
-            .def(py::init<PhantomContext &>())
-            .def("encrypt_asymmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, bool>(
-                     &PhantomPublicKey::encrypt_asymmetric), py::arg(), py::arg(), py::arg("save_seed") = false);
+            .def(py::init<>())
+            .def("encrypt_asymmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const >(
+                    &PhantomPublicKey::encrypt_asymmetric));
 
     py::class_<PhantomRelinKey>(m, "relin_key")
-            .def(py::init<PhantomContext &>());
+            .def(py::init<>());
 
     py::class_<PhantomGaloisKey>(m, "galois_key")
-            .def(py::init<PhantomContext &>());
+            .def(py::init<>());
 
     m.def("get_elts_from_steps", &get_elts_from_steps);
 
@@ -75,19 +72,17 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<PhantomContext &>())
             .def("slot_count", &PhantomCKKSEncoder::slot_count)
             .def("encode", py::overload_cast<const PhantomContext &, const std::vector<double> &, double>(
-                     &PhantomCKKSEncoder::encode))
+                    &PhantomCKKSEncoder::encode))
             .def("encode_to", py::overload_cast<const PhantomContext &, const std::vector<double> &, size_t, double>(
-                     &PhantomCKKSEncoder::encode))
+                    &PhantomCKKSEncoder::encode))
             .def("decode",
                  py::overload_cast<const PhantomContext &, const PhantomPlaintext &>(&PhantomCKKSEncoder::decode));
 
     py::class_<PhantomPlaintext>(m, "plaintext")
-            .def(py::init<>())
-            .def(py::init<const PhantomContext &>());
+            .def(py::init<>());
 
     py::class_<PhantomCiphertext>(m, "ciphertext")
             .def(py::init<>())
-            .def(py::init<const PhantomContext &>())
             .def("set_scale", &PhantomCiphertext::set_scale);
 
     m.def("negate_inplace", &negate_inplace);
@@ -111,7 +106,7 @@ PYBIND11_MODULE(pyPhantom, m) {
           py::overload_cast<const PhantomContext &, PhantomCiphertext &, size_t>(&mod_switch_to_inplace));
     m.def("mod_switch_to_next",
           py::overload_cast<const PhantomContext &, const PhantomCiphertext &, PhantomCiphertext
-              &>(&mod_switch_to_next));
+          &>(&mod_switch_to_next));
     m.def("mod_switch_to_next_inplace",
           py::overload_cast<const PhantomContext &, PhantomPlaintext &>(&mod_switch_to_next_inplace));
     m.def("mod_switch_to_next_inplace",

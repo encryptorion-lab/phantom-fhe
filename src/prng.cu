@@ -1,9 +1,8 @@
-#include "prng.cuh"
-#include "uintmodmath.cuh"
-// #include "gpucontext.h"
-#include "mempool.cuh"
 #include <random>
 #include <cstring>
+#include "prng.cuh"
+#include "uintmodmath.cuh"
+#include "util/globals.h"
 
 using namespace phantom::arith;
 

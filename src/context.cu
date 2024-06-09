@@ -118,8 +118,7 @@ namespace phantom {
     }
 }
 
-PhantomContext::PhantomContext(const phantom::EncryptionParameters &params,
-                               const phantom::util::cuda_stream_wrapper *p_stream_wrapper) {
+PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, const cudaStream_t &stream) {
     if (params.coeff_modulus().size() == 1)
         throw std::invalid_argument("The coefficient modulus must be a vector of at least two primes");
 
@@ -136,8 +135,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params,
     for (size_t i = 0; i < phantom::util::n_cuda_streams; ++i)
         cuda_streams_wrappers_[i] = std::make_shared<phantom::util::cuda_stream_wrapper>();
 
-    const auto &stream =
-            p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : cuda_streams_wrappers_[0]->get_stream();
+    const auto &s = stream != nullptr ? stream : get_cuda_stream(0);
 
     using_keyswitching_ = false;
     mul_tech_ = params.mul_tech();
@@ -149,7 +147,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params,
     auto temp_parms = params;
     auto &coeff_modulus = temp_parms.coeff_modulus();
 
-    context_data_.emplace_back(temp_parms, stream);
+    context_data_.emplace_back(temp_parms, s);
 
     if (size_P != 0) {
         using_keyswitching_ = true;
@@ -160,7 +158,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params,
         coeff_modulus.pop_back();
 
     for (size_t i = 0; i < size_Q; i++) {
-        context_data_.emplace_back(temp_parms, stream);
+        context_data_.emplace_back(temp_parms, s);
         // Drop one modulus after each data level
         coeff_modulus.pop_back();
     }
@@ -177,7 +175,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params,
     auto &coeff_modulus_cpu = params.coeff_modulus();
     coeff_mod_size_ = coeff_modulus_cpu.size();
     auto &small_ntt_tables = get_context_data(0).small_ntt_tables();
-    gpu_rns_tables().init(poly_degree_, coeff_mod_size_);
+    gpu_rns_tables().init(poly_degree_, coeff_mod_size_, s);
     for (size_t i = 0; i < coeff_mod_size_; i++) {
         DModulus temp = DModulus(coeff_modulus_cpu[i].value(), coeff_modulus_cpu[i].const_ratio()[0],
                                  coeff_modulus_cpu[i].const_ratio()[1]);
@@ -186,57 +184,55 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params,
                              small_ntt_tables->get_ntt_at(i).get_from_inv_root_powers().data(),
                              small_ntt_tables->get_ntt_at(i).get_from_inv_root_powers_shoup().data(),
                              small_ntt_tables->get_ntt_at(i).inv_degree_modulo(),
-                             small_ntt_tables->get_ntt_at(i).inv_degree_modulo_shoup(), i);
+                             small_ntt_tables->get_ntt_at(i).inv_degree_modulo_shoup(), i, s);
     }
-
-    prng_seed_.acquire(phantom::util::allocate<uint8_t>(global_pool(), global_variables::prng_seed_byte_count));
-
-    in_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_mod_size_ * poly_degree_));
 
     if (params.scheme() == phantom::scheme_type::bfv || params.scheme() == phantom::scheme_type::bgv) {
         auto &plain_ntt_tables = get_context_data(0).plain_ntt_tables();
         auto &plain_modulus_cpu = params.plain_modulus();
-        gpu_plain_tables().init(poly_degree_, 1);
+        gpu_plain_tables().init(poly_degree_, 1, s);
         const auto temp = DModulus(plain_modulus_cpu.value(), plain_modulus_cpu.const_ratio()[0],
                                    plain_modulus_cpu.const_ratio()[1]);
         gpu_plain_tables().set(&temp, plain_ntt_tables->get_from_root_powers().data(),
                                plain_ntt_tables->get_from_root_powers_shoup().data(),
                                plain_ntt_tables->get_from_inv_root_powers().data(),
                                plain_ntt_tables->get_from_inv_root_powers_shoup().data(),
-                               plain_ntt_tables->inv_degree_modulo(), plain_ntt_tables->inv_degree_modulo_shoup(), 0);
+                               plain_ntt_tables->inv_degree_modulo(), plain_ntt_tables->inv_degree_modulo_shoup(), 0,
+                               s);
 
-        plain_modulus_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), coeff_mod_size_));
-        plain_modulus_shoup_.acquire(phantom::util::allocate<uint64_t>(phantom::util::global_pool(), coeff_mod_size_));
-        cudaMemcpy(plain_modulus_.get(), get_context_data(0).plain_modulus().data(),
-                   coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(plain_modulus_shoup_.get(), get_context_data(0).plain_modulus_shoup().data(),
-                   coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
+        plain_modulus_ = cuda_make_shared<uint64_t>(coeff_mod_size_, s);
+        plain_modulus_shoup_ = cuda_make_shared<uint64_t>(coeff_mod_size_, s);
+        cudaMemcpyAsync(plain_modulus_.get(), get_context_data(0).plain_modulus().data(),
+                        coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
+        cudaMemcpyAsync(plain_modulus_shoup_.get(), get_context_data(0).plain_modulus_shoup().data(),
+                        coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
     }
 
     if (params.scheme() == phantom::scheme_type::bfv) {
         const auto coeff_div_plain_size = (coeff_mod_size_ * 2 - total_parm_size() + 1) * total_parm_size() / 2;
-        coeff_div_plain_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_div_plain_size));
-        coeff_div_plain_shoup_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_div_plain_size));
+        coeff_div_plain_ = cuda_make_shared<uint64_t>(coeff_div_plain_size, s);
+        coeff_div_plain_shoup_ = cuda_make_shared<uint64_t>(coeff_div_plain_size, s);
         auto cdp_pos = 0;
         for (size_t i = 0; i < total_parm_size(); i++) {
             const auto size = get_context_data(i).coeff_div_plain_modulus().size();
             // force to memcpy, as the type is different but the values are consistent
-            cudaMemcpy(coeff_div_plain_.get() + cdp_pos,
-                       get_context_data(i).coeff_div_plain_modulus().data(), size * sizeof(uint64_t),
-                       cudaMemcpyHostToDevice);
-            cudaMemcpy(coeff_div_plain_shoup_.get() + cdp_pos,
-                       get_context_data(i).coeff_div_plain_modulus_shoup().data(), size * sizeof(uint64_t),
-                       cudaMemcpyHostToDevice);
+            cudaMemcpyAsync(coeff_div_plain_.get() + cdp_pos,
+                            get_context_data(i).coeff_div_plain_modulus().data(), size * sizeof(uint64_t),
+                            cudaMemcpyHostToDevice, s);
+            cudaMemcpyAsync(coeff_div_plain_shoup_.get() + cdp_pos,
+                            get_context_data(i).coeff_div_plain_modulus_shoup().data(), size * sizeof(uint64_t),
+                            cudaMemcpyHostToDevice, s);
             cdp_pos += size;
         }
 
-        plain_upper_half_increment_.acquire(phantom::util::allocate<uint64_t>(global_pool(), coeff_mod_size_));
-        cudaMemcpy(plain_upper_half_increment_.get(),
-                   get_context_data(0).plain_upper_half_increment().data(),
-                   coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice);
+        plain_upper_half_increment_ = cuda_make_shared<uint64_t>(coeff_mod_size_, s);
+        cudaMemcpyAsync(plain_upper_half_increment_.get(),
+                        get_context_data(0).plain_upper_half_increment().data(),
+                        coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
     }
 
     int log_n = phantom::arith::get_power_of_two(poly_degree_);
     bool is_bfv = (params.scheme() == phantom::scheme_type::bfv);
-    key_galois_tool_ = std::make_shared<PhantomGaloisTool>(params.galois_elts(), log_n, is_bfv);
+    key_galois_tool_ = std::make_unique<PhantomGaloisTool>(params.galois_elts(), log_n, s, is_bfv);
+    cudaStreamSynchronize(s);
 }

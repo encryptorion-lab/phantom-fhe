@@ -3,6 +3,42 @@
 
 using namespace phantom::arith;
 
+namespace phantom::util {
+    // Required for C++14 compliance: static constexpr member variables are not necessarily inlined so need to
+    // ensure symbol is created.
+    constexpr double ComplexRoots::PI_;
+
+    ComplexRoots::ComplexRoots(size_t degree_of_roots) : degree_of_roots_(degree_of_roots) {
+        roots_ = (cuDoubleComplex *) malloc((degree_of_roots_ / 8 + 1) * sizeof(cuDoubleComplex));
+
+        // Generate 1/8 of all roots.
+        // Alternatively, choose from precomputed high-precision roots in files.
+        for (size_t i = 0; i <= degree_of_roots_ / 8; i++) {
+            roots_[i] = polar(1.0, 2 * PI_ * static_cast<double>(i) / static_cast<double>(degree_of_roots_));
+        }
+    }
+
+    cuDoubleComplex ComplexRoots::get_root(size_t index) const {
+        index &= degree_of_roots_ - 1;
+        auto mirror = [](cuDoubleComplex a) {
+            return make_cuDoubleComplex(a.y, a.x);
+        };
+
+        // This express the 8-fold symmetry of all n-th roots.
+        if (index <= degree_of_roots_ / 8) {
+            return roots_[index];
+        } else if (index <= degree_of_roots_ / 4) {
+            return mirror(roots_[degree_of_roots_ / 4 - index]);
+        } else if (index <= degree_of_roots_ / 2) {
+            return cuCsub({0, 0}, cuConj(get_root(degree_of_roots_ / 2 - index)));
+        } else if (index <= 3 * degree_of_roots_ / 4) {
+            return cuCsub({0, 0}, get_root(index - degree_of_roots_ / 2));
+        } else {
+            return cuConj(get_root(degree_of_roots_ - index));
+        }
+    }
+}
+
 /** Computer one butterfly in forward FFT
  * x[0] = x[0] + pow * x[1]
  * x[1] = x[0] - pow * x[1]
@@ -319,7 +355,7 @@ __global__ void inplace_special_ifft_iter_kernel(cuDoubleComplex *inout,
  * @param[inout] gpu_rns_vec_ The DRNSInfo stored in PhantomContext.
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_forward(DCKKSEncoderInfo &gp) {
+void special_fft_forward(DCKKSEncoderInfo &gp, const cudaStream_t &stream) {
     uint32_t threadsPerBlock, blocksPerGrid;
 
     if (gp.sparse_slots() == 00) {
@@ -335,7 +371,7 @@ void special_fft_forward(DCKKSEncoderInfo &gp) {
         uint32_t iter = 0;
         uint32_t numOfGroups = 1;
         inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock,
-        gp.sparse_slots() * sizeof(cuDoubleComplex)>>>(
+        gp.sparse_slots() * sizeof(cuDoubleComplex), stream>>>(
                 gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
                 logRatio);
     } else {
@@ -344,15 +380,15 @@ void special_fft_forward(DCKKSEncoderInfo &gp) {
         threadsPerBlock = NTT_THREAD_PER_BLOCK;
         blocksPerGrid = ceil((float) gp.sparse_slots() / threadsPerBlock / 2);
         for (; numOfGroups < (gp.sparse_slots() / SWITCH_POINT); numOfGroups <<= 1) {
-            inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0>>>(
+            inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
                     gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
                     logRatio);
 
             iter++;
         }
 
-        inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
-                                                                           sizeof(cuDoubleComplex)>>>(
+        inplace_special_ffft_base_kernel<<<
+        blocksPerGrid, threadsPerBlock, SWITCH_POINT * sizeof(cuDoubleComplex), stream>>>(
                 gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter,
                 gp.m(), logRatio);
     }
@@ -362,23 +398,21 @@ void special_fft_forward(DCKKSEncoderInfo &gp) {
  * @param[inout] gp DCKKSEncoderInfo
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_backward(DCKKSEncoderInfo &gp, double scalar) {
+void special_fft_backward(DCKKSEncoderInfo &gp, double scalar, const cudaStream_t &stream) {
     uint32_t threadsPerBlock, blocksPerGrid;
     uint32_t logn = log2(gp.sparse_slots());
     uint32_t logRatio = log2(gp.m()) - logn - 2;
     if (gp.sparse_slots() <= SWITCH_POINT) {
-        // printf("====================================\n");
         //  max 1024 threads, max n = 2048
         uint32_t iter = 0;
         uint32_t numOfGroups = 1;
         threadsPerBlock = gp.sparse_slots() >> 1;
         blocksPerGrid = 1;
-        inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, gp.sparse_slots() *
-                                                                           sizeof(cuDoubleComplex)>>>(
+        inplace_special_ifft_base_kernel<<<
+        blocksPerGrid, threadsPerBlock, gp.sparse_slots() * sizeof(cuDoubleComplex), stream>>>(
                 gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
                 logRatio, scalar);
     } else {
-        // printf("******************************************\n");
         int32_t iter = logn - log2(SWITCH_POINT);
         uint32_t numOfGroups = gp.sparse_slots() / SWITCH_POINT;
         if (iter < 0)
@@ -389,15 +423,15 @@ void special_fft_backward(DCKKSEncoderInfo &gp, double scalar) {
         threadsPerBlock = NTT_THREAD_PER_BLOCK;
         blocksPerGrid = ceil((float) gp.sparse_slots() / threadsPerBlock / 2);
 
-        inplace_special_ifft_base_kernel<<<blocksPerGrid, threadsPerBlock, SWITCH_POINT *
-                                                                           sizeof(cuDoubleComplex)>>>(
+        inplace_special_ifft_base_kernel<<<
+        blocksPerGrid, threadsPerBlock, SWITCH_POINT * sizeof(cuDoubleComplex), stream>>>(
                 gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter,
                 gp.m(), logRatio, scalar);
         numOfGroups >>= 1;
         for (; numOfGroups >= 1; numOfGroups >>= 1) {
             iter--;
 
-            inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock>>>(
+            inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
                     gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
                     logRatio, scalar);
         }

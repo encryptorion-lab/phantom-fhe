@@ -420,7 +420,7 @@ namespace phantom {
             size_t base_Bsk_size = base_Bsk.size();
             RNSNTT base_Bsk_ntt_tables(log_n, vector(base_Bsk.base(), base_Bsk.base() + base_Bsk_size));
             const auto size_Bsk = base_Bsk_ntt_tables.size();
-            gpu_Bsk_tables_.init(n, size_Bsk);
+            gpu_Bsk_tables_.init(n, size_Bsk, stream);
             for (size_t i = 0; i < size_Bsk; i++) {
                 auto coeff_modulus = base_Bsk_ntt_tables.get_modulus_at(i);
                 auto d_modulus =
@@ -430,7 +430,7 @@ namespace phantom {
                                     base_Bsk_ntt_tables.get_ntt_at(i).get_from_inv_root_powers().data(),
                                     base_Bsk_ntt_tables.get_ntt_at(i).get_from_inv_root_powers_shoup().data(),
                                     base_Bsk_ntt_tables.get_ntt_at(i).inv_degree_modulo(),
-                                    base_Bsk_ntt_tables.get_ntt_at(i).inv_degree_modulo_shoup(), i);
+                                    base_Bsk_ntt_tables.get_ntt_at(i).inv_degree_modulo_shoup(), i, stream);
             }
 
             // used in optimizing BEHZ fastbconv_m_tilde
@@ -686,7 +686,7 @@ namespace phantom {
             // Generate QR NTT tables
             RNSNTT base_QlRl_ntt_tables(log_n, vector(base_QlRl.base(), base_QlRl.base() + size_QR));
             const auto size_QlRl = base_QlRl_ntt_tables.size();
-            gpu_QlRl_tables_.init(n, size_QlRl);
+            gpu_QlRl_tables_.init(n, size_QlRl, stream);
             for (size_t i = 0; i < size_QlRl; i++) {
                 auto coeff_modulus = base_QlRl_ntt_tables.get_modulus_at(i);
                 auto d_modulus =
@@ -696,7 +696,7 @@ namespace phantom {
                                      base_QlRl_ntt_tables.get_ntt_at(i).get_from_inv_root_powers().data(),
                                      base_QlRl_ntt_tables.get_ntt_at(i).get_from_inv_root_powers_shoup().data(),
                                      base_QlRl_ntt_tables.get_ntt_at(i).inv_degree_modulo(),
-                                     base_QlRl_ntt_tables.get_ntt_at(i).inv_degree_modulo_shoup(), i);
+                                     base_QlRl_ntt_tables.get_ntt_at(i).inv_degree_modulo_shoup(), i, stream);
             }
 
             auto bigint_Q = base_Q.big_modulus();
@@ -791,7 +791,7 @@ namespace phantom {
 
             // Generate QlRl NTT tables
             RNSNTT base_QlRl_ntt_tables(log_n, vector(base_QlRl.base(), base_QlRl.base() + size_QlRl));
-            gpu_QlRl_tables_.init(n, size_QlRl);
+            gpu_QlRl_tables_.init(n, size_QlRl, stream);
             for (size_t i = 0; i < size_QlRl; i++) {
                 auto coeff_modulus = base_QlRl_ntt_tables.get_modulus_at(i);
                 auto d_modulus =
@@ -801,7 +801,7 @@ namespace phantom {
                                      base_QlRl_ntt_tables.get_ntt_at(i).get_from_inv_root_powers().data(),
                                      base_QlRl_ntt_tables.get_ntt_at(i).get_from_inv_root_powers_shoup().data(),
                                      base_QlRl_ntt_tables.get_ntt_at(i).inv_degree_modulo(),
-                                     base_QlRl_ntt_tables.get_ntt_at(i).inv_degree_modulo_shoup(), i);
+                                     base_QlRl_ntt_tables.get_ntt_at(i).inv_degree_modulo_shoup(), i, stream);
             }
 
             auto bigint_Ql = base_Ql.big_modulus();
@@ -1098,14 +1098,15 @@ namespace phantom {
      * N: poly_modulus_degree_
      * base_q_size: coeff_modulus_size_
      */
-    void DRNSTool::divide_and_round_q_last(const uint64_t *src, size_t cipher_size, uint64_t *dst) const {
+    void DRNSTool::divide_and_round_q_last(const uint64_t *src, size_t cipher_size, uint64_t *dst,
+                                           const cudaStream_t &stream) const {
         size_t size_Ql = base_Ql_.size();
         size_t next_size_Ql = size_Ql - 1;
         // Add (qj-1)/2 to change from flooring to rounding
         // qlast^(-1) * (ci[j] - ci[last]) mod qj
         uint64_t gridDimGlb = n_ * next_size_Ql / blockDimGlb.x;
         for (size_t i = 0; i < cipher_size; i++) {
-            divide_and_round_q_last_kernel<<<gridDimGlb, blockDimGlb>>>(
+            divide_and_round_q_last_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                     dst + i * next_size_Ql * n_, src + i * size_Ql * n_, base_Ql_.base(), inv_q_last_mod_q(),
                     inv_q_last_mod_q_shoup(), n_, next_size_Ql);
         }
@@ -1144,7 +1145,7 @@ namespace phantom {
     }
 
     void DRNSTool::divide_and_round_q_last_ntt(const uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
-                                               uint64_t *dst) const {
+                                               uint64_t *dst, const cudaStream_t &stream) const {
         size_t base_q_size = base_Ql_.size();
         auto next_base_q_size = base_q_size - 1;
         uint64_t gridDimGlb = n_ * next_base_q_size / blockDimGlb.x;
@@ -1154,23 +1155,24 @@ namespace phantom {
             uint64_t *ci_out = dst + i * n_ * next_base_q_size;
 
             //  Convert ci[last] to non-NTT form
-            nwt_2d_radix8_backward_inplace(ci_in, rns_tables, 1, base_q_size - 1);
+            nwt_2d_radix8_backward_inplace(ci_in, rns_tables, 1, base_q_size - 1, stream);
 
             // ci[last] mod qj
-            divide_and_round_reduce_q_last_kernel<<<gridDimGlb, blockDimGlb>>>(ci_out, ci_in, base_Ql_.base(), n_,
-                                                                               next_base_q_size);
+            divide_and_round_reduce_q_last_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    ci_out, ci_in, base_Ql_.base(), n_, next_base_q_size);
 
             // Convert to NTT form
-            nwt_2d_radix8_forward_inplace(ci_out, rns_tables, next_base_q_size, 0);
+            nwt_2d_radix8_forward_inplace(ci_out, rns_tables, next_base_q_size, 0, stream);
 
             // qlast^(-1) * (ci[j] - (ci[last] mod qj)) mod qj
-            divide_and_round_ntt_inv_scalar_kernel<<<gridDimGlb, blockDimGlb>>>(
+            divide_and_round_ntt_inv_scalar_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                     ci_out, ci_in, base_Ql_.base(), inv_q_last_mod_q(), inv_q_last_mod_q_shoup(), n_, next_base_q_size);
         }
     }
 
-    void DRNSTool::decrypt_mod_t(uint64_t *dst, const uint64_t *src, const uint64_t poly_degree) const {
-        base_q_to_t_conv_.exact_convert_array(dst, src, poly_degree);
+    void DRNSTool::decrypt_mod_t(uint64_t *dst, const uint64_t *src, const uint64_t poly_degree,
+                                 const cudaStream_t &stream) const {
+        base_q_to_t_conv_.exact_convert_array(dst, src, poly_degree, stream);
     }
 
     /**
@@ -1180,31 +1182,32 @@ namespace phantom {
      * @param dst Output in base Bsk U {m_tilde}
      * @param src Input in base q
      */
-    void DRNSTool::fastbconv_m_tilde(uint64_t *dst, uint64_t *src) const {
+    void DRNSTool::fastbconv_m_tilde(uint64_t *dst, uint64_t *src, const cudaStream_t &stream) const {
         size_t base_Q_size = base_Ql_.size();
         size_t base_Bsk_size = base_Bsk_.size();
         auto n = n_;
 
-        Pointer<uint64_t> temp_bconv;
-        temp_bconv.acquire(allocate<uint64_t>(global_pool(), base_Q_size * n));
+        auto temp_bconv = cuda_make_shared<uint64_t>(base_Q_size * n, stream);
 
         constexpr int unroll_factor = 2;
 
         // multiply HatInv
         uint64_t gridDimGlb = base_Q_size * n / unroll_factor / blockDimGlb.x;
-        bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb>>>(temp_bconv.get(), src, m_tilde_QHatInvModq(),
-                                                               m_tilde_QHatInvModq_shoup(), base_Q_.base(), base_Q_size,
-                                                               n);
+        bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                temp_bconv.get(), src, m_tilde_QHatInvModq(), m_tilde_QHatInvModq_shoup(),
+                base_Q_.base(), base_Q_size, n);
 
         // convert to Bsk
         gridDimGlb = base_Bsk_size * n / unroll_factor / blockDimGlb.x;
-        bconv_matmul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * base_Bsk_size * base_Q_size>>>(
+        bconv_matmul_unroll2_kernel<<<
+        gridDimGlb, blockDimGlb, sizeof(uint64_t) * base_Bsk_size * base_Q_size, stream>>>(
                 dst, temp_bconv.get(), base_q_to_Bsk_conv_.QHatModp(), base_Q_.base(), base_Q_size, base_Bsk_.base(),
                 base_Bsk_size, n);
 
         // convert to m_tilde
         gridDimGlb = 1 * n / unroll_factor / blockDimGlb.x; // m_tilde size is 1
-        bconv_matmul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * 1 * base_Q_size>>>(
+        bconv_matmul_unroll2_kernel<<<
+        gridDimGlb, blockDimGlb, sizeof(uint64_t) * 1 * base_Q_size, stream>>>(
                 dst + n * base_Bsk_size, temp_bconv.get(), base_q_to_m_tilde_conv_.QHatModp(), base_Q_.base(),
                 base_Q_size, base_q_to_m_tilde_conv_.obase().base(), 1, n);
     }
@@ -1257,19 +1260,20 @@ namespace phantom {
      Require: Input in base Bsk U {m_tilde}
      Ensure: Output in base Bsk
     */
-    void DRNSTool::sm_mrq(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::sm_mrq(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         size_t base_Bsk_size = base_Bsk_.size();
         // The last component of the input is mod m_tilde
         // Compute (in + q * r_m_tilde) * m_tilde^(-1) mod Bsk
         uint64_t gridDimGlb = n_ * base_Bsk_size / blockDimGlb.x;
-        sm_mrq_kernel<<<gridDimGlb, blockDimGlb>>>(dst, src, m_tilde_.value(),
-                                                   neg_inv_prod_q_mod_m_tilde_, // -q^(-1) mod m_tilde
-                                                   neg_inv_prod_q_mod_m_tilde_shoup_,
-                                                   base_Bsk_.base(), // mod
-                                                   prod_q_mod_Bsk(), // q mod Bsk
-                                                   inv_m_tilde_mod_Bsk(), // m_tilde^(-1) mod Bsk
-                                                   inv_m_tilde_mod_Bsk_shoup(), // m_tilde^(-1) mod Bsk
-                                                   n_, base_Bsk_size);
+        sm_mrq_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                dst, src, m_tilde_.value(),
+                neg_inv_prod_q_mod_m_tilde_, // -q^(-1) mod m_tilde
+                neg_inv_prod_q_mod_m_tilde_shoup_,
+                base_Bsk_.base(), // mod
+                prod_q_mod_Bsk(), // q mod Bsk
+                inv_m_tilde_mod_Bsk(), // m_tilde^(-1) mod Bsk
+                inv_m_tilde_mod_Bsk_shoup(), // m_tilde^(-1) mod Bsk
+                n_, base_Bsk_size);
     }
 
     __global__ static void
@@ -1323,27 +1327,29 @@ namespace phantom {
      * @param out_base_Bsk
      * @param temp
      */
-    void DRNSTool::fast_floor(uint64_t *input_base_q, uint64_t *input_base_Bsk, uint64_t *out_base_Bsk) const {
+    void DRNSTool::fast_floor(uint64_t *input_base_q, uint64_t *input_base_Bsk, uint64_t *out_base_Bsk,
+                              const cudaStream_t &stream) const {
         size_t base_Bsk_size = base_Bsk_.size();
         size_t base_Q_size = base_Q_.size();
         auto n = n_;
 
         // Convert q -> Bsk
 
-        Pointer<uint64_t> temp_bconv;
-        temp_bconv.acquire(allocate<uint64_t>(global_pool(), base_Q_size * n));
+        auto temp_bconv = cuda_make_shared<uint64_t>(base_Q_size * n, stream);
 
         constexpr int unroll_factor = 2;
 
         // multiply HatInv
         uint64_t gridDimGlb = base_Q_size * n / unroll_factor / blockDimGlb.x;
-        bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb>>>(temp_bconv.get(), input_base_q, base_Q_.QHatInvModq(),
-                                                               base_Q_.QHatInvModq_shoup(), base_Q_.base(), base_Q_size,
-                                                               n);
+        bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                temp_bconv.get(), input_base_q, base_Q_.QHatInvModq(),
+                base_Q_.QHatInvModq_shoup(), base_Q_.base(), base_Q_size,
+                n);
 
         // convert to Bsk
         gridDimGlb = base_Bsk_size * n / unroll_factor / blockDimGlb.x;
-        bconv_fuse_sub_mul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * base_Bsk_size * base_Q_size>>>(
+        bconv_fuse_sub_mul_unroll2_kernel<<<
+        gridDimGlb, blockDimGlb, sizeof(uint64_t) * base_Bsk_size * base_Q_size, stream>>>(
                 out_base_Bsk, temp_bconv.get(), input_base_Bsk, inv_prod_q_mod_Bsk(), inv_prod_q_mod_Bsk_shoup(),
                 base_q_to_Bsk_conv_.QHatModp(), base_Q_.base(), base_Q_size, base_Bsk_.base(), base_Bsk_size, n);
     }
@@ -1397,7 +1403,7 @@ namespace phantom {
      * @param input_base_Bsk Input in base Bsk
      * @param out_base_q Output in base q
      */
-    void DRNSTool::fastbconv_sk(uint64_t *input_base_Bsk, uint64_t *out_base_q) const {
+    void DRNSTool::fastbconv_sk(uint64_t *input_base_Bsk, uint64_t *out_base_q, const cudaStream_t &stream) const {
         uint64_t gridDimGlb;
 
         size_t size_B = base_B_.size();
@@ -1407,28 +1413,29 @@ namespace phantom {
 
         uint64_t *input_base_m_sk = input_base_Bsk + size_B * n;
 
-        Pointer<uint64_t> temp_bconv;
-        temp_bconv.acquire(allocate<uint64_t>(global_pool(), size_B * n));
+        auto temp_bconv = cuda_make_shared<uint64_t>(size_B * n, stream);
 
-        Pointer<uint64_t> temp_m_sk;
-        temp_m_sk.acquire(allocate<uint64_t>(global_pool(), n));
+        auto temp_m_sk = cuda_make_shared<uint64_t>(n, stream);
 
         constexpr int unroll_factor = 2;
 
         // multiply HatInv
         gridDimGlb = size_B * n / unroll_factor / blockDimGlb.x;
-        bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb>>>(temp_bconv.get(), input_base_Bsk, base_B_.QHatInvModq(),
-                                                               base_B_.QHatInvModq_shoup(), base_B_.base(), size_B, n);
+        bconv_mult_unroll2_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                temp_bconv.get(), input_base_Bsk, base_B_.QHatInvModq(),
+                base_B_.QHatInvModq_shoup(), base_B_.base(), size_B, n);
 
         // convert to m_sk
         gridDimGlb = 1 * n / unroll_factor / blockDimGlb.x;
-        bconv_fuse_sub_mul_single_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * 1 * size_B>>>(
+        bconv_fuse_sub_mul_single_unroll2_kernel<<<
+        gridDimGlb, blockDimGlb, sizeof(uint64_t) * 1 * size_B, stream>>>(
                 temp_m_sk.get(), temp_bconv.get(), input_base_m_sk, inv_prod_B_mod_m_sk_, inv_prod_B_mod_m_sk_shoup_,
                 base_B_to_m_sk_conv_.QHatModp(), base_B_.base(), size_B, m_sk_, 1, n);
 
         // convert to Q
         gridDimGlb = size_Q * n / unroll_factor / blockDimGlb.x;
-        bconv_matmul_unroll2_kernel<<<gridDimGlb, blockDimGlb, sizeof(uint64_t) * size_Q * size_B>>>(
+        bconv_matmul_unroll2_kernel<<<
+        gridDimGlb, blockDimGlb, sizeof(uint64_t) * size_Q * size_B, stream>>>(
                 out_base_q, temp_bconv.get(), base_B_to_q_conv_.QHatModp(), base_B_.base(), size_B, base_Q_.base(),
                 size_Q, n);
 
@@ -1437,9 +1444,12 @@ namespace phantom {
         // alpha_sk here is not a centered reduction, so we need to apply a correction below.
         // TODO: fuse multiply_and_negated_add_rns_poly with B->Q BConv phase 2
         gridDimGlb = n_ * base_Ql_.size() / blockDimGlb.x;
-        multiply_and_negated_add_rns_poly<<<gridDimGlb, blockDimGlb>>>(temp_m_sk.get(), m_sk_.value(), prod_B_mod_q(),
-                                                                       out_base_q, base_Ql_.base(), out_base_q, n_,
-                                                                       base_Ql_.size());
+        multiply_and_negated_add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                temp_m_sk.get(), m_sk_.value(),
+                prod_B_mod_q(),
+                out_base_q, base_Ql_.base(),
+                out_base_q, n_,
+                base_Ql_.size());
     }
 
     __global__ void hps_decrypt_scale_and_round_kernel_small(uint64_t *dst, const uint64_t *src,
@@ -1557,7 +1567,7 @@ namespace phantom {
         }
     }
 
-    void DRNSTool::hps_decrypt_scale_and_round(uint64_t *dst, const uint64_t *src) const {
+    void DRNSTool::hps_decrypt_scale_and_round(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         uint64_t gridDimGlb = n_ / blockDimGlb.x;
         uint64_t t = t_.value();
         size_t n = n_;
@@ -1575,7 +1585,7 @@ namespace phantom {
                 // we fit in 52 bits, so we can do multiplications and
                 // additions without modulo reduction, and do modulo reduction
                 // only once using floating point techniques
-                hps_decrypt_scale_and_round_kernel_small_lazy<<<gridDimGlb, blockDimGlb>>>(
+                hps_decrypt_scale_and_round_kernel_small_lazy<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_frac_.get(), t, n, size_Ql);
             } else {
                 // In case of qMSB + sizeQMSB >= 52 we decompose x_i in the basis
@@ -1588,7 +1598,7 @@ namespace phantom {
                 // sizeQ * 2^30 * 2^{-53}. We always have sizeQ < 2^11, which means the
                 // error is bounded by 1/4, and the rounding will be correct.
                 // only once using floating point techniques
-                hps_decrypt_scale_and_round_kernel_small<<<gridDimGlb, blockDimGlb>>>(
+                hps_decrypt_scale_and_round_kernel_small<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_mod_t_shoup_.get(),
                         t_QHatInv_mod_q_div_q_frac_.get(), t, n, size_Ql);
             }
@@ -1600,12 +1610,12 @@ namespace phantom {
                 // we fit in 52 bits, so we can do multiplications and
                 // additions without modulo reduction, and do modulo reduction
                 // only once using floating point techniques
-                hps_decrypt_scale_and_round_kernel_large_lazy<<<gridDimGlb, blockDimGlb>>>(
+                hps_decrypt_scale_and_round_kernel_large_lazy<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_frac_.get(),
                         t_QHatInv_mod_q_B_div_q_mod_t_.get(), t_QHatInv_mod_q_B_div_q_frac_.get(), t, n, size_Ql,
                         qMSBHf);
             } else {
-                hps_decrypt_scale_and_round_kernel_large<<<gridDimGlb, blockDimGlb>>>(
+                hps_decrypt_scale_and_round_kernel_large<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                         dst, src, t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_mod_t_shoup_.get(),
                         t_QHatInv_mod_q_div_q_frac_.get(), t_QHatInv_mod_q_B_div_q_mod_t_.get(),
                         t_QHatInv_mod_q_B_div_q_mod_t_shoup_.get(), t_QHatInv_mod_q_B_div_q_frac_.get(), t, n, size_Ql,
@@ -1722,8 +1732,7 @@ namespace phantom {
     }
 
     // reuse scaleAndRound_HPS_QlRl_Ql_kernel
-    void DRNSTool::scaleAndRound_HPS_Q_Ql(uint64_t *dst, const uint64_t *src,
-                                          const cudaStream_t &stream) const {
+    void DRNSTool::scaleAndRound_HPS_Q_Ql(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const {
         uint64_t gridDimGlb = n_ / blockDimGlb.x;
         size_t n = n_;
         size_t size_Ql = base_Ql_.size();

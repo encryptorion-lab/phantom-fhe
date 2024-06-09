@@ -1,5 +1,4 @@
 #include "evaluate.cuh"
-#include "mempool.cuh"
 #include "ntt.cuh"
 #include "polymath.cuh"
 #include "rns.cuh"
@@ -90,9 +89,8 @@ key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uint64_t
 
 // cks refers to cipher to be key-switched
 void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, uint64_t *cks,
-                        const PhantomRelinKey &relin_keys, bool is_relin, const cuda_stream_wrapper *p_stream_wrapper) {
-    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
-    cudaDeviceSynchronize();
+                        const PhantomRelinKey &relin_keys, bool is_relin, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
@@ -138,34 +136,28 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
     auto size_QlP_n = size_QlP * n;
 
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        auto t_cks = phantom::util::cuda_make_shared<uint64_t>(size_Q * n, stream);
+        auto t_cks = phantom::util::cuda_make_shared<uint64_t>(size_Q * n, s);
         cudaMemcpyAsync(t_cks.get(), cks, size_Q * n * sizeof(uint64_t),
-                        cudaMemcpyDeviceToDevice, stream);
-        rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get(), stream);
+                        cudaMemcpyDeviceToDevice, s);
+        rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get(), s);
     }
-
-    // Prepare key
-    auto &key_vector = relin_keys.public_keys_;
-    auto key_poly_num = key_vector[0].pk_.size_;
-    if (key_poly_num != 2)
-        throw std::invalid_argument("key_poly_num != 2");
 
     // mod up
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
-    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
+    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, s);
+    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, s);
 
     // key switch
-    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
+    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, s);
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
-    key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), rns_tool, modulus_QP,
-                          reduction_threshold, stream);
+    key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), rns_tool, modulus_QP,
+                          reduction_threshold, s);
 
     // mod down
     for (size_t i = 0; i < 2; i++) {
         auto cx_i = cx.get() + i * size_QlP_n;
-        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, stream);
+        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, s);
     }
 
     for (size_t i = 0; i < 2; i++) {
@@ -173,15 +165,15 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
 
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
             auto ct_i = encrypted.data() + i * size_Q * n;
-            auto t_cx = cuda_make_shared<uint64_t>(size_Q * n, stream);
-            rns_tool.ExpandCRTBasis_Ql_Q(t_cx.get(), cx_i, stream);
-            add_to_ct_kernel<<<(size_Q * n) / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+            auto t_cx = cuda_make_shared<uint64_t>(size_Q * n, s);
+            rns_tool.ExpandCRTBasis_Ql_Q(t_cx.get(), cx_i, s);
+            add_to_ct_kernel<<<(size_Q * n) / blockDimGlb.x, blockDimGlb, 0, s>>>(
                     ct_i, t_cx.get(), rns_tool.base_Q().base(), n, size_Q);
         } else {
             auto ct_i = encrypted.data() + i * size_Ql_n;
-            add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+            add_to_ct_kernel<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, s>>>(
                     ct_i, cx_i, rns_tool.base_Ql().base(), n, size_Ql);
         }
     }
-    cudaStreamSynchronize(stream);
+    cudaStreamSynchronize(s);
 }

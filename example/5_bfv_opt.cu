@@ -16,7 +16,7 @@ using namespace phantom::arith;
 
 void example_bfv_encrypt_decrypt_hps() {
     std::cout << std::endl
-            << "---------------Testing BFV sym Enc & Dec-----------------------" << std::endl;
+              << "---------------Testing BFV sym Enc & Dec-----------------------" << std::endl;
     size_t poly_modulus_degree = 8192;
     EncryptionParameters parms(scheme_type::bfv);
     std::cout << "testing poly_modulus_degree = " << poly_modulus_degree << std::endl;
@@ -29,28 +29,28 @@ void example_bfv_encrypt_decrypt_hps() {
     PhantomContext context(parms);
     print_parameters(context);
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
 
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
-    PhantomCiphertext cipher(context);
+    PhantomCiphertext cipher;
 
     PhantomBatchEncoder batchEncoder(context);
-    size_t slot_count = batchEncoder.slots_;
-    std::vector<int64_t> pod_matrix(slot_count, 0ULL);
+    size_t slot_count = batchEncoder.slot_count();
+    std::vector<uint64_t> pod_matrix(slot_count, 0);
     for (size_t idx = 0; idx < slot_count; idx++)
         pod_matrix[idx] = idx;
 
-    PhantomPlaintext plain_matrix(context);
+    PhantomPlaintext plain_matrix;
     batchEncoder.encode(context, pod_matrix, plain_matrix);
 
-    secret_key.encrypt_symmetric(context, plain_matrix, cipher, false);
+    secret_key.encrypt_symmetric(context, plain_matrix, cipher);
     auto noise_budget = secret_key.invariant_noise_budget(context, cipher);
     cout << "cipher noise budget is: " << noise_budget << endl;
     PhantomCiphertext cipher_copy(cipher);
-    PhantomPlaintext plain(context);
+    PhantomPlaintext plain;
 
     size_t times = 1;
     auto start = chrono::high_resolution_clock::now();
@@ -63,7 +63,7 @@ void example_bfv_encrypt_decrypt_hps() {
 
     secret_key.decrypt(context, cipher, plain);
 
-    std::vector<int64_t> res;
+    std::vector<uint64_t> res;
     batchEncoder.decode(context, plain, res);
 
     cout << "res[0] is: " << res[0] << endl;
@@ -78,7 +78,7 @@ void example_bfv_encrypt_decrypt_hps() {
 
 void example_bfv_encrypt_decrypt_hps_asym() {
     std::cout << std::endl
-            << "------------Testing BFV asym Enc & Dec-------------" << std::endl;
+              << "------------Testing BFV asym Enc & Dec-------------" << std::endl;
     size_t poly_modulus_degree = 8192;
     EncryptionParameters parms(scheme_type::bfv);
     std::cout << "testing poly_modulus_degree = " << poly_modulus_degree << std::endl;
@@ -91,9 +91,9 @@ void example_bfv_encrypt_decrypt_hps_asym() {
     PhantomContext context(parms);
     print_parameters(context);
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
     /*start = chrono::high_resolution_clock::now();
@@ -103,24 +103,24 @@ void example_bfv_encrypt_decrypt_hps_asym() {
     microseconds = chrono::duration_cast<std::chrono::microseconds>(finish - start);
     std::cout << "public key generation time is us: " << microseconds.count() / 100 << std::endl;
     */
-    PhantomCiphertext cipher(context);
+    PhantomCiphertext cipher;
 
     PhantomBatchEncoder batchEncoder(context);
-    size_t slot_count = batchEncoder.slots_;
-    std::vector<int64_t> pod_matrix(slot_count, 0ULL);
+    size_t slot_count = batchEncoder.slot_count();
+    std::vector<uint64_t> pod_matrix(slot_count, 0);
     for (size_t idx = 0; idx < slot_count; idx++) {
         pod_matrix[idx] = rand() % parms.plain_modulus().value();
     }
-    PhantomPlaintext plain_matrix(context);
+    PhantomPlaintext plain_matrix;
     batchEncoder.encode(context, pod_matrix, plain_matrix);
 
-    public_key.encrypt_asymmetric(context, plain_matrix, cipher, false);
+    public_key.encrypt_asymmetric(context, plain_matrix, cipher);
     auto noise_budget = secret_key.invariant_noise_budget(context, cipher);
     cout << "cipher noise budget is: " << noise_budget << endl;
-    PhantomPlaintext plain(context);
+    PhantomPlaintext plain;
     secret_key.decrypt(context, cipher, plain);
 
-    std::vector<int64_t> res;
+    std::vector<uint64_t> res;
     batchEncoder.decode(context, plain, res);
 
     bool correctness = true;
@@ -132,7 +132,7 @@ void example_bfv_encrypt_decrypt_hps_asym() {
 
 void example_bfv_hybrid_key_switching() {
     std::cout << std::endl
-            << "------------Testing BFV hybrid key-switching-------------" << std::endl;
+              << "------------Testing BFV hybrid key-switching-------------" << std::endl;
 
     EncryptionParameters parms(scheme_type::bfv);
     size_t poly_modulus_degree = 8192;
@@ -141,8 +141,8 @@ void example_bfv_hybrid_key_switching() {
     parms.set_poly_modulus_degree(poly_modulus_degree);
     parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree,
                                                  {
-                                                     50, 50,
-                                                     51, 51
+                                                         50, 50,
+                                                         51, 51
                                                  }));
     parms.set_special_modulus_size(alpha);
     parms.set_poly_modulus_degree(poly_modulus_degree);
@@ -152,26 +152,26 @@ void example_bfv_hybrid_key_switching() {
 
     print_parameters(context);
 
-    PhantomSecretKey secret_key(parms);
-    PhantomPublicKey public_key(context);
-    PhantomCiphertext sym_cipher(context);
-    PhantomCiphertext asym_cipher(context);
+    PhantomSecretKey secret_key;
+    PhantomPublicKey public_key;
+    PhantomCiphertext sym_cipher;
+    PhantomCiphertext asym_cipher;
     PhantomBatchEncoder batchEncoder(context);
-    PhantomPlaintext plain_matrix(context);
-    PhantomPlaintext dec_plain(context);
-    PhantomPlaintext dec_asym_plain(context);
-    PhantomRelinKey relin_keys(context);
+    PhantomPlaintext plain_matrix;
+    PhantomPlaintext dec_plain;
+    PhantomPlaintext dec_asym_plain;
+    PhantomRelinKey relin_keys;
 
-    std::vector<int64_t> dec_res;
-    size_t slot_count = batchEncoder.slots_;
-    std::vector<int64_t> pod_matrix(slot_count, 0ULL);
+    std::vector<uint64_t> dec_res;
+    size_t slot_count = batchEncoder.slot_count();
+    std::vector<uint64_t> pod_matrix(slot_count, 0);
     for (size_t idx = 0; idx < slot_count; idx++)
         pod_matrix[idx] = idx;
 
     secret_key.gen_secretkey(context);
     secret_key.gen_relinkey(context, relin_keys);
     batchEncoder.encode(context, pod_matrix, plain_matrix);
-    secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher, false);
+    secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher);
     PhantomCiphertext sym_cipher_copy(sym_cipher);
     // PhantomCiphertext destination(context);
     multiply_inplace(context, sym_cipher, sym_cipher_copy);
@@ -187,7 +187,7 @@ void example_bfv_hybrid_key_switching() {
         throw std::logic_error("Error in mul symmetric");
 
     secret_key.gen_publickey(context, public_key);
-    public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher, false);
+    public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher);
     PhantomCiphertext asym_cipher_copy(asym_cipher);
     // PhantomCiphertext destination2(context);
     multiply_inplace(context, asym_cipher, asym_cipher_copy);
@@ -216,27 +216,27 @@ void bfv_multiply_correctness(mul_tech_type mul_tech) {
 
     //    print_parameters(context);
 
-    PhantomSecretKey secret_key(parms);
-    PhantomPublicKey public_key(context);
-    PhantomCiphertext sym_cipher(context);
-    PhantomCiphertext asym_cipher(context);
+    PhantomSecretKey secret_key;
+    PhantomPublicKey public_key;
+    PhantomCiphertext sym_cipher;
+    PhantomCiphertext asym_cipher;
     PhantomBatchEncoder batchEncoder(context);
-    PhantomPlaintext plain_matrix(context);
-    PhantomPlaintext dec_plain(context);
-    PhantomPlaintext dec_asym_plain(context);
-    PhantomRelinKey relin_keys(context);
+    PhantomPlaintext plain_matrix;
+    PhantomPlaintext dec_plain;
+    PhantomPlaintext dec_asym_plain;
+    PhantomRelinKey relin_keys;
 
     secret_key.gen_secretkey(context);
     secret_key.gen_relinkey(context, relin_keys);
 
-    std::vector<int64_t> dec_res;
-    size_t slot_count = batchEncoder.slots_;
-    std::vector<int64_t> pod_matrix(slot_count, 0ULL);
+    std::vector<uint64_t> dec_res;
+    size_t slot_count = batchEncoder.slot_count();
+    std::vector<uint64_t> pod_matrix(slot_count, 0);
     for (size_t idx = 0; idx < slot_count; idx++)
         pod_matrix[idx] = idx;
 
     batchEncoder.encode(context, pod_matrix, plain_matrix);
-    secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher, false);
+    secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher);
 
     PhantomCiphertext sym_cipher_copy(sym_cipher);
     multiply_and_relin_inplace(context, sym_cipher_copy, sym_cipher, relin_keys);
@@ -259,7 +259,7 @@ void bfv_multiply_correctness(mul_tech_type mul_tech) {
     }
 
     secret_key.gen_publickey(context, public_key);
-    public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher, false);
+    public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher);
     PhantomCiphertext asym_cipher_copy(asym_cipher);
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
@@ -310,19 +310,19 @@ bfv_multiply_bench(mul_tech_type mul_tech, size_t poly_modulus_degree, const std
 
     //    print_parameters(context);
 
-    PhantomSecretKey secret_key(parms);
-    PhantomPublicKey public_key(context);
-    PhantomCiphertext sym_cipher(context);
-    PhantomCiphertext asym_cipher(context);
+    PhantomSecretKey secret_key;
+    PhantomPublicKey public_key;
+    PhantomCiphertext sym_cipher;
+    PhantomCiphertext asym_cipher;
     PhantomBatchEncoder batchEncoder(context);
-    PhantomPlaintext plain_matrix(context);
-    PhantomPlaintext dec_plain(context);
-    PhantomPlaintext dec_asym_plain(context);
-    PhantomRelinKey relin_keys(context);
+    PhantomPlaintext plain_matrix;
+    PhantomPlaintext dec_plain;
+    PhantomPlaintext dec_asym_plain;
+    PhantomRelinKey relin_keys;
 
-    std::vector<int64_t> dec_res;
-    size_t slot_count = batchEncoder.slots_;
-    std::vector<int64_t> pod_matrix(slot_count, 0ULL);
+    std::vector<uint64_t> dec_res;
+    size_t slot_count = batchEncoder.slot_count();
+    std::vector<uint64_t> pod_matrix(slot_count, 0);
     for (size_t idx = 0; idx < slot_count; idx++)
         pod_matrix[idx] = idx;
 
@@ -332,7 +332,7 @@ bfv_multiply_bench(mul_tech_type mul_tech, size_t poly_modulus_degree, const std
         secret_key.gen_relinkey(context, relin_keys);
     }
     batchEncoder.encode(context, pod_matrix, plain_matrix);
-    secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher, false);
+    secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher);
 
     constexpr size_t n_tests = 100;
 

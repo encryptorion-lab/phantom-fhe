@@ -1,6 +1,5 @@
 #include "evaluate.cuh"
 
-#include "mempool.cuh"
 #include "rns_bconv.cuh"
 #include "scalingvariant.cuh"
 #include "util.cuh"
@@ -10,10 +9,8 @@ using namespace phantom;
 using namespace phantom::util;
 using namespace phantom::arith;
 
-static void
-negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,
-                const cuda_stream_wrapper *p_stream_wrapper) {
-    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+static void negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
@@ -26,7 +23,7 @@ negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,
 
     uint64_t gridDimGlb = rns_coeff_count / blockDimGlb.x;
     for (size_t i = 0; i < encrypted.size(); i++) {
-        negate_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+        negate_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                 encrypted.data() + i * rns_coeff_count, base_rns,
                 encrypted.data() + i * rns_coeff_count,
                 poly_degree,
@@ -35,19 +32,17 @@ negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,
     cudaStreamSynchronize(stream);
 }
 
-void
-negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-               const cuda_stream_wrapper *p_stream_wrapper) {
-    negate_internal(context, encrypted, p_stream_wrapper);
+void negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const cudaStream_t &stream) {
+    negate_internal(context, encrypted, stream);
 }
 
-//TODO: remove recursive chain
 /**
  * Adds two ciphertexts. This function adds together encrypted1 and encrypted2 and stores the result in encrypted1.
  * @param[in] encrypted1 The first ciphertext to add
  * @param[in] encrypted2 The second ciphertext to add
  */
-void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2) {
+void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+                 const cudaStream_t &stream) {
     if (encrypted1.chain_index() != encrypted2.chain_index()) {
         throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
     }
@@ -57,9 +52,11 @@ void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
     if (encrypted1.scale() != encrypted2.scale()) {
         throw std::invalid_argument("scale mismatch");
     }
-    if (encrypted1.size_ != encrypted2.size_) {
+    if (encrypted1.size() != encrypted2.size()) {
         throw std::invalid_argument("poly number mismatch");
     }
+
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted1.chain_index());
@@ -82,44 +79,58 @@ void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         auto factors = balance_correction_factors(encrypted1.correction_factor(), encrypted2.correction_factor(),
                                                   plain_modulus);
         for (size_t i = 0; i < encrypted1.size(); i++) {
-            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted1.data() + i * rns_coeff_count, get < 1 > (factors), base_rns,
                     encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
-        PhantomCiphertext encrypted2_copy(context);
-        encrypted2_copy = encrypted2;
+        PhantomCiphertext encrypted2_copy = encrypted2;
         for (size_t i = 0; i < encrypted2.size(); i++) {
-            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted2_copy.data() + i * rns_coeff_count, get < 2 > (factors), base_rns,
                     encrypted2_copy.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
         // Set new correction factor
-        encrypted1.correction_factor() = get < 0 > (factors);
-        encrypted2_copy.correction_factor() = get < 0 > (factors);
+        encrypted1.set_correction_factor(get < 0 > (factors));
+        encrypted2_copy.set_correction_factor(get < 0 > (factors));
 
-        add_inplace(context, encrypted1, encrypted2_copy);
+        // Prepare destination
+        encrypted1.resize(context, context_data.chain_index(), max_size, s);
+        for (size_t i = 0; i < min_size; i++) {
+            add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                    encrypted1.data() + i * rns_coeff_count, encrypted2_copy.data() + i * rns_coeff_count, base_rns,
+                    encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
+        }
+        if (encrypted1_size < encrypted2_size) {
+            cudaMemcpyAsync(encrypted1.data() + min_size * rns_coeff_count,
+                            encrypted2_copy.data() + min_size * rns_coeff_count,
+                            (encrypted2_size - encrypted1_size) * rns_coeff_count * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, s);
+        }
     } else {
         // Prepare destination
-        encrypted1.resize(context, context_data.chain_index(), max_size);
+        encrypted1.resize(context, context_data.chain_index(), max_size, s);
         for (size_t i = 0; i < min_size; i++) {
-            add_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted1.data() + i * rns_coeff_count, encrypted2.data() + i * rns_coeff_count, base_rns,
                     encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
         if (encrypted1_size < encrypted2_size) {
-            PHANTOM_CHECK_CUDA(cudaMemcpy(encrypted1.data() + min_size * rns_coeff_count,
-                                          encrypted2.data() + min_size * rns_coeff_count,
-                                          (encrypted2_size - encrypted1_size) * rns_coeff_count * sizeof(uint64_t),
-                                          cudaMemcpyDeviceToDevice));
+            cudaMemcpyAsync(encrypted1.data() + min_size * rns_coeff_count,
+                            encrypted2.data() + min_size * rns_coeff_count,
+                            (encrypted2_size - encrypted1_size) * rns_coeff_count * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, s);
         }
     }
+    cudaStreamSynchronize(s);
 }
 
 // TODO: fixme
 void add_many(const PhantomContext &context, const vector<PhantomCiphertext> &encrypteds,
-              PhantomCiphertext &destination) {
+              PhantomCiphertext &destination, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
     if (encrypteds.empty()) {
         throw std::invalid_argument("encrypteds cannot be empty");
     }
@@ -150,43 +161,43 @@ void add_many(const PhantomContext &context, const vector<PhantomCiphertext> &en
     auto base_rns = context.gpu_rns_tables().modulus();
     // reduction_threshold = 2 ^ (64 - max modulus bits)
     // max modulus bits = static_cast<uint64_t>(log2(coeff_modulus.front().value())) + 1
-    auto reduction_threshold =
+    uint64_t reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(coeff_modulus.front().value())) - 1)) - 1;
 
-    destination.resize(context, encrypteds[0].chain_index(), encrypteds[0].size());
-    destination.is_ntt_form() = encrypteds[0].is_ntt_form();
-    destination.scale() = encrypteds[0].scale();
+    destination.resize(context, encrypteds[0].chain_index(), encrypteds[0].size(), s);
+    destination.set_ntt_form(encrypteds[0].is_ntt_form());
+    destination.set_scale(encrypteds[0].scale());
 
     if (parms.scheme() == scheme_type::bgv) // TODO: any optimizations?
     {
-        PHANTOM_CHECK_CUDA(cudaMemcpy(destination.data(), encrypteds[0].data(),
-                                      poly_degree * coeff_mod_size * encrypteds[0].size() * sizeof(uint64_t),
-                                      cudaMemcpyDeviceToDevice));
+        cudaMemcpyAsync(destination.data(), encrypteds[0].data(),
+                        poly_degree * coeff_mod_size * encrypteds[0].size() * sizeof(uint64_t),
+                        cudaMemcpyDeviceToDevice, s);
         for (size_t i = 1; i < encrypteds.size(); i++) {
-            add_inplace(context, destination, encrypteds[i]);
+            add_inplace(context, destination, encrypteds[i], s);
         }
     } else {
-        Pointer<uint64_t *> enc_device_ptr;
-        enc_device_ptr.acquire(allocate<uint64_t *>(global_pool(), encrypteds.size()));
-        uint64_t *enc_host_ptr[encrypteds.size()];
-
+        auto enc_device_ptr = cuda_make_shared<uint64_t *>(encrypteds.size(), s);
+        std::vector<uint64_t *> enc_host_ptr(encrypteds.size());
         for (size_t i = 0; i < encrypteds.size(); i++) {
             enc_host_ptr[i] = encrypteds[i].data();
         }
-        PHANTOM_CHECK_CUDA(cudaMemcpy(enc_device_ptr.get(), enc_host_ptr, sizeof(uint64_t *) * encrypteds.size(),
-                                      cudaMemcpyHostToDevice));
+        cudaMemcpyAsync(enc_device_ptr.get(), enc_host_ptr.data(), sizeof(uint64_t *) * encrypteds.size(),
+                        cudaMemcpyHostToDevice, s);
 
         uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
         for (size_t i = 0; i < poly_num; i++) {
-            add_many_rns_poly<<<gridDimGlb, blockDimGlb>>>(enc_device_ptr.get(), encrypteds.size(), base_rns,
-                                                           destination.data(), i, poly_degree, coeff_mod_size,
-                                                           reduction_threshold);
+            add_many_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                    enc_device_ptr.get(), encrypteds.size(), base_rns,
+                    destination.data(), i, poly_degree, coeff_mod_size,
+                    reduction_threshold);
         }
     }
+    cudaStreamSynchronize(s);
 }
 
 void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
-                 const bool &negate) {
+                 const bool &negate, const cudaStream_t &stream) {
     if (encrypted1.parms_id() != encrypted2.parms_id()) {
         throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
     }
@@ -196,8 +207,10 @@ void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         throw std::invalid_argument("NTT form mismatch");
     if (encrypted1.scale() != encrypted2.scale())
         throw std::invalid_argument("scale mismatch");
-    if (encrypted1.size_ != encrypted2.size_)
+    if (encrypted1.size() != encrypted2.size())
         throw std::invalid_argument("poly number mismatch");
+
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted1.chain_index());
@@ -220,43 +233,55 @@ void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         auto factors = balance_correction_factors(encrypted1.correction_factor(), encrypted2.correction_factor(),
                                                   plain_modulus);
         for (size_t i = 0; i < encrypted1.size(); i++) {
-            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted1.data() + i * rns_coeff_count, get < 1 > (factors), base_rns,
                     encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
-        PhantomCiphertext encrypted2_copy(context);
-        encrypted2_copy = encrypted2;
+        PhantomCiphertext encrypted2_copy = encrypted2;
         for (size_t i = 0; i < encrypted2.size(); i++) {
-            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted2_copy.data() + i * rns_coeff_count, get < 2 > (factors), base_rns,
                     encrypted2_copy.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
         // Set new correction factor
-        encrypted1.correction_factor() = get < 0 > (factors);
-        encrypted2_copy.correction_factor() = get < 0 > (factors);
+        encrypted1.set_correction_factor(get < 0 > (factors));
+        encrypted2_copy.set_correction_factor(get < 0 > (factors));
 
-        sub_inplace(context, encrypted1, encrypted2_copy, negate);
+        if (negate) {
+            for (size_t i = 0; i < encrypted1.size(); i++) {
+                sub_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                        encrypted2_copy.data() + i * rns_coeff_count, encrypted1.data() + i * rns_coeff_count, base_rns,
+                        encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
+            }
+        } else {
+            for (size_t i = 0; i < encrypted1.size(); i++) {
+                sub_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                        encrypted1.data() + i * rns_coeff_count, encrypted2_copy.data() + i * rns_coeff_count, base_rns,
+                        encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
+            }
+        }
     } else {
         if (negate) {
             for (size_t i = 0; i < encrypted1.size(); i++) {
-                sub_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+                sub_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                         encrypted2.data() + i * rns_coeff_count, encrypted1.data() + i * rns_coeff_count, base_rns,
                         encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
             }
         } else {
             for (size_t i = 0; i < encrypted1.size(); i++) {
-                sub_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+                sub_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                         encrypted1.data() + i * rns_coeff_count, encrypted2.data() + i * rns_coeff_count, base_rns,
                         encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
             }
         }
     }
+    cudaStreamSynchronize(s);
 }
 
-void bgv_ckks_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                       const PhantomCiphertext &encrypted2) {
+static void bgv_ckks_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1,
+                              const PhantomCiphertext &encrypted2, const cudaStream_t &stream) {
     if (!(encrypted1.is_ntt_form() && encrypted2.is_ntt_form()))
         throw invalid_argument("encrypted1 and encrypted2 must be in NTT form");
 
@@ -278,34 +303,35 @@ void bgv_ckks_multiply(const PhantomContext &context, PhantomCiphertext &encrypt
 
     // Size check
     // Prepare destination
-    encrypted1.resize(context, encrypted1.chain_index(), dest_size);
+    encrypted1.resize(context, encrypted1.chain_index(), dest_size, stream);
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
 
     if (dest_size == 3) {
         if (&encrypted1 == &encrypted2) {
             // square
-            tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1.data(), base_rns, encrypted1.data(),
-                                                                    poly_degree, coeff_mod_size);
+            tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    encrypted1.data(), base_rns, encrypted1.data(), poly_degree, coeff_mod_size);
         } else {
             // standard multiply
-            tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1.data(), encrypted2.data(), base_rns,
-                                                                  encrypted1.data(), poly_degree, coeff_mod_size);
+            tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    encrypted1.data(), encrypted2.data(), base_rns, encrypted1.data(), poly_degree, coeff_mod_size);
         }
     } else {
-        tensor_prod_mxn_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1.data(), encrypted1_size, encrypted2.data(),
-                                                              encrypted2_size, base_rns, encrypted1.data(), dest_size,
-                                                              poly_degree, coeff_mod_size);
+        tensor_prod_mxn_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                encrypted1.data(), encrypted1_size, encrypted2.data(), encrypted2_size, base_rns, encrypted1.data(),
+                dest_size, poly_degree, coeff_mod_size);
     }
 
     // CKKS needs to do scaling
     if (parms.scheme() == scheme_type::ckks)
-        encrypted1.scale() *= encrypted2.scale();
+        encrypted1.set_scale(encrypted1.scale() * encrypted2.scale());
 
     // BGV needs to update correction factor
     if (parms.scheme() == scheme_type::bgv)
-        encrypted1.correction_factor() = multiply_uint_mod(encrypted1.correction_factor(),
-                                                           encrypted2.correction_factor(), parms.plain_modulus());
+        encrypted1.set_correction_factor(multiply_uint_mod(encrypted1.correction_factor(),
+                                                           encrypted2.correction_factor(),
+                                                           parms.plain_modulus()));
 }
 
 // Perform BEHZ steps (1)-(3) for PhantomCiphertext
@@ -313,8 +339,8 @@ void bgv_ckks_multiply(const PhantomContext &context, PhantomCiphertext &encrypt
 // (2) Remove extra multiples of q from the results with Montgomery reduction, switching base to q U Bsk
 // (3) Transform the data to NTT form
 // @notice: temp is used to avoid memory malloc in sm_mrq
-void BEHZ_mul_1(const PhantomContext &context, const PhantomCiphertext &encrypted, uint64_t *encrypted_q,
-                uint64_t *encrypted_Bsk) {
+static void BEHZ_mul_1(const PhantomContext &context, const PhantomCiphertext &encrypted, uint64_t *encrypted_q,
+                       uint64_t *encrypted_Bsk, const cudaStream_t &stream) {
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
     auto poly_degree = parms.poly_modulus_degree();
@@ -327,27 +353,25 @@ void BEHZ_mul_1(const PhantomContext &context, const PhantomCiphertext &encrypte
     size_t q_coeff_count = poly_degree * base_q_size;
     size_t bsk_coeff_count = poly_degree * base_Bsk_size;
 
-    Pointer<uint64_t> temp_base_Bsk_m_tilde;
-    temp_base_Bsk_m_tilde.acquire(allocate<uint64_t>(global_pool(), poly_degree * base_Bsk_m_tilde_size));
+    auto temp_base_Bsk_m_tilde = cuda_make_shared<uint64_t>(poly_degree * base_Bsk_m_tilde_size, stream);
 
-    PHANTOM_CHECK_CUDA(cudaMemcpy(encrypted_q, encrypted.data(), encrypted.size() * q_coeff_count * sizeof(uint64_t),
-                                  cudaMemcpyDeviceToDevice));
+    cudaMemcpyAsync(encrypted_q, encrypted.data(), encrypted.size() * q_coeff_count * sizeof(uint64_t),
+                    cudaMemcpyDeviceToDevice, stream);
 
     for (size_t i = 0; i < encrypted.size(); i++) {
         uint64_t *encrypted_ptr = encrypted.data() + i * q_coeff_count;
         uint64_t *encrypted_q_ptr = encrypted_q + i * q_coeff_count;
         uint64_t *encrypted_bsk_ptr = encrypted_Bsk + i * bsk_coeff_count;
         // NTT forward
-        nwt_2d_radix8_forward_inplace(encrypted_q_ptr, context.gpu_rns_tables(), base_q_size, 0);
+        nwt_2d_radix8_forward_inplace(encrypted_q_ptr, context.gpu_rns_tables(), base_q_size, 0, stream);
         // (1) Convert from base q to base Bsk U {m_tilde}
-        rns_tool.fastbconv_m_tilde(temp_base_Bsk_m_tilde.get(), encrypted_ptr);
+        rns_tool.fastbconv_m_tilde(temp_base_Bsk_m_tilde.get(), encrypted_ptr, stream);
         // (2) Reduce q-overflows in with Montgomery reduction, switching base to Bsk
-        rns_tool.sm_mrq(encrypted_bsk_ptr, temp_base_Bsk_m_tilde.get());
+        rns_tool.sm_mrq(encrypted_bsk_ptr, temp_base_Bsk_m_tilde.get(), stream);
         // NTT forward
         nwt_2d_radix8_forward_inplace_include_temp_mod(encrypted_bsk_ptr, rns_tool.gpu_Bsk_tables(), base_Bsk_size, 0,
-                                                       rns_tool.gpu_Bsk_tables().size());
+                                                       rns_tool.gpu_Bsk_tables().size(), stream);
     }
-    temp_base_Bsk_m_tilde.release();
 }
 
 // encrypted1 = encrypted1 * encrypted2
@@ -362,7 +386,7 @@ void BEHZ_mul_1(const PhantomContext &context, const PhantomCiphertext &encrypte
 // (7) Scale the result by q using a divide-and-floor algorithm, switching base to Bsk
 // (8) Use Shenoy-Kumaresan method to convert the result to base q
 static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                              const PhantomCiphertext &encrypted2) {
+                              const PhantomCiphertext &encrypted2, const cudaStream_t &stream) {
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -382,19 +406,15 @@ static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &
     const DModulus *base_rns = context.gpu_rns_tables().modulus();
     const DModulus *base_Bsk = rns_tool.base_Bsk().base();
 
-    // malloc memory, which needs to be freed at the end of the function.
-    Pointer<uint64_t> encrypted1_q, encrypted1_Bsk;
-    Pointer<uint64_t> encrypted2_q, encrypted2_Bsk;
-
-    encrypted1_q.acquire(allocate<uint64_t>(global_pool(), dest_size * poly_degree * base_q_size));
-    encrypted1_Bsk.acquire(allocate<uint64_t>(global_pool(), dest_size * poly_degree * base_Bsk_size));
-    encrypted2_q.acquire(allocate<uint64_t>(global_pool(), encrypted2_size * poly_degree * base_q_size));
-    encrypted2_Bsk.acquire(allocate<uint64_t>(global_pool(), encrypted2_size * poly_degree * base_Bsk_size));
+    auto encrypted1_q = cuda_make_shared<uint64_t>(dest_size * poly_degree * base_q_size, stream);
+    auto encrypted1_Bsk = cuda_make_shared<uint64_t>(dest_size * poly_degree * base_Bsk_size, stream);
+    auto encrypted2_q = cuda_make_shared<uint64_t>(encrypted2_size * poly_degree * base_q_size, stream);
+    auto encrypted2_Bsk = cuda_make_shared<uint64_t>(encrypted2_size * poly_degree * base_Bsk_size, stream);
 
     // BEHZ, step 1-3
-    BEHZ_mul_1(context, encrypted1, encrypted1_q.get(), encrypted1_Bsk.get());
+    BEHZ_mul_1(context, encrypted1, encrypted1_q.get(), encrypted1_Bsk.get(), stream);
     if (dest_size != 3 || &encrypted1 != &encrypted2)
-        BEHZ_mul_1(context, encrypted2, encrypted2_q.get(), encrypted2_Bsk.get());
+        BEHZ_mul_1(context, encrypted2, encrypted2_q.get(), encrypted2_Bsk.get(), stream);
 
     uint64_t gridDimGlb;
     // BEHZ, step 4 Compute the ciphertext polynomial product using dyadic multiplication
@@ -403,28 +423,33 @@ static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &
     if (dest_size == 3) {
         gridDimGlb = poly_degree * base_q_size / blockDimGlb.x;
         if (&encrypted1 == &encrypted2)
-            tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1_q.get(), base_rns, encrypted1_q.get(),
-                                                                    poly_degree, base_q_size);
+            tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    encrypted1_q.get(), base_rns, encrypted1_q.get(),
+                    poly_degree, base_q_size);
 
         else
-            tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1_q.get(), encrypted2_q.get(), base_rns,
-                                                                  encrypted1_q.get(), poly_degree, base_q_size);
+            tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    encrypted1_q.get(), encrypted2_q.get(), base_rns,
+                    encrypted1_q.get(), poly_degree, base_q_size);
 
         gridDimGlb = poly_degree * base_Bsk_size / blockDimGlb.x;
         if (&encrypted1 == &encrypted2)
-            tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1_Bsk.get(), base_Bsk,
-                                                                    encrypted1_Bsk.get(), poly_degree, base_Bsk_size);
+            tensor_square_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    encrypted1_Bsk.get(), base_Bsk,
+                    encrypted1_Bsk.get(), poly_degree, base_Bsk_size);
         else
-            tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1_Bsk.get(), encrypted2_Bsk.get(), base_Bsk,
-                                                                  encrypted1_Bsk.get(), poly_degree, base_Bsk_size);
+            tensor_prod_2x2_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    encrypted1_Bsk.get(), encrypted2_Bsk.get(), base_Bsk,
+                    encrypted1_Bsk.get(), poly_degree, base_Bsk_size);
     } else {
         gridDimGlb = poly_degree * base_q_size / blockDimGlb.x;
-        tensor_prod_mxn_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted1_q.get(), encrypted1_size, encrypted2_q.get(),
-                                                              encrypted2_size, base_rns, encrypted1_q.get(), dest_size,
-                                                              poly_degree, base_q_size);
+        tensor_prod_mxn_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                encrypted1_q.get(), encrypted1_size, encrypted2_q.get(),
+                encrypted2_size, base_rns, encrypted1_q.get(), dest_size,
+                poly_degree, base_q_size);
 
         gridDimGlb = poly_degree * base_Bsk_size / blockDimGlb.x;
-        tensor_prod_mxn_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+        tensor_prod_mxn_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 encrypted1_Bsk.get(), encrypted1_size, encrypted2_Bsk.get(), encrypted2_size, base_Bsk,
                 encrypted1_Bsk.get(), dest_size, poly_degree, base_Bsk_size);
     }
@@ -434,31 +459,29 @@ static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &
     for (size_t i = 0; i < dest_size; i++) {
         nwt_2d_radix8_backward_inplace_scale(encrypted1_q.get() + i * poly_degree * base_q_size,
                                              context.gpu_rns_tables(), base_q_size, 0, context.plain_modulus(),
-                                             context.plain_modulus_shoup());
+                                             context.plain_modulus_shoup(), stream);
     }
     for (size_t i = 0; i < dest_size; i++) {
         nwt_2d_radix8_backward_inplace_include_temp_mod_scale(
                 encrypted1_Bsk.get() + i * poly_degree * base_Bsk_size, rns_tool.gpu_Bsk_tables(), base_Bsk_size, 0,
-                rns_tool.gpu_Bsk_tables().size(), rns_tool.tModBsk(), rns_tool.tModBsk_shoup());
+                rns_tool.gpu_Bsk_tables().size(), rns_tool.tModBsk(), rns_tool.tModBsk_shoup(), stream);
     }
 
     // Resize encrypted1 to destination size
-    encrypted1.resize(context, encrypted1.chain_index(), dest_size);
+    encrypted1.resize(context, encrypted1.chain_index(), dest_size, stream);
 
-    Pointer<uint64_t> temp;
-    temp.acquire(allocate<uint64_t>(global_pool(), poly_degree * base_Bsk_size));
+    auto temp = cuda_make_shared<uint64_t>(poly_degree * base_Bsk_size, stream);
     for (size_t i = 0; i < dest_size; i++) {
         uint64_t *encrypted1_q_iter = encrypted1_q.get() + i * base_q_size * poly_degree;
         uint64_t *encrypted1_Bsk_iter = encrypted1_Bsk.get() + i * base_Bsk_size * poly_degree;
         uint64_t *encrypted1_iter = encrypted1.data() + i * base_q_size * poly_degree;
         // Step (7): divide by q and floor, producing a result(stored in encrypted2_Bsk) in base Bsk
-        rns_tool.fast_floor(encrypted1_q_iter, encrypted1_Bsk_iter, temp.get());
+        rns_tool.fast_floor(encrypted1_q_iter, encrypted1_Bsk_iter, temp.get(), stream);
         // encrypted1_q is used to avoid malloc in fastbconv_sk
         // Step (8): use Shenoy-Kumaresan method to convert the result to base q and write to encrypted1
-        rns_tool.fastbconv_sk(temp.get(), encrypted1_iter);
+        rns_tool.fastbconv_sk(temp.get(), encrypted1_iter, stream);
         // encrypted1_q is used to avoid malloc in fastbconv_sk
     }
-    temp.release();
 }
 
 size_t FindLevelsToDrop(const PhantomContext &context, size_t multiplicativeDepth, double dcrtBits, bool isKeySwitch,
@@ -562,8 +585,6 @@ static void
 bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
                  const cudaStream_t &stream) {
 
-    cudaDeviceSynchronize();
-
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -574,14 +595,14 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
     const auto n = parms.poly_modulus_degree();
     const auto mul_tech = parms.mul_tech();
 
-    const size_t ct1_size = encrypted1.size_;
-    const size_t ct2_size = encrypted2.size_;
+    const size_t ct1_size = encrypted1.size();
+    const size_t ct2_size = encrypted2.size();
     const size_t dest_size = ct1_size + ct2_size - 1;
     if (dest_size != 3)
         throw std::logic_error("dest_size must be 3 when computing BFV multiplication using HPS");
 
     // Resize encrypted1 to destination size
-    encrypted1.resize(context, encrypted1.chain_index(), dest_size);
+    encrypted1.resize(context, encrypted1.chain_index(), dest_size, stream);
 
     // HPS and HPSOverQ does not drop modulus
     uint32_t levelsDropped = 0;
@@ -723,7 +744,7 @@ bfv_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1, const
              const cudaStream_t &stream) {
     auto mul_tech = context.mul_tech();
     if (mul_tech == mul_tech_type::behz) {
-        bfv_multiply_behz(context, encrypted1, encrypted2);
+        bfv_multiply_behz(context, encrypted1, encrypted2, stream);
     } else if (mul_tech == mul_tech_type::hps || mul_tech == mul_tech_type::hps_overq ||
                mul_tech == mul_tech_type::hps_overq_leveled) {
         bfv_multiply_hps(context, encrypted1, encrypted2, stream);
@@ -736,8 +757,6 @@ static void
 bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
                   const PhantomRelinKey &relin_keys, const cudaStream_t &stream) {
 
-    cudaDeviceSynchronize();
-
     if (encrypted1.is_ntt_form() || encrypted2.is_ntt_form()) {
         throw std::invalid_argument("encrypted1 or encrypted2 cannot be in NTT form");
     }
@@ -748,14 +767,14 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     const auto n = parms.poly_modulus_degree();
     const auto mul_tech = parms.mul_tech();
 
-    const size_t ct1_size = encrypted1.size_;
-    const size_t ct2_size = encrypted2.size_;
+    const size_t ct1_size = encrypted1.size();
+    const size_t ct2_size = encrypted2.size();
     const size_t dest_size = ct1_size + ct2_size - 1;
     if (dest_size != 3)
         throw std::logic_error("dest_size must be 3 when computing BFV multiplication using HPS");
 
     // Resize encrypted1 to destination size
-    encrypted1.resize(context, encrypted1.chain_index(), dest_size);
+    encrypted1.resize(context, encrypted1.chain_index(), dest_size, stream);
 
     // HPS and HPSOverQ does not drop modulus
     uint32_t levelsDropped = 0;
@@ -883,19 +902,14 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
 
     // Extract encryption parameters.
     const size_t decomp_modulus_size = parms.coeff_modulus().size();
-    const auto &key_vector = relin_keys.public_keys_;
-    const auto key_component_count = key_vector[0].pk_.size_;
     const auto scheme = parms.scheme();
 
     // Verify parameters.
     if (encrypted1.size() != 3) {
         throw invalid_argument("destination_size must be 3");
     }
-    if (scheme == scheme_type::bfv && encrypted1.is_ntt_form_) {
+    if (scheme == scheme_type::bfv && encrypted1.is_ntt_form()) {
         throw invalid_argument("BFV encrypted cannot be in NTT form");
-    }
-    if (key_component_count != 2) {
-        throw invalid_argument("destination_size must be equal to key_component_count");
     }
 
     // only c2 is not scale&round to Ql
@@ -922,7 +936,7 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
     auto reduction_threshold = (1 << (bits_per_uint64 - rns_tool.qMSB() - 1)) - 1;
     key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
-            cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr_.get(), modulus_QP, n, size_QP, size_QP_n, size_QlP,
+            cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), modulus_QP, n, size_QP, size_QP_n, size_QlP,
             size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);
 
     // mod down
@@ -947,12 +961,12 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     cudaStreamSynchronize(stream);
 
     // update the encrypted
-    encrypted1.resize(key_component_count, decomp_modulus_size, n);
+    encrypted1.resize(2, decomp_modulus_size, n, stream);
 }
 
 // encrypted1 = encrypted1 * encrypted2
 void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
-                      const phantom::util::cuda_stream_wrapper *p_stream_wrapper) {
+                      const cudaStream_t &stream) {
     // Verify parameters.
     if (encrypted1.parms_id() != encrypted2.parms_id()) {
         throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
@@ -963,31 +977,32 @@ void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypte
         throw std::invalid_argument("NTT form mismatch");
     if (encrypted1.scale() != encrypted2.scale())
         throw std::invalid_argument("scale mismatch");
-    if (encrypted1.size_ != encrypted2.size_)
+    if (encrypted1.size() != encrypted2.size())
         throw std::invalid_argument("poly number mismatch");
 
-    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
     auto &context_data = context.get_context_data(encrypted1.chain_index());
 
     switch (context_data.parms().scheme()) {
         case scheme_type::bfv:
-            bfv_multiply(context, encrypted1, encrypted2, stream);
+            bfv_multiply(context, encrypted1, encrypted2, s);
             break;
         case scheme_type::ckks:
         case scheme_type::bgv:
-            bgv_ckks_multiply(context, encrypted1, encrypted2);
+            bgv_ckks_multiply(context, encrypted1, encrypted2, s);
             break;
 
         default:
             throw invalid_argument("unsupported scheme");
     }
+    cudaStreamSynchronize(s);
 }
 
 // encrypted1 = encrypted1 * encrypted2
 // relin(encrypted1)
 void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
                                 const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys,
-                                const cuda_stream_wrapper *p_stream_wrapper) {
+                                const cudaStream_t &stream) {
     // Verify parameters.
     if (encrypted1.parms_id() != encrypted2.parms_id()) {
         throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
@@ -998,7 +1013,7 @@ void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext
         throw std::invalid_argument("NTT form mismatch");
     if (encrypted1.scale() != encrypted2.scale())
         throw std::invalid_argument("scale mismatch");
-    if (encrypted1.size_ != encrypted2.size_)
+    if (encrypted1.size() != encrypted2.size())
         throw std::invalid_argument("poly number mismatch");
 
     // Extract encryption parameters.
@@ -1007,17 +1022,17 @@ void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext
     auto scheme = params.scheme();
     auto mul_tech = params.mul_tech();
 
-    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     switch (scheme) {
         case scheme_type::bfv:
             if (mul_tech == mul_tech_type::hps || mul_tech == mul_tech_type::hps_overq ||
                 mul_tech == mul_tech_type::hps_overq_leveled) {
                 // enable fast mul&relin
-                bfv_mul_relin_hps(context, encrypted1, encrypted2, relin_keys, stream);
+                bfv_mul_relin_hps(context, encrypted1, encrypted2, relin_keys, s);
             } else if (mul_tech == mul_tech_type::behz) {
-                bfv_multiply_behz(context, encrypted1, encrypted2);
-                relinearize_inplace(context, encrypted1, relin_keys, p_stream_wrapper);
+                bfv_multiply_behz(context, encrypted1, encrypted2, s);
+                relinearize_inplace(context, encrypted1, relin_keys, s);
             } else {
                 throw invalid_argument("unsupported mul tech in BFV mul&relin");
             }
@@ -1025,16 +1040,20 @@ void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext
 
         case scheme_type::ckks:
         case scheme_type::bgv:
-            bgv_ckks_multiply(context, encrypted1, encrypted2);
-            relinearize_inplace(context, encrypted1, relin_keys);
+            bgv_ckks_multiply(context, encrypted1, encrypted2, s);
+            relinearize_inplace(context, encrypted1, relin_keys, s);
             break;
 
         default:
             throw invalid_argument("unsupported scheme");
     }
+    cudaStreamSynchronize(s);
 }
 
-void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain) {
+void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
+                       const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
@@ -1062,27 +1081,27 @@ void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
 
     switch (parms.scheme()) {
         case scheme_type::bfv: {
-            multiply_add_plain_with_scaling_variant(context, plain, encrypted.chain_index(), encrypted);
+            multiply_add_plain_with_scaling_variant(context, plain, encrypted.chain_index(), encrypted, s);
             break;
         }
         case scheme_type::ckks: {
             // (c0 + pt, c1)
-            add_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted.data(), plain.data(), base_rns, encrypted.data(),
-                                                      poly_degree, coeff_mod_size);
+            add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                    encrypted.data(), plain.data(), base_rns, encrypted.data(),
+                    poly_degree, coeff_mod_size);
             break;
         }
         case scheme_type::bgv: {
             // TODO: make bgv plaintext is_ntt_form true?
             // c0 = c0 + plaintext
-            Pointer<uint64_t> plain_copy;
-            plain_copy.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
+            auto plain_copy = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, s);
             for (size_t i = 0; i < coeff_mod_size; i++) {
                 // modup t -> {q0, q1, ...., qj}
                 nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
-                                                 context.gpu_rns_tables(), 1, 0);
+                                                 context.gpu_rns_tables(), 1, 0, s);
             }
             // (c0 + pt, c1)
-            multiply_scalar_and_add_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            multiply_scalar_and_add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted.data(), plain_copy.get(), encrypted.correction_factor(), base_rns, encrypted.data(),
                     poly_degree, coeff_mod_size);
             break;
@@ -1090,9 +1109,13 @@ void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
         default:
             throw invalid_argument("unsupported scheme");
     }
+    cudaStreamSynchronize(s);
 }
 
-void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain) {
+void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
+                       const cudaStream_t &stream) {
+
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
@@ -1119,27 +1142,27 @@ void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
 
     switch (parms.scheme()) {
         case scheme_type::bfv: {
-            multiply_sub_plain_with_scaling_variant(context, plain, encrypted.chain_index(), encrypted);
+            multiply_sub_plain_with_scaling_variant(context, plain, encrypted.chain_index(), encrypted, s);
             break;
         }
         case scheme_type::ckks: {
             // (c0 - pt, c1)
-            sub_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted.data(), plain.data(), base_rns, encrypted.data(),
-                                                      poly_degree, coeff_mod_size);
+            sub_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                    encrypted.data(), plain.data(), base_rns, encrypted.data(),
+                    poly_degree, coeff_mod_size);
             break;
         }
         case scheme_type::bgv: {
             // TODO: make bgv plaintext is_ntt_form true?
             // c0 = c0 - plaintext
-            Pointer<uint64_t> plain_copy;
-            plain_copy.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
+            auto plain_copy = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, s);
             for (size_t i = 0; i < coeff_mod_size; i++) {
                 // modup t -> {q0, q1, ...., qj}
                 nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
-                                                 context.gpu_rns_tables(), 1, 0);
+                                                 context.gpu_rns_tables(), 1, 0, s);
             }
             // (c0 - pt, c1)
-            multiply_scalar_and_sub_rns_poly<<<gridDimGlb, blockDimGlb>>>(
+            multiply_scalar_and_sub_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                     encrypted.data(), plain_copy.get(), encrypted.correction_factor(), base_rns, encrypted.data(),
                     poly_degree, coeff_mod_size);
             break;
@@ -1147,12 +1170,11 @@ void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
         default:
             throw invalid_argument("unsupported scheme");
     }
+    cudaStreamSynchronize(s);
 }
 
-void multiply_plain_ntt(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain) {
-    if (!plain.is_ntt_form()) {
-        throw invalid_argument("plain_ntt is not in NTT form");
-    }
+static void multiply_plain_ntt(const PhantomContext &context, PhantomCiphertext &encrypted,
+                               const PhantomPlaintext &plain, const cudaStream_t &stream) {
     if (encrypted.chain_index() != plain.chain_index()) {
         throw std::invalid_argument("encrypted and plain parameter mismatch");
     }
@@ -1174,15 +1196,16 @@ void multiply_plain_ntt(const PhantomContext &context, PhantomCiphertext &encryp
     //(c0 * pt, c1 * pt)
     for (size_t i = 0; i < encrypted.size(); i++) {
         uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
-        multiply_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted.data() + i * rns_coeff_count, plain.data(), base_rns,
-                                                       encrypted.data() + i * rns_coeff_count, poly_degree,
-                                                       coeff_mod_size);
+        multiply_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                encrypted.data() + i * rns_coeff_count, plain.data(), base_rns,
+                encrypted.data() + i * rns_coeff_count, poly_degree, coeff_mod_size);
     }
 
-    encrypted.scale() = new_scale;
+    encrypted.set_scale(new_scale);
 }
 
-void multiply_plain_normal(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain) {
+static void multiply_plain_normal(const PhantomContext &context, PhantomCiphertext &encrypted,
+                                  const PhantomPlaintext &plain, const cudaStream_t &stream) {
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
@@ -1198,67 +1221,47 @@ void multiply_plain_normal(const PhantomContext &context, PhantomCiphertext &enc
 
     double new_scale = encrypted.scale() * plain.scale();
 
-    /*
-    !!! This optimizations is removed also due to the access of device memory in host
-    Optimizations for constant / monomial multiplication can lead to the presence of a timing side-channel,
-    as the processing time varies with the plaintext, and therefore leaks plaintext, which may be sensitive.
-    */
-    /*if (plain_nonzero_coeff_count == 1)
-    {
-    }*/
-
     uint64_t gridDimGlb = rns_coeff_count / blockDimGlb.x;
     // Generic case: any plaintext polynomial
     // Allocate temporary space for an entire RNS polynomial
-    Pointer<uint64_t> temp;
-    temp.acquire(allocate<uint64_t>(global_pool(), rns_coeff_count));
+    auto temp = cuda_make_shared<uint64_t>(rns_coeff_count, stream);
 
     // if (context_data.qualifiers().using_fast_plain_lift) {
     // if t is smaller than every qi
-    abs_plain_rns_poly<<<gridDimGlb, blockDimGlb>>>(plain.data(), plain_upper_half_threshold,
-                                                    plain_upper_half_increment, temp.get(), poly_degree,
-                                                    coeff_mod_size);
-    // }
-    // else {
-    //     // need to perform decompose
-    //     // N-slot plain, for each slot,
-    //     // temp["coeff_mod_size"] = plain[tid] + plain_upper_half_increment (i.e., q-t) when (plain[tid] >=
-    //     plain_upper_half_threshold)
-    //     // otherwise temp["coeff_mod_size"] = plain[tid]
-    //     auto &rns_tool = context.get_context_data(encrypted.chain_index()).gpu_rns_tool();
-    //     auto &base_q = rns_tool.base_Ql_;
-    //     // each block (num is N) of coeff_mod_size size, is decomposed into N * coeff_mod_size data
-    //     base_q.decompose_array(temp.get(), plain.data(), base_rns, poly_degree, plain_upper_half_increment,
-    //                            plain_upper_half_threshold);
-    // }
+    abs_plain_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            plain.data(), plain_upper_half_threshold, plain_upper_half_increment, temp.get(), poly_degree,
+            coeff_mod_size);
 
-    nwt_2d_radix8_forward_inplace(temp.get(), context.gpu_rns_tables(), coeff_mod_size, 0);
+    nwt_2d_radix8_forward_inplace(temp.get(), context.gpu_rns_tables(), coeff_mod_size, 0, stream);
 
     // (c0 * pt, c1 * pt)
     for (size_t i = 0; i < encrypted_size; i++) {
         uint64_t *ci = encrypted.data() + i * rns_coeff_count;
         // NTT
-        nwt_2d_radix8_forward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0);
+        nwt_2d_radix8_forward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0, stream);
         // Pointwise multiplication
-        multiply_rns_poly<<<gridDimGlb, blockDimGlb>>>(ci, temp.get(), base_rns, ci, poly_degree, coeff_mod_size);
+        multiply_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                ci, temp.get(), base_rns, ci, poly_degree, coeff_mod_size);
         // inverse NTT
-        nwt_2d_radix8_backward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0);
+        nwt_2d_radix8_backward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0, stream);
     }
 
-    encrypted.scale() = new_scale;
+    encrypted.set_scale(new_scale);
 }
 
 void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                            const PhantomPlaintext &plain) {
+                            const PhantomPlaintext &plain, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
     auto scheme = parms.scheme();
 
     if (scheme == scheme_type::bfv) {
-        multiply_plain_normal(context, encrypted, plain);
+        multiply_plain_normal(context, encrypted, plain, s);
     } else if (scheme == scheme_type::ckks) {
-        multiply_plain_ntt(context, encrypted, plain);
+        multiply_plain_ntt(context, encrypted, plain, s);
     } else if (scheme == scheme_type::bgv) {
         // Extract encryption parameters.
         auto &coeff_modulus = parms.coeff_modulus();
@@ -1267,12 +1270,11 @@ void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &en
         auto base_rns = context.gpu_rns_tables().modulus();
         auto rns_coeff_count = poly_degree * coeff_mod_size;
 
-        Pointer<uint64_t> plain_copy;
-        plain_copy.acquire(allocate<uint64_t>(global_pool(), coeff_mod_size * poly_degree));
+        auto plain_copy = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, s);
         for (size_t i = 0; i < coeff_mod_size; i++) {
             // modup t -> {q0, q1, ...., qj}
             nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
-                                             context.gpu_rns_tables(), 1, 0);
+                                             context.gpu_rns_tables(), 1, 0, s);
         }
 
         double new_scale = encrypted.scale() * plain.scale();
@@ -1280,102 +1282,176 @@ void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &en
         //(c0 * pt, c1 * pt)
         for (size_t i = 0; i < encrypted.size(); i++) {
             uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
-            multiply_rns_poly<<<gridDimGlb, blockDimGlb>>>(encrypted.data() + i * rns_coeff_count, plain_copy.get(),
-                                                           base_rns, encrypted.data() + i * rns_coeff_count,
-                                                           poly_degree, coeff_mod_size);
+            multiply_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                    encrypted.data() + i * rns_coeff_count, plain_copy.get(),
+                    base_rns, encrypted.data() + i * rns_coeff_count,
+                    poly_degree, coeff_mod_size);
         }
 
-        encrypted.scale() = new_scale;
+        encrypted.set_scale(new_scale);
     } else {
         throw std::invalid_argument("unsupported scheme");
     }
+    cudaStreamSynchronize(s);
 }
 
 void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                         const PhantomRelinKey &relin_keys, const cuda_stream_wrapper *p_stream_wrapper) {
+                         const PhantomRelinKey &relin_keys, const cudaStream_t &stream) {
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
     size_t decomp_modulus_size = parms.coeff_modulus().size();
     size_t n = parms.poly_modulus_degree();
-    auto &key_vector = relin_keys.public_keys_;
-    auto key_component_count = key_vector[0].pk_.size_;
 
     // Verify parameters.
     auto scheme = parms.scheme();
-    auto encrypted_size = encrypted.size_;
+    auto encrypted_size = encrypted.size();
     if (encrypted_size != 3) {
         throw invalid_argument("destination_size must be 3");
     }
-    if (scheme == scheme_type::bfv && encrypted.is_ntt_form_) {
+    if (scheme == scheme_type::bfv && encrypted.is_ntt_form()) {
         throw invalid_argument("BFV encrypted cannot be in NTT form");
     }
-    if (scheme == scheme_type::ckks && !encrypted.is_ntt_form_) {
+    if (scheme == scheme_type::ckks && !encrypted.is_ntt_form()) {
         throw invalid_argument("CKKS encrypted must be in NTT form");
     }
-    if (scheme == scheme_type::bgv && !encrypted.is_ntt_form_) {
+    if (scheme == scheme_type::bgv && !encrypted.is_ntt_form()) {
         throw invalid_argument("BGV encrypted must be in NTT form");
-    }
-    if (key_component_count != 2) {
-        throw invalid_argument("destination_size must be equal to key_component_count");
     }
 
     uint64_t *c2 = encrypted.data() + 2 * decomp_modulus_size * n;
 
-    switch_key_inplace(context, encrypted, c2, relin_keys, true, p_stream_wrapper);
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
+    switch_key_inplace(context, encrypted, c2, relin_keys, true, s);
 
     // update the encrypted
-    encrypted.resize(key_component_count, decomp_modulus_size, n);
+    encrypted.resize(2, decomp_modulus_size, n, s);
+
+    cudaStreamSynchronize(s);
+}
+
+static void mod_switch_scale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                                     PhantomCiphertext &destination, const cudaStream_t &stream) {
+    // Assuming at this point encrypted is already validated.
+    auto &context_data = context.get_context_data(encrypted.chain_index());
+    auto &parms = context_data.parms();
+    auto &rns_tool = context.get_context_data(encrypted.chain_index()).gpu_rns_tool();
+
+    // Extract encryption parameters.
+    size_t coeff_mod_size = parms.coeff_modulus().size();
+    size_t poly_degree = parms.poly_modulus_degree();
+    size_t encrypted_size = encrypted.size();
+
+    auto next_index_id = context.get_next_index(encrypted.chain_index());
+    auto &next_context_data = context.get_context_data(next_index_id);
+    auto &next_parms = next_context_data.parms();
+
+    auto encrypted_copy = cuda_make_shared<uint64_t>(encrypted_size * coeff_mod_size * poly_degree, stream);
+    cudaMemcpyAsync(encrypted_copy.get(), encrypted.data(),
+                    encrypted_size * coeff_mod_size * poly_degree * sizeof(uint64_t),
+                    cudaMemcpyDeviceToDevice, stream);
+
+    // resize and empty the data array
+    destination.resize(context, next_index_id, encrypted_size, stream);
+
+    switch (next_parms.scheme()) {
+        case scheme_type::bfv:
+            rns_tool.divide_and_round_q_last(encrypted_copy.get(), encrypted_size, destination.data(), stream);
+            break;
+
+        case scheme_type::ckks:
+            rns_tool.divide_and_round_q_last_ntt(encrypted_copy.get(), encrypted_size, context.gpu_rns_tables(),
+                                                 destination.data(), stream);
+            break;
+
+        default:
+            throw invalid_argument("unsupported scheme");
+    }
+
+    // Set other attributes
+    destination.set_ntt_form(encrypted.is_ntt_form());
+    if (next_parms.scheme() == scheme_type::ckks) {
+        // Change the scale when using CKKS
+        destination.set_scale(encrypted.scale() / static_cast<double>(parms.coeff_modulus().back().value()));
+    }
+}
+
+static void mod_switch_drop_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                                    PhantomCiphertext &destination, const cudaStream_t &stream) {
+    // Assuming at this point encrypted is already validated.
+    auto &context_data = context.get_context_data(encrypted.chain_index());
+    auto &parms = context_data.parms();
+    auto coeff_modulus_size = parms.coeff_modulus().size();
+    size_t N = parms.poly_modulus_degree();
+
+    // Extract encryption parameters.
+    auto next_chain_index = encrypted.chain_index() + 1;
+    auto &next_context_data = context.get_context_data(next_chain_index);
+    auto &next_parms = next_context_data.parms();
+
+    // q_1,...,q_{k-1}
+    size_t encrypted_size = encrypted.size();
+    size_t next_coeff_modulus_size = next_parms.coeff_modulus().size();
+
+    if (&encrypted == &destination) {
+        auto temp = std::move(destination.data_ptr());
+        destination.data_ptr() = cuda_make_shared<uint64_t>(encrypted_size * next_coeff_modulus_size * N, stream);
+        for (size_t i{0}; i < encrypted_size; i++) {
+            auto temp_iter = temp.get() + i * coeff_modulus_size * N;
+            auto encrypted_iter = encrypted.data() + i * next_coeff_modulus_size * N;
+            cudaMemcpyAsync(encrypted_iter, temp_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, stream);
+        }
+        // Set other attributes
+        destination.set_chain_index(next_chain_index);
+        destination.set_coeff_modulus_size(next_coeff_modulus_size);
+    } else {
+        // Resize destination before writing
+        destination.resize(context, next_chain_index, encrypted_size, stream);
+        // Copy data over to destination; only copy the RNS components relevant after modulus drop
+        for (size_t i = 0; i < encrypted_size; i++) {
+            auto destination_iter = destination.data() + i * next_coeff_modulus_size * N;
+            auto encrypted_iter = encrypted.data() + i * coeff_modulus_size * N;
+            cudaMemcpyAsync(destination_iter, encrypted_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, stream);
+        }
+        // Set other attributes
+        destination.set_scale(encrypted.scale());
+        destination.set_ntt_form(encrypted.is_ntt_form());
+    }
 }
 
 void rescale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                     PhantomCiphertext &destination) {
+                     PhantomCiphertext &destination, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
     auto &context_data = context.get_context_data(context.get_first_index());
     auto &parms = context_data.parms();
     auto max_chain_index = parms.coeff_modulus().size();
     auto scheme = parms.scheme();
+
+    if (scheme != scheme_type::ckks)
+        throw invalid_argument("unsupported scheme");
 
     // Verify parameters.
     if (encrypted.chain_index() == max_chain_index) {
         throw invalid_argument("end of modulus switching chain reached");
     }
 
-    switch (scheme) {
-        case scheme_type::bfv:
-            throw invalid_argument("unsupported operation for scheme type");
-
-        case scheme_type::ckks:
-            // Modulus switching with scaling
-            mod_switch_scale_to_next(context, encrypted, destination);
-            break;
-
-        default:
-            throw invalid_argument("unsupported scheme");
-    }
+    // Modulus switching with scaling
+    mod_switch_scale_to_next(context, encrypted, destination, s);
+    cudaStreamSynchronize(s);
 }
 
-void mod_switch_to_inplace(const PhantomContext &context, PhantomPlaintext &plain, size_t chain_index) {
-    if (!plain.is_ntt_form()) {
-        throw invalid_argument("plain is not in NTT form");
-    }
-    if (plain.chain_index() > chain_index) {
-        throw invalid_argument("cannot switch to higher level modulus");
-    }
+void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
-    while (plain.chain_index() != chain_index) {
-        mod_switch_to_next_inplace(context, plain);
-    }
-}
-
-void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain) {
     auto &context_data = context.get_context_data(context.get_first_index());
     auto &parms = context_data.parms();
     auto coeff_modulus_size = parms.coeff_modulus().size();
 
     auto max_chain_index = coeff_modulus_size;
-    if (!plain.is_ntt_form()) {
-        throw invalid_argument("plain is not in NTT form");
-    }
     if (plain.chain_index() == max_chain_index) {
         throw invalid_argument("end of modulus switching chain reached");
     }
@@ -1392,27 +1468,18 @@ void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext 
     // Compute destination size first for exception safety
     auto dest_size = next_coeff_modulus_size * coeff_count;
 
-    Pointer<uint64_t> data_copy;
-    data_copy.acquire(plain.data_);
-    plain.data_.acquire(allocate<uint64_t>(global_pool(), dest_size * sizeof(uint64_t)));
-    PHANTOM_CHECK_CUDA(
-            cudaMemcpy(plain.data(), data_copy.get(), dest_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
+    auto data_copy = std::move(plain.data_ptr());
+    plain.data_ptr() = cuda_make_shared<uint64_t>(dest_size, s);
+    cudaMemcpyAsync(plain.data(), data_copy.get(), dest_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
 
-    plain.chain_index() = next_chain_index;
-}
-
-void mod_switch_to_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t chain_index) {
-    if (encrypted.chain_index() > chain_index) {
-        throw invalid_argument("cannot switch to higher level modulus");
-    }
-
-    while (encrypted.chain_index() != chain_index) {
-        mod_switch_to_next_inplace(context, encrypted);
-    }
+    plain.set_chain_index(next_chain_index);
+    cudaStreamSynchronize(s);
 }
 
 void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                        PhantomCiphertext &destination) {
+                        PhantomCiphertext &destination, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
     // Assuming at this point encrypted is already validated.
     auto &context_data = context.get_context_data(context.get_first_index());
     auto &parms = context_data.parms();
@@ -1433,133 +1500,98 @@ void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &
     switch (scheme) {
         case scheme_type::bfv:
             // Modulus switching with scaling
-            mod_switch_scale_to_next(context, encrypted, destination);
+            mod_switch_scale_to_next(context, encrypted, destination, s);
             break;
 
         case scheme_type::ckks:
             // Modulus switching without scaling
-            mod_switch_drop_to_next(context, encrypted, destination);
+            mod_switch_drop_to_next(context, encrypted, destination, s);
             break;
 
         default:
             throw invalid_argument("unsupported scheme");
     }
+    cudaStreamSynchronize(s);
 }
 
-void mod_switch_drop_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                             PhantomCiphertext &destination) {
-    // Assuming at this point encrypted is already validated.
+void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,
+                          const PhantomGaloisKey &galois_keys, const cudaStream_t &stream) {
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
-    auto coeff_modulus_size = parms.coeff_modulus().size();
+    auto &coeff_modulus = parms.coeff_modulus();
     size_t N = parms.poly_modulus_degree();
-
-    // Extract encryption parameters.
-    auto next_chain_index = encrypted.chain_index() + 1;
-    auto &next_context_data = context.get_context_data(next_chain_index);
-    auto &next_parms = next_context_data.parms();
-
-    // q_1,...,q_{k-1}
+    size_t coeff_modulus_size = coeff_modulus.size();
     size_t encrypted_size = encrypted.size();
-    size_t next_coeff_modulus_size = next_parms.coeff_modulus().size();
+    if (encrypted_size > 2) {
+        throw invalid_argument("encrypted size must be 2");
+    }
+    auto c0 = encrypted.data();
+    auto c1 = encrypted.data() + encrypted.coeff_modulus_size() * encrypted.poly_modulus_degree();
+    // Use key_context_data where permutation tables exist since previous runs.
+    auto &key_galois_tool = context.key_galois_tool_;
 
-    if (&encrypted == &destination) {
-        Pointer<uint64_t> temp;
-        temp.acquire(destination.data_);
-        destination.data_.acquire(allocate<uint64_t>(global_pool(), encrypted_size * next_coeff_modulus_size * N));
-        for (size_t i{0}; i < encrypted_size; i++) {
-            auto temp_iter = temp.get() + i * coeff_modulus_size * N;
-            auto encrypted_iter = encrypted.data() + i * next_coeff_modulus_size * N;
-            PHANTOM_CHECK_CUDA(cudaMemcpy(encrypted_iter, temp_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
-                                          cudaMemcpyDeviceToDevice));
-        }
-        // Set other attributes
-        destination.chain_index() = next_chain_index;
-        destination.coeff_modulus_size_ = next_coeff_modulus_size;
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
+    auto temp = cuda_make_shared<uint64_t>(coeff_modulus_size * N, s);
+
+    // DO NOT CHANGE EXECUTION ORDER OF FOLLOWING SECTION
+    // BEGIN: Apply Galois for each ciphertext
+    // Execution order is sensitive, since apply_galois is not inplace!
+    if (parms.scheme() == scheme_type::bfv) {
+        // !!! DO NOT CHANGE EXECUTION ORDER!!!
+        // First transform c0
+        key_galois_tool->apply_galois(c0, context.gpu_rns_tables(), coeff_modulus_size, galois_elt_index, temp.get(),
+                                      s);
+        // Copy result to c0
+        cudaMemcpyAsync(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
+        // Next transform c1
+        key_galois_tool->apply_galois(c1, context.gpu_rns_tables(), coeff_modulus_size, galois_elt_index, temp.get(),
+                                      s);
+    } else if (parms.scheme() == scheme_type::ckks || parms.scheme() == scheme_type::bgv) {
+        // !!! DO NOT CHANGE EXECUTION ORDER!!
+        // First transform c0
+        key_galois_tool->apply_galois_ntt(c0, coeff_modulus_size, galois_elt_index, temp.get(), s);
+        // Copy result to c0
+        cudaMemcpyAsync(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
+        // Next transform c1
+        key_galois_tool->apply_galois_ntt(c1, coeff_modulus_size, galois_elt_index, temp.get(), s);
     } else {
-        // Resize destination before writing
-        destination.resize(context, next_chain_index, encrypted_size);
-        // Copy data over to destination; only copy the RNS components relevant after modulus drop
-        for (size_t i = 0; i < encrypted_size; i++) {
-            auto destination_iter = destination.data() + i * next_coeff_modulus_size * N;
-            auto encrypted_iter = encrypted.data() + i * coeff_modulus_size * N;
-            PHANTOM_CHECK_CUDA(
-                    cudaMemcpy(destination_iter, encrypted_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
-                               cudaMemcpyDeviceToDevice));
-        }
-        // Set other attributes
-        destination.scale() = encrypted.scale();
-        destination.is_ntt_form() = encrypted.is_ntt_form();
+        throw logic_error("scheme not implemented");
     }
+
+    // Wipe c1
+    cudaMemsetAsync(c1, 0, coeff_modulus_size * N * sizeof(uint64_t), s);
+
+    // END: Apply Galois for each ciphertext
+    // REORDERING IS SAFE NOW
+    // Calculate (temp * galois_key[0], temp * galois_key[1]) + (c0, 0)
+    switch_key_inplace(context, encrypted, temp.get(), galois_keys.get_relin_keys(galois_elt_index), false, s);
+
+    cudaStreamSynchronize(s);
 }
 
-void mod_switch_scale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                              PhantomCiphertext &destination) {
-    // Assuming at this point encrypted is already validated.
+// TODO: remove recursive chain
+static void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
+                            const PhantomGaloisKey &galois_key, const cudaStream_t &stream) {
     auto &context_data = context.get_context_data(encrypted.chain_index());
-    auto &parms = context_data.parms();
-    auto &rns_tool = context.get_context_data(encrypted.chain_index()).gpu_rns_tool();
-
-    // Extract encryption parameters.
-    size_t coeff_mod_size = parms.coeff_modulus().size();
-    size_t poly_degree = parms.poly_modulus_degree();
-    size_t encrypted_size = encrypted.size();
-
-    auto next_index_id = context.get_next_index(encrypted.chain_index());
-    auto &next_context_data = context.get_context_data(next_index_id);
-    auto &next_parms = next_context_data.parms();
-
-    //    size_t next_coeff_modulus_size = next_parms.coeff_modulus().size();
-
-    Pointer<uint64_t> encrypted_copy;
-    encrypted_copy.acquire(allocate<uint64_t>(global_pool(), encrypted_size * coeff_mod_size * poly_degree));
-    PHANTOM_CHECK_CUDA(cudaMemcpy(encrypted_copy.get(), encrypted.data(),
-                                  encrypted_size * coeff_mod_size * poly_degree * sizeof(uint64_t),
-                                  cudaMemcpyDeviceToDevice));
-    // resize and empty the data array
-    destination.resize(context, next_index_id, encrypted_size);
-
-    switch (next_parms.scheme()) {
-        case scheme_type::bfv:
-            rns_tool.divide_and_round_q_last(encrypted_copy.get(), encrypted_size, destination.data());
-            break;
-
-        case scheme_type::ckks:
-            rns_tool.divide_and_round_q_last_ntt(encrypted_copy.get(), encrypted_size, context.gpu_rns_tables(),
-                                                 destination.data());
-            break;
-
-        default:
-            throw invalid_argument("unsupported scheme");
-    }
-
-    // Set other attributes
-    destination.is_ntt_form() = encrypted.is_ntt_form();
-    if (next_parms.scheme() == scheme_type::ckks) {
-        // Change the scale when using CKKS
-        destination.scale() = encrypted.scale() / static_cast<double>(parms.coeff_modulus().back().value());
-    }
-}
-
-void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
-                     const PhantomGaloisKey &galois_key) {
-    auto &context_data = context.get_context_data(encrypted.chain_index_);
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     // Is there anything to do?
     if (step == 0) {
+        cudaStreamSynchronize(s);
         return;
     }
 
     size_t coeff_count = context_data.parms().poly_modulus_degree();
     auto &key_galois_tool = context.key_galois_tool_;
-    auto &galois_elts = key_galois_tool->galois_elts_;
+    auto &galois_elts = key_galois_tool->galois_elts();
     auto step_galois_elt = key_galois_tool->get_elt_from_step(step);
 
     auto iter = find(galois_elts.begin(), galois_elts.end(), step_galois_elt);
     if (iter != galois_elts.end()) {
         auto galois_elt_index = iter - galois_elts.begin();
         // Perform rotation and key switching
-        apply_galois_inplace(context, encrypted, galois_elt_index, galois_key);
+        apply_galois_inplace(context, encrypted, galois_elt_index, galois_key, s);
     } else {
         // Convert the steps to NAF: guarantees using smallest HW
         vector<int> naf_step = naf(step);
@@ -1572,20 +1604,54 @@ void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted
         }
         for (auto temp_step: naf_step) {
             if (static_cast<size_t>(abs(temp_step)) != (coeff_count >> 1)) {
-                rotate_internal(context, encrypted, temp_step, galois_key);
+                rotate_internal(context, encrypted, temp_step, galois_key, s);
             }
         }
     }
 }
 
+void rotate_rows_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, int steps,
+                         const PhantomGaloisKey &galois_key, const cudaStream_t &stream) {
+    if (context.key_context_data().parms().scheme() != phantom::scheme_type::bfv &&
+        context.key_context_data().parms().scheme() != phantom::scheme_type::bgv) {
+        throw std::logic_error("unsupported scheme");
+    }
+    rotate_internal(context, encrypted, steps, galois_key, stream);
+}
+
+void rotate_columns_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                            const PhantomGaloisKey &galois_key, const cudaStream_t &stream) {
+    if (context.key_context_data().parms().scheme() != phantom::scheme_type::bfv &&
+        context.key_context_data().parms().scheme() != phantom::scheme_type::bgv) {
+        throw std::logic_error("unsupported scheme");
+    }
+    apply_galois_inplace(context, encrypted, 0, galois_key, stream);
+}
+
+void rotate_vector_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
+                           const PhantomGaloisKey &galois_key, const cudaStream_t &stream) {
+    if (context.key_context_data().parms().scheme() != phantom::scheme_type::ckks) {
+        throw std::logic_error("unsupported scheme");
+    }
+    rotate_internal(context, encrypted, step, galois_key, stream);
+}
+
+void complex_conjugate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                               const PhantomGaloisKey &galois_key, const cudaStream_t &stream) {
+    if (context.key_context_data().parms().scheme() != phantom::scheme_type::ckks) {
+        throw std::logic_error("unsupported scheme");
+    }
+    apply_galois_inplace(context, encrypted, 0, galois_key, stream);
+}
+
 void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, const PhantomGaloisKey &glk,
-                      const std::vector<int> &steps, const cuda_stream_wrapper *p_stream_wrapper) {
-    const auto &stream = p_stream_wrapper != nullptr ? p_stream_wrapper->get_stream() : context.get_cuda_stream(0);
+                      const std::vector<int> &steps, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
     if (ct.size() > 2)
         throw invalid_argument("ciphertext size must be 2");
 
-    auto &context_data = context.get_context_data(ct.chain_index_);
+    auto &context_data = context.get_context_data(ct.chain_index());
     auto &key_context_data = context.get_context_data(0);
     auto &key_parms = key_context_data.parms();
     auto scheme = key_parms.scheme();
@@ -1619,7 +1685,7 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     auto &rns_tool = context.get_context_data(1 + levelsDropped).gpu_rns_tool();
     auto &parms = context_data.parms();
     auto &key_galois_tool = context.key_galois_tool_;
-    auto &galois_elts = key_galois_tool->galois_elts_;
+    auto &galois_elts = key_galois_tool->galois_elts();
 
     auto modulus_QP = context.gpu_rns_tables().modulus();
 
@@ -1632,8 +1698,8 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    auto c0 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
-    auto c1 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
+    auto c0 = cuda_make_shared<uint64_t>(size_Ql_n, s);
+    auto c1 = cuda_make_shared<uint64_t>(size_Ql_n, s);
 
     auto elts = key_galois_tool->get_elts_from_steps(steps);
 
@@ -1641,13 +1707,13 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
 
     // specific operations for HPSOverQLeveled
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        rns_tool.scaleAndRound_HPS_Q_Ql(c0.get(), ct.data(), stream);
+        rns_tool.scaleAndRound_HPS_Q_Ql(c0.get(), ct.data(), s);
     } else {
         cudaMemcpyAsync(
-                c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, stream);
+                c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
     }
 
-    auto acc_c0 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
+    auto acc_c0 = cuda_make_shared<uint64_t>(size_Ql_n, s);
 
     auto first_elt = elts[0];
     auto first_iter = find(galois_elts.begin(), galois_elts.end(), first_elt);
@@ -1656,9 +1722,9 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     auto first_elt_index = first_iter - galois_elts.begin();
 
     if (parms.scheme() == scheme_type::bfv) {
-        key_galois_tool->apply_galois(c0.get(), context.gpu_rns_tables(), size_Ql, first_elt_index, acc_c0.get());
+        key_galois_tool->apply_galois(c0.get(), context.gpu_rns_tables(), size_Ql, first_elt_index, acc_c0.get(), s);
     } else if (parms.scheme() == scheme_type::ckks || parms.scheme() == scheme_type::bgv) {
-        key_galois_tool->apply_galois_ntt(c0.get(), size_Ql, first_elt_index, acc_c0.get());
+        key_galois_tool->apply_galois_ntt(c0.get(), size_Ql, first_elt_index, acc_c0.get(), s);
     } else {
         throw logic_error("scheme not implemented");
     }
@@ -1667,46 +1733,40 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
 
     // specific operations for HPSOverQLeveled
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        rns_tool.scaleAndRound_HPS_Q_Ql(c1.get(), ct.data() + size_Q_n, stream);
+        rns_tool.scaleAndRound_HPS_Q_Ql(c1.get(), ct.data() + size_Q_n, s);
     } else {
         cudaMemcpyAsync(
-                c1.get(), ct.data() + size_Ql_n, size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, stream);
+                c1.get(), ct.data() + size_Ql_n, size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
     }
-
-    // Prepare key
-    auto &key_vector = glk.relin_keys_[first_elt_index].public_keys_;
-    auto key_poly_num = key_vector[0].pk_.size_;
-    if (key_poly_num != 2)
-        throw std::invalid_argument("key_poly_num must be 2 in hoisting");
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
     // mod up
-    auto modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
-    rns_tool.modup(modup_c1.get(), c1.get(), context.gpu_rns_tables(), scheme, stream);
+    auto modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, s);
+    rns_tool.modup(modup_c1.get(), c1.get(), context.gpu_rns_tables(), scheme, s);
 
     // ------------------------------------------ automorphism c1 ------------------------------------------------------
 
-    auto temp_modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    auto temp_modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, s);
 
     for (size_t b = 0; b < beta; b++) {
         key_galois_tool->apply_galois_ntt(modup_c1.get() + b * size_QlP_n, size_QlP, first_elt_index,
-                                          temp_modup_c1.get() + b * size_QlP_n);
+                                          temp_modup_c1.get() + b * size_QlP_n, s);
     }
 
     // ----------------------------------------- inner product c1 ------------------------------------------------------
 
-    auto acc_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
+    auto acc_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, s);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
-    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
-            acc_cx.get(), temp_modup_c1.get(), glk.relin_keys_[first_elt_index].public_keys_ptr_.get(), modulus_QP, n,
+    key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, s>>>(
+            acc_cx.get(), temp_modup_c1.get(), glk.get_relin_keys(first_elt_index).public_keys_ptr(), modulus_QP, n,
             size_QP, size_QP_n, size_QlP, size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);
 
     // ------------------------------------------ loop accumulate ------------------------------------------------------
 
-    auto temp_c0 = cuda_make_shared<uint64_t>(size_Ql_n, stream);
+    auto temp_c0 = cuda_make_shared<uint64_t>(size_Ql_n, s);
 
     for (size_t i = 1; i < elts.size(); i++) {
         // automorphism c0
@@ -1718,125 +1778,65 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
         auto elt_index = iter - galois_elts.begin();
 
         if (parms.scheme() == scheme_type::bfv) {
-            key_galois_tool->apply_galois(c0.get(), context.gpu_rns_tables(), size_Ql, elt_index, temp_c0.get());
+            key_galois_tool->apply_galois(c0.get(), context.gpu_rns_tables(), size_Ql, elt_index, temp_c0.get(), s);
         } else if (parms.scheme() == scheme_type::ckks || parms.scheme() == scheme_type::bgv) {
-            key_galois_tool->apply_galois_ntt(c0.get(), size_Ql, elt_index, temp_c0.get());
+            key_galois_tool->apply_galois_ntt(c0.get(), size_Ql, elt_index, temp_c0.get(), s);
         } else {
             throw logic_error("scheme not implemented");
         }
 
         // add to acc_c0
         uint64_t gridDimGlb = size_Ql_n / blockDimGlb.x;
-        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                 acc_c0.get(), temp_c0.get(), rns_tool.base_Ql().base(), acc_c0.get(), n, size_Ql);
 
         // automorphism c1
 
         for (size_t b = 0; b < beta; b++) {
             key_galois_tool->apply_galois_ntt(modup_c1.get() + b * size_QlP_n, size_QlP, elt_index,
-                                              temp_modup_c1.get() + b * size_QlP_n);
+                                              temp_modup_c1.get() + b * size_QlP_n, s);
         }
 
         // inner product c1
-        auto temp_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
-        key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
-                temp_cx.get(), temp_modup_c1.get(), glk.relin_keys_[elt_index].public_keys_ptr_.get(), modulus_QP, n,
+        auto temp_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, s);
+        key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, s>>>(
+                temp_cx.get(), temp_modup_c1.get(), glk.get_relin_keys(elt_index).public_keys_ptr(), modulus_QP, n,
                 size_QP, size_QP_n, size_QlP, size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);
 
         // add to acc_cx
         gridDimGlb = size_QlP_n / blockDimGlb.x;
-        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                 acc_cx.get(), temp_cx.get(), rns_tool.base_QlP().base(), acc_cx.get(),
                 n, size_QlP);
-        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+        add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                 acc_cx.get() + size_QlP_n, temp_cx.get() + size_QlP_n,
                 rns_tool.base_QlP().base(), acc_cx.get() + size_QlP_n, n, size_QlP);
     }
 
     // -------------------------------------------- mod down c1 --------------------------------------------------------
-    rns_tool.moddown_from_NTT(acc_cx.get(), acc_cx.get(), context.gpu_rns_tables(), scheme, stream);
+    rns_tool.moddown_from_NTT(acc_cx.get(), acc_cx.get(), context.gpu_rns_tables(), scheme, s);
     rns_tool.moddown_from_NTT(acc_cx.get() + size_QlP_n, acc_cx.get() + size_QlP_n, context.gpu_rns_tables(), scheme,
-                              stream);
+                              s);
 
     // new c0
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, s>>>(
                 acc_c0.get(), acc_cx.get(), rns_tool.base_Ql().base(),
                 acc_cx.get(), n, size_Ql);
-        rns_tool.ExpandCRTBasis_Ql_Q(ct.data(), acc_cx.get(), stream);
+        rns_tool.ExpandCRTBasis_Ql_Q(ct.data(), acc_cx.get(), s);
     } else {
-        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
+        add_rns_poly<<<size_Ql_n / blockDimGlb.x, blockDimGlb, 0, s>>>(
                 acc_c0.get(), acc_cx.get(), rns_tool.base_Ql().base(),
                 ct.data(), n, size_Ql);
     }
 
     // new c1
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        rns_tool.ExpandCRTBasis_Ql_Q(ct.data() + size_Q_n, acc_cx.get() + size_QlP_n, stream);
+        rns_tool.ExpandCRTBasis_Ql_Q(ct.data() + size_Q_n, acc_cx.get() + size_QlP_n, s);
     } else {
         cudaMemcpyAsync(ct.data() + size_Ql_n, acc_cx.get() + size_QlP_n, size_Ql_n * sizeof(uint64_t),
-                        cudaMemcpyDeviceToDevice, stream);
+                        cudaMemcpyDeviceToDevice, s);
     }
 
-    cudaStreamSynchronize(stream);
-}
-
-void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,
-                          const PhantomGaloisKey &galois_keys, const cuda_stream_wrapper *p_stream_wrapper) {
-    auto &context_data = context.get_context_data(encrypted.chain_index_);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    size_t N = parms.poly_modulus_degree();
-    size_t coeff_modulus_size = coeff_modulus.size();
-    size_t encrypted_size = encrypted.size();
-    if (encrypted_size > 2) {
-        throw invalid_argument("encrypted size must be 2");
-    }
-    auto c0 = encrypted.data();
-    auto c1 = encrypted.data() + encrypted.coeff_modulus_size_ * encrypted.poly_modulus_degree_;
-    // Use key_context_data where permutation tables exist since previous runs.
-    auto &key_galois_tool = context.key_galois_tool_;
-
-    Pointer<uint64_t> temp;
-    temp.acquire(allocate<uint64_t>(global_pool(), coeff_modulus_size * N));
-
-    // DO NOT CHANGE EXECUTION ORDER OF FOLLOWING SECTION
-    // BEGIN: Apply Galois for each ciphertext
-    // Execution order is sensitive, since apply_galois is not inplace!
-    if (parms.scheme() == scheme_type::bfv) {
-        // !!! DO NOT CHANGE EXECUTION ORDER!!!
-        // First transform c0
-        key_galois_tool->apply_galois(c0, context.gpu_rns_tables(), coeff_modulus_size, galois_elt_index, temp.get());
-        // Copy result to c0
-        PHANTOM_CHECK_CUDA(
-                cudaMemcpy(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
-        // Next transform c1
-        key_galois_tool->apply_galois(c1, context.gpu_rns_tables(), coeff_modulus_size, galois_elt_index, temp.get());
-    } else if (parms.scheme() == scheme_type::ckks || parms.scheme() == scheme_type::bgv) {
-        // !!! DO NOT CHANGE EXECUTION ORDER!!
-        // First transform c0
-        key_galois_tool->apply_galois_ntt(c0, coeff_modulus_size, galois_elt_index, temp.get());
-        // Copy result to c0
-        PHANTOM_CHECK_CUDA(
-                cudaMemcpy(c0, temp.get(), coeff_modulus_size * N * sizeof(uint64_t), cudaMemcpyDeviceToDevice));
-        // Next transform c1
-        key_galois_tool->apply_galois_ntt(c1, coeff_modulus_size, galois_elt_index, temp.get());
-    } else {
-        throw logic_error("scheme not implemented");
-    }
-
-    // Wipe c1
-    PHANTOM_CHECK_CUDA(cudaMemset(c1, 0, coeff_modulus_size * N * sizeof(uint64_t)));
-
-    // END: Apply Galois for each ciphertext
-    // REORDERING IS SAFE NOW
-    // Calculate (temp * galois_key[0], temp * galois_key[1]) + (c0, 0)
-    switch_key_inplace(context, encrypted, temp.get(), galois_keys.relin_keys_[galois_elt_index], false,
-                       p_stream_wrapper);
-}
-
-void conjugate_internal(const PhantomContext &context, PhantomCiphertext &encrypted,
-                        const PhantomGaloisKey &galois_key) {
-    constexpr size_t galois_elt_index = 0;
-    apply_galois_inplace(context, encrypted, galois_elt_index, galois_key);
+    cudaStreamSynchronize(s);
 }

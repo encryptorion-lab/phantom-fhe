@@ -18,15 +18,6 @@ namespace phantom::util {
     class MemoryPoolST;
 
     namespace global_variables {
-        //            extern const size_t global_rand_gen_GPU_threads;
-        //            extern const size_t global_forward_GPU_threads;
-        //            extern const size_t global_switch_point;
-        //            extern const size_t global_maxthreads;
-        //
-        //            extern const size_t global_forward_balance;
-        //            extern const size_t global_backward_GPU_threads;
-        //            extern const size_t global_backward_balance;
-
         /**
         Default value for the standard deviation of the noise (error) distribution.
         */

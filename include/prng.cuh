@@ -1,5 +1,4 @@
-#ifndef _PRNG_
-#define _PRNG_
+#pragma once
 
 #include <cstring>
 #include <gputype.h>
@@ -9,35 +8,24 @@
  * @param[out] buf The obtained random number, will be used as seed
  * @param[in] count The required length of the random
  */
-void inline random_bytes(unsigned char *buf, size_t count) {
-    std::random_device rd("/dev/urandom");
-    size_t len = (count + 3) / 4;
-    std::vector<uint32_t> temp;
-    temp.reserve(len);
-    while (len) {
-        len--;
-        temp[len] = rd();
+void inline random_bytes(unsigned char *buf, size_t count, const cudaStream_t &stream = nullptr) {
+    std::random_device rd;
+    std::uniform_int_distribution<unsigned short> dist(std::numeric_limits<unsigned char>::min(),
+                                                       std::numeric_limits<unsigned char>::max());
+    std::vector<uint8_t> temp(count);
+    for (auto &i: temp) {
+        i = dist(rd);
     }
-    cudaMemcpy(buf, temp.data(), count, cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(buf, temp.data(), count, cudaMemcpyHostToDevice, stream);
 }
 
 __host__ __device__ inline uint32_t load_littleendian(const unsigned char *x) {
-    return (uint32_t)(x[0]) | (((uint32_t)(x[1])) << 8) | (((uint32_t)(x[2])) << 16) | (((uint32_t)(x[3])) << 24);
+    return (uint32_t) (x[0]) | (((uint32_t) (x[1])) << 8) | (((uint32_t) (x[2])) << 16) | (((uint32_t) (x[3])) << 24);
 }
 
 __host__ __device__ inline uint32_t rotate(const uint32_t u, const int c) {
     return (u << c) | (u >> (32 - c));
 }
-
-/** Generate Pseudo random number with provided key and nonce
- * @param[out] out The generated random number
- * @param[in] outlen The required length of random number
- * @param[in] nonce The nonce used for PRNG
- * @param[in] key The key (seed) used for PRNG
- * @param[in] keylen The length of PRNG key
- */
-void __device__ salsa20_gpu(uint32_t *out, const size_t outlen, const uint64_t nonce, const uint8_t *key,
-                            const size_t keylen);
 
 /** Generate a random ternary poly.
  * Notice: for x^i, the random is same for different coeff modulus.
@@ -73,5 +61,3 @@ __global__ void sample_uniform_poly(uint64_t *out, const uint8_t *prng_seed, con
  */
 __global__ void sample_error_poly(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
                                   const uint64_t poly_degree, const uint64_t coeff_mod_size);
-
-#endif

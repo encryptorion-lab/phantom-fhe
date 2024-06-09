@@ -9,7 +9,6 @@
 
 #include "galois.cuh"
 #include "gputype.h"
-#include "mempool.cuh"
 #include "rns.cuh"
 #include "util/galois.h"
 #include "util.cuh"
@@ -148,7 +147,8 @@ namespace phantom {
     }
 } // namespace phantom
 
-typedef struct PhantomContext {
+class PhantomContext {
+public:
 
     // must be destroyed at last
     std::vector<std::shared_ptr<phantom::util::cuda_stream_wrapper>> cuda_streams_wrappers_;
@@ -166,24 +166,19 @@ typedef struct PhantomContext {
 
     DNTTTable gpu_plain_tables_;
 
-    phantom::util::Pointer<uint64_t> in_;
-
-    phantom::util::Pointer<uint64_t> coeff_div_plain_;
-    phantom::util::Pointer<uint64_t> coeff_div_plain_shoup_;
+    phantom::util::cuda_shared_ptr<uint64_t> coeff_div_plain_;
+    phantom::util::cuda_shared_ptr<uint64_t> coeff_div_plain_shoup_;
     // stores all the values for all possible modulus switch, auto choose the corresponding start pos
-    phantom::util::Pointer<uint64_t> plain_modulus_; // shoup pre-computations of (t mod qi)
-    phantom::util::Pointer<uint64_t> plain_modulus_shoup_; // shoup pre-computations of (t mod qi)
+    phantom::util::cuda_shared_ptr<uint64_t> plain_modulus_; // shoup pre-computations of (t mod qi)
+    phantom::util::cuda_shared_ptr<uint64_t> plain_modulus_shoup_; // shoup pre-computations of (t mod qi)
 
-    phantom::util::Pointer<uint64_t> plain_upper_half_increment_;
+    phantom::util::cuda_shared_ptr<uint64_t> plain_upper_half_increment_;
 
-    phantom::util::Pointer<uint8_t> prng_seed_;
-    // prng seed
     std::size_t coeff_mod_size_ = 0; // corresponding to the key param index, i.e., all coeff prime exists.
     std::size_t poly_degree_ = 0; // unchanged
-    std::shared_ptr<PhantomGaloisTool> key_galois_tool_;
+    std::unique_ptr<PhantomGaloisTool> key_galois_tool_;
 
-    explicit PhantomContext(const phantom::EncryptionParameters &params,
-                            const phantom::util::cuda_stream_wrapper *p_stream_wrapper = nullptr);
+    explicit PhantomContext(const phantom::EncryptionParameters &params, const cudaStream_t &stream = nullptr);
 
     PhantomContext(const PhantomContext &) = delete;
 
@@ -302,8 +297,6 @@ typedef struct PhantomContext {
 
     DNTTTable &gpu_rns_tables() { return gpu_rns_tables_; }
 
-    [[nodiscard]] uint64_t *in() const { return in_.get(); }
-
     [[nodiscard]] auto *coeff_div_plain() const { return coeff_div_plain_.get(); }
 
     [[nodiscard]] auto *coeff_div_plain_shoup() const { return coeff_div_plain_shoup_.get(); }
@@ -314,5 +307,4 @@ typedef struct PhantomContext {
 
     [[nodiscard]] auto *plain_upper_half_increment() const { return plain_upper_half_increment_.get(); }
 
-    [[nodiscard]] auto *prng_seed() const { return prng_seed_.get(); }
-} PhantomContext;
+};

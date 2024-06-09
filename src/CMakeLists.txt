@@ -1,7 +1,6 @@
 ADD_LIBRARY(Phantom SHARED
         context.cu
         modulus.cu
-        mempool.cu
         batchencoder.cu
         prng.cu
         polymath.cu
@@ -11,7 +10,6 @@ ADD_LIBRARY(Phantom SHARED
         rns_bconv.cu
         scalingvariant.cu
         evaluate.cu
-        croots.cu
         fft.cu
         ckks.cu
         galois.cu
@@ -47,7 +45,6 @@ set(PHANTOM_HEADER_FILES
         ../include/ckks.h
         ../include/common.h
         ../include/context.h
-        ../include/croots.h
         ../include/util/encryptionparams.h
         ../include/evaluate.cuh
         ../include/fft.h
@@ -55,7 +52,6 @@ set(PHANTOM_HEADER_FILES
         ../include/gpucontext.h
         ../include/gputype.h
         ../include/lock.cuh
-        ../include/mempool.cuh
         ../include/util/modulus.h
         ../include/ntt.cuh
         ../include/plaintext.h

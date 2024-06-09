@@ -3,7 +3,6 @@
 
 #include "util/modulus.h"
 #include "util/globals.h"
-#include "mempool.cuh"
 #include <memory>
 
 using namespace std;
@@ -276,6 +275,4 @@ namespace phantom::util::global_variables {
 
         return default_coeff_modulus_256;
     }
-
-    shared_ptr<MemoryPoolST> const global_memory_pool{make_shared<MemoryPoolST>()};
 }

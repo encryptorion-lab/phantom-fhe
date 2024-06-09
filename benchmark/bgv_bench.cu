@@ -13,13 +13,14 @@ void bgv_performance_test(EncryptionParameters &parms) {
     auto &context_data = context.get_context_data(context.get_first_index());
     auto &first_parms = context_data.parms();
     auto &plain_modulus = first_parms.plain_modulus();
-    size_t poly_modulus_degree = first_parms.poly_modulus_degree();
+
+    const auto &stream = context.get_cuda_stream(0);
 
     print_timer_banner();
 
     auto count = 100;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     {
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
@@ -29,7 +30,7 @@ void bgv_performance_test(EncryptionParameters &parms) {
         }
     }
 
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     {
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
@@ -39,8 +40,8 @@ void bgv_performance_test(EncryptionParameters &parms) {
         }
     }
 
-    PhantomRelinKey relin_keys(context);
-    PhantomGaloisKey gal_keys(context);
+    PhantomRelinKey relin_keys;
+    PhantomGaloisKey gal_keys;
 
     // Generate relinearization keys
     {
@@ -65,12 +66,12 @@ void bgv_performance_test(EncryptionParameters &parms) {
     size_t slot_count = batch_encoder.slot_count();
     random_device rd;
 
-    PhantomPlaintext plain(context);
+    PhantomPlaintext plain;
 
     /*
     Populate a vector of values to batch.
     */
-    vector<int64_t> pod_vector;
+    vector<uint64_t> pod_vector;
     for (size_t i = 0; i < slot_count; i++) {
         pod_vector.push_back(static_cast<int64_t>(plain_modulus.reduce(rd())));
     }
@@ -94,7 +95,7 @@ void bgv_performance_test(EncryptionParameters &parms) {
     [Unbatching]
     We unbatch what we just batched.
     */
-    vector<int64_t> pod_vector2(slot_count);
+    vector<uint64_t> pod_vector2(slot_count);
     {
         CUDATimer timer("decode");
         for (auto i = 0; i < count; i++) {
@@ -114,12 +115,12 @@ void bgv_performance_test(EncryptionParameters &parms) {
     to hold the encryption with these encryption parameters. We encrypt
     our random batched matrix here.
     */
-    PhantomCiphertext encrypted(context);
+    PhantomCiphertext encrypted;
     {
         CUDATimer timer("encrypt_asymmetric");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            public_key.encrypt_asymmetric(context, plain, encrypted, false);
+            public_key.encrypt_asymmetric(context, plain, encrypted);
             timer.stop();
         }
     }
@@ -139,14 +140,14 @@ void bgv_performance_test(EncryptionParameters &parms) {
 
     // homomorphic operations
 
-    PhantomPlaintext plain1(context);
-    PhantomPlaintext plain2(context);
-    PhantomCiphertext encrypted1(context);
-    batch_encoder.encode(context, vector<int64_t>(slot_count, 1), plain1);
-    public_key.encrypt_asymmetric(context, plain1, encrypted1, false);
-    PhantomCiphertext encrypted2(context);
-    batch_encoder.encode(context, vector<int64_t>(slot_count, 1), plain2);
-    public_key.encrypt_asymmetric(context, plain2, encrypted2, false);
+    PhantomPlaintext plain1;
+    PhantomPlaintext plain2;
+    PhantomCiphertext encrypted1;
+    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain1);
+    public_key.encrypt_asymmetric(context, plain1, encrypted1);
+    PhantomCiphertext encrypted2;
+    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain2);
+    public_key.encrypt_asymmetric(context, plain2, encrypted2);
 
     /*
     [Add]
@@ -185,10 +186,10 @@ void bgv_performance_test(EncryptionParameters &parms) {
         CUDATimer timer("multiply");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start();
-            multiply_inplace(context, tmp_ct, encrypted2);
-            relinearize_inplace(context, tmp_ct, relin_keys);
-            timer.stop();
+            timer.start(stream);
+            multiply_inplace(context, tmp_ct, encrypted2, stream);
+            relinearize_inplace(context, tmp_ct, relin_keys, stream);
+            timer.stop(stream);
         }
     }
 

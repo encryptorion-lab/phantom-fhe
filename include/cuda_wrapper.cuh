@@ -28,24 +28,27 @@ namespace phantom::util {
     template<class T>
     class cuda_shared_ptr {
 
-    public:
-        cuda_shared_ptr() : ptr_(nullptr), refCount_(nullptr), cudaStream_(nullptr) {
-        }
+    private:
+        T *ptr_ = nullptr;
+        size_t n_ = 0;
+        cudaStream_t cudaStream_ = nullptr;
 
-        cuda_shared_ptr(T *ptr, const cudaStream_t &stream) {
+    public:
+        cuda_shared_ptr() = default;
+
+        explicit cuda_shared_ptr(T *ptr, size_t n, const cudaStream_t &stream) {
             ptr_ = ptr;
-            refCount_ = new size_t(1);
+            n_ = n;
             cudaStream_ = stream;
         }
 
         // copy constructor
         cuda_shared_ptr(const cuda_shared_ptr &obj) {
-            this->ptr_ = obj.ptr_;
-            this->refCount_ = obj.refCount_;
+            PHANTOM_CHECK_CUDA(cudaMallocAsync(&this->ptr_, obj.n_ * sizeof(T), obj.cudaStream_));
+            PHANTOM_CHECK_CUDA(cudaMemcpyAsync(this->ptr_, obj.ptr_, obj.n_ * sizeof(T), cudaMemcpyDeviceToDevice,
+                                               obj.cudaStream_));
+            this->n_ = obj.n_;
             this->cudaStream_ = obj.cudaStream_;
-            if (obj.ptr_ != nullptr) {
-                (*this->refCount_)++;
-            }
         }
 
         // copy assignment
@@ -54,14 +57,13 @@ namespace phantom::util {
                 return *this;
             }
 
-            cleanup();
+            reset();
 
-            this->ptr_ = obj.ptr_;
-            this->refCount_ = obj.refCount_;
+            PHANTOM_CHECK_CUDA(cudaMallocAsync(&this->ptr_, obj.n_ * sizeof(T), obj.cudaStream_));
+            PHANTOM_CHECK_CUDA(cudaMemcpyAsync(this->ptr_, obj.ptr_, obj.n_ * sizeof(T), cudaMemcpyDeviceToDevice,
+                                               obj.cudaStream_));
+            this->n_ = obj.n_;
             this->cudaStream_ = obj.cudaStream_;
-            if (obj.ptr_ != nullptr) {
-                (*this->refCount_)++;
-            }
             return *this;
         }
 
@@ -69,26 +71,30 @@ namespace phantom::util {
         cuda_shared_ptr(cuda_shared_ptr &&dyingObj) noexcept {
             // share the underlying pointer
             this->ptr_ = dyingObj.ptr_;
-            this->refCount_ = dyingObj.refCount_;
+            this->n_ = dyingObj.n_;
             this->cudaStream_ = dyingObj.cudaStream_;
 
             // reset the dying object
             dyingObj.ptr_ = nullptr;
-            dyingObj.refCount_ = nullptr;
+            dyingObj.n_ = 0;
             dyingObj.cudaStream_ = nullptr;
         }
 
         // move assignment
         cuda_shared_ptr &operator=(cuda_shared_ptr &&dyingObj) noexcept {
-            cleanup();
+            if (this == &dyingObj) {
+                return *this;
+            }
+
+            reset();
 
             this->ptr_ = dyingObj.ptr_;
-            this->refCount_ = dyingObj.refCount_;
+            this->n_ = dyingObj.n_;
             this->cudaStream_ = dyingObj.cudaStream_;
 
             // reset the dying object
             dyingObj.ptr_ = nullptr;
-            dyingObj.refCount_ = nullptr;
+            dyingObj.n_ = 0;
             dyingObj.cudaStream_ = nullptr;
 
             return *this;
@@ -96,11 +102,7 @@ namespace phantom::util {
 
         ~cuda_shared_ptr() // destructor
         {
-            cleanup();
-        }
-
-        [[nodiscard]] size_t get_count() const {
-            return *this->refCount_;
+            reset();
         }
 
         T *get() const {
@@ -115,31 +117,33 @@ namespace phantom::util {
             return this->ptr_;
         }
 
-    private:
-        void cleanup() {
-            if (ptr_ == nullptr || refCount_ == nullptr) {
-                return;
-            }
-
-            (*refCount_)--;
-            if (*refCount_ == 0) {
-//                std::cout << "Freeing memory at " << ptr << std::endl; // debug
-                PHANTOM_CHECK_CUDA(cudaFreeAsync(ptr_, cudaStream_));
-                delete refCount_;
-            }
-
-            cudaStream_ = nullptr;
+        [[nodiscard]] auto &get_n() const {
+            return this->n_;
         }
 
-        T *ptr_ = nullptr;
-        size_t *refCount_ = nullptr;
-        cudaStream_t cudaStream_ = nullptr;
+        [[nodiscard]] auto &get_stream() const {
+            return this->cudaStream_;
+        }
+
+        void reset() {
+            if (ptr_ == nullptr) {
+                return;
+            }
+            auto err = cudaFreeAsync(ptr_, cudaStream_);
+            if (err != cudaSuccess) {
+                std::cerr << "Error freeing " << n_ << " * " << sizeof(T) << " bytes at " << ptr_
+                          << " on stream " << cudaStream_ << std::endl;
+                std::cerr << "Error code: " << cudaGetErrorString(err) << std::endl;
+            }
+            n_ = 0;
+            cudaStream_ = nullptr;
+        }
     };
 
     template<class T>
     cuda_shared_ptr<T> cuda_make_shared(size_t n, const cudaStream_t &stream) {
         T *ptr;
-        cudaMallocAsync(&ptr, n * sizeof(T), stream);
-        return cuda_shared_ptr<T>(ptr, stream);
+        PHANTOM_CHECK_CUDA(cudaMallocAsync(&ptr, n * sizeof(T), stream));
+        return cuda_shared_ptr<T>(ptr, n, stream);
     }
 }

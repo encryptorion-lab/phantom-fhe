@@ -17,14 +17,14 @@ void bgv_moddown_test(EncryptionParameters &parms) {
 
     print_timer_banner();
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
 
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
     // Generate relinearization keys
-    PhantomRelinKey relin_keys(context);
+    PhantomRelinKey relin_keys;
     secret_key.gen_relinkey(context, relin_keys);
 
     /*
@@ -41,12 +41,12 @@ void bgv_moddown_test(EncryptionParameters &parms) {
     size_t slot_count = batch_encoder.slot_count();
     random_device rd;
 
-    PhantomPlaintext plain(context);
+    PhantomPlaintext plain;
 
     /*
     Populate a vector of values to batch.
     */
-    vector<int64_t> pod_vector;
+    vector<uint64_t> pod_vector;
     for (size_t i = 0; i < slot_count; i++) {
         pod_vector.push_back(static_cast<int64_t>(plain_modulus.reduce(rd())));
     }
@@ -63,7 +63,7 @@ void bgv_moddown_test(EncryptionParameters &parms) {
     [Unbatching]
     We unbatch what we just batched.
     */
-    vector<int64_t> pod_vector2(slot_count);
+    vector<uint64_t> pod_vector2(slot_count);
     batch_encoder.decode(context, plain, pod_vector2);
 
     if (pod_vector2 != pod_vector) {
@@ -76,8 +76,8 @@ void bgv_moddown_test(EncryptionParameters &parms) {
     to hold the encryption with these encryption parameters. We encrypt
     our random batched matrix here.
     */
-    PhantomCiphertext encrypted(context);
-    public_key.encrypt_asymmetric(context, plain, encrypted, false);
+    PhantomCiphertext encrypted;
+    public_key.encrypt_asymmetric(context, plain, encrypted);
 
     /*
     [Decryption]
@@ -87,14 +87,14 @@ void bgv_moddown_test(EncryptionParameters &parms) {
 
     // homomorphic operations
 
-    PhantomPlaintext plain1(context);
-    PhantomPlaintext plain2(context);
-    PhantomCiphertext encrypted1(context);
-    batch_encoder.encode(context, vector<int64_t>(slot_count, 1), plain1);
-    public_key.encrypt_asymmetric(context, plain1, encrypted1, false);
-    PhantomCiphertext encrypted2(context);
-    batch_encoder.encode(context, vector<int64_t>(slot_count, 1), plain2);
-    public_key.encrypt_asymmetric(context, plain2, encrypted2, false);
+    PhantomPlaintext plain1;
+    PhantomPlaintext plain2;
+    PhantomCiphertext encrypted1;
+    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain1);
+    public_key.encrypt_asymmetric(context, plain1, encrypted1);
+    PhantomCiphertext encrypted2;
+    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain2);
+    public_key.encrypt_asymmetric(context, plain2, encrypted2);
 
     /*
     [Add]
@@ -441,7 +441,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
 
     auto count = 100;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     {
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
@@ -451,7 +451,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     {
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
@@ -461,8 +461,8 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
-    PhantomRelinKey relin_keys(context);
-    PhantomGaloisKey gal_keys(context);
+    PhantomRelinKey relin_keys;
+    PhantomGaloisKey gal_keys;
     // Generate relinearization keys
     {
         CUDATimer timer("gen_relinkey");
@@ -496,7 +496,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     For scale we use the square root of the last coeff_modulus prime
     from parms.
     */
-    PhantomPlaintext plain(context);
+    PhantomPlaintext plain;
     {
         CUDATimer timer("encode");
         for (auto i = 0; i < count; i++) {
@@ -521,12 +521,12 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     /*
     [Encryption]
     */
-    PhantomCiphertext encrypted(context);
+    PhantomCiphertext encrypted;
     {
         CUDATimer timer("encrypt_asymmetric");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            public_key.encrypt_asymmetric(context, plain, encrypted, false);
+            public_key.encrypt_asymmetric(context, plain, encrypted);
             timer.stop();
         }
     }
@@ -534,7 +534,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     /*
     [Decryption]
     */
-    PhantomPlaintext plain2(context);
+    PhantomPlaintext plain2;
     {
         CUDATimer timer("decrypt");
         for (auto i = 0; i < count; i++) {
@@ -546,17 +546,17 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
 
     // homomorphic operations
 
-    PhantomCiphertext encrypted1(context);
+    PhantomCiphertext encrypted1;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
         pod_vector3[j] = make_cuDoubleComplex(double(1), double(0));
     ckks_encoder.encode(context, pod_vector3, scale, plain);
-    public_key.encrypt_asymmetric(context, plain, encrypted1, false);
+    public_key.encrypt_asymmetric(context, plain, encrypted1);
 
-    PhantomCiphertext encrypted2(context);
+    PhantomCiphertext encrypted2;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
         pod_vector4[j] = make_cuDoubleComplex(double(1), double(0));
     ckks_encoder.encode(context, pod_vector4, scale, plain2);
-    public_key.encrypt_asymmetric(context, plain2, encrypted2, false);
+    public_key.encrypt_asymmetric(context, plain2, encrypted2);
 
     /*
     [Add]

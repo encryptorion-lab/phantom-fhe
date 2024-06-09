@@ -101,27 +101,19 @@ apply_galois_permutation(uint64_t *dst, const uint64_t *src, const DModulus *mod
 }
 
 void PhantomGaloisTool::apply_galois(uint64_t *operand, const DNTTTable &rns_table, size_t coeff_mod_size,
-                                     size_t galois_elt_idx, uint64_t *result) {
+                                     size_t galois_elt_idx, uint64_t *result, const cudaStream_t &stream) {
     auto &index_raws = index_raw_tables_[galois_elt_idx];
 
     uint64_t gridDimGlb = coeff_count_ * coeff_mod_size / blockDimGlb.x;
-    apply_galois_permutation<<<gridDimGlb, blockDimGlb>>>(result, operand, rns_table.modulus(), index_raws.get(),
-                                                          coeff_count_, coeff_mod_size);
-}
-
-void PhantomGaloisTool::apply_galois(uint64_t *operand, const DModulus *rns_modulus, size_t coeff_mod_size,
-                                     size_t galois_elt_idx, uint64_t *result) {
-    auto &index_raws = index_raw_tables_[galois_elt_idx];
-
-    uint64_t gridDimGlb = coeff_count_ * coeff_mod_size / blockDimGlb.x;
-    apply_galois_permutation<<<gridDimGlb, blockDimGlb>>>(result, operand, rns_modulus, index_raws.get(),
-                                                          coeff_count_, coeff_mod_size);
+    apply_galois_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            result, operand, rns_table.modulus(), index_raws.get(), coeff_count_, coeff_mod_size);
 }
 
 void PhantomGaloisTool::apply_galois_ntt(uint64_t *operand, size_t coeff_mod_size, size_t galois_elt_idx,
-                                         uint64_t *result) {
+                                         uint64_t *result, const cudaStream_t &stream) {
     auto table = permutation_tables_[galois_elt_idx].get();
 
     uint64_t gridDimGlb = coeff_count_ * coeff_mod_size / blockDimGlb.x;
-    apply_galois_ntt_permutation<<<gridDimGlb, blockDimGlb>>>(result, operand, table, coeff_count_, coeff_mod_size);
+    apply_galois_ntt_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            result, operand, table, coeff_count_, coeff_mod_size);
 }

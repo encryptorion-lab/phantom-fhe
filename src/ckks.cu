@@ -1,4 +1,5 @@
 #include "ckks.h"
+#include "fft.h"
 
 using namespace std;
 using namespace phantom;
@@ -26,7 +27,9 @@ __global__ void bit_reverse(cuDoubleComplex *dst, cuDoubleComplex *src, uint32_t
     }
 }
 
-PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
+PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context, const cudaStream_t &stream) {
+    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+
     auto &context_data = context.get_context_data(first_chain_index_);
     auto &parms = context_data.parms();
     auto &coeff_modulus = parms.coeff_modulus();
@@ -36,11 +39,10 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
     if (parms.scheme() != scheme_type::ckks) {
         throw std::invalid_argument("unsupported scheme");
     }
-    uint32_t logn = get_power_of_two(coeff_count);
     slots_ = coeff_count >> 1; // n/2
     uint32_t m = coeff_count << 1;
     uint32_t slots_half = slots_ >> 1;
-    gpu_ckks_msg_vec_ = DCKKSEncoderInfo(coeff_count);
+    gpu_ckks_msg_vec_ = std::make_unique<DCKKSEncoderInfo>(coeff_count, s);
 
     // We need m powers of the primitive 2n-th root, m = 2n
     root_powers_.reserve(m);
@@ -59,7 +61,7 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
 
     // Powers of the primitive 2n-th root have 4-fold symmetry
     if (m >= 8) {
-        complex_roots_ = make_shared<util::ComplexRoots>(util::ComplexRoots(static_cast<size_t>(m)));
+        complex_roots_ = std::make_unique<util::ComplexRoots>(util::ComplexRoots(static_cast<size_t>(m)));
         for (size_t i = 0; i < m; i++) {
             root_powers_[i] = complex_roots_->get_root(i);
         }
@@ -70,14 +72,16 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
         root_powers_[3] = {0, -1};
     }
 
-    cudaMemcpy(gpu_ckks_msg_vec_.twiddle(), root_powers_.data(), m * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
-    cudaMemcpy(gpu_ckks_msg_vec_.mul_group(), rotation_group_.data(), slots_half * sizeof(uint32_t),
-               cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(gpu_ckks_msg_vec_->twiddle(), root_powers_.data(), m * sizeof(cuDoubleComplex),
+                    cudaMemcpyHostToDevice, s);
+    cudaMemcpyAsync(gpu_ckks_msg_vec_->mul_group(), rotation_group_.data(), slots_half * sizeof(uint32_t),
+                    cudaMemcpyHostToDevice, s);
+    cudaStreamSynchronize(s);
 }
 
 void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cuDoubleComplex *values,
                                          size_t values_size, size_t chain_index, double scale,
-                                         PhantomPlaintext &destination) {
+                                         PhantomPlaintext &destination, const cudaStream_t &stream) {
     auto &context_data = context.get_context_data(chain_index);
     auto &parms = context_data.parms();
     auto &coeff_modulus = parms.coeff_modulus();
@@ -111,26 +115,26 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
         throw std::invalid_argument("single value encoding is not available");
     }
 
-    gpu_ckks_msg_vec_.set_sparse_slots(sparse_slots_);
-    cudaMemset(gpu_ckks_msg_vec_.in(), 0, slots_ * sizeof(cuDoubleComplex));
-    Pointer<cuDoubleComplex> temp;
-    temp.acquire(allocate<cuDoubleComplex>(global_pool(), values_size));
-    cudaMemset(temp.get(), 0, values_size * sizeof(cuDoubleComplex));
-    cudaMemcpy(temp.get(), values, sizeof(cuDoubleComplex) * values_size, cudaMemcpyHostToDevice);
+    gpu_ckks_msg_vec_->set_sparse_slots(sparse_slots_);
+    PHANTOM_CHECK_CUDA(cudaMemsetAsync(gpu_ckks_msg_vec_->in(), 0, slots_ * sizeof(cuDoubleComplex), stream));
+    auto temp = cuda_make_shared<cuDoubleComplex>(values_size, stream);
+    PHANTOM_CHECK_CUDA(cudaMemsetAsync(temp.get(), 0, values_size * sizeof(cuDoubleComplex), stream));
+    PHANTOM_CHECK_CUDA(
+            cudaMemcpyAsync(temp.get(), values, sizeof(cuDoubleComplex) * values_size, cudaMemcpyHostToDevice, stream));
 
     uint32_t log_sparse_n = log2(sparse_slots_);
     uint64_t gridDimGlb = ceil(sparse_slots_ / blockDimGlb.x);
-    bit_reverse_and_zero_padding<<<gridDimGlb, blockDimGlb>>>(gpu_ckks_msg_vec_.in(), temp.get(), values_size,
-                                                              sparse_slots_, log_sparse_n);
+    bit_reverse_and_zero_padding<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            gpu_ckks_msg_vec_->in(), temp.get(), values_size, sparse_slots_, log_sparse_n);
 
     double fix = scale / static_cast<double>(sparse_slots_);
 
-    special_fft_backward(gpu_ckks_msg_vec_, fix);
-    // we calculate max_coeff_bit_count at cpu side
+    special_fft_backward(*gpu_ckks_msg_vec_, fix, stream);
 
     // TODO to opt this
     vector<cuDoubleComplex> temp2(sparse_slots_);
-    cudaMemcpy(temp2.data(), gpu_ckks_msg_vec_.in(), sparse_slots_ * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+    PHANTOM_CHECK_CUDA(cudaMemcpyAsync(temp2.data(), gpu_ckks_msg_vec_->in(), sparse_slots_ * sizeof(cuDoubleComplex),
+                                       cudaMemcpyDeviceToHost, stream));
 
     double max_coeff = 0;
     for (std::size_t i = 0; i < sparse_slots_; i++) {
@@ -147,98 +151,19 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
     if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count()) {
         throw std::invalid_argument("encoded values are too large");
     }
-    // Resize destination to appropriate size
-    // Need to first set parms_id to zero, otherwise resize
-    // will throw an exception.
-    destination.chain_index() = 0;
-    // destination.resize(util::mul_safe(coeff_count, coeff_modulus_size));
-    destination.resize(coeff_modulus_size, coeff_count);
 
     // we can in fact find all coeff_modulus in DNTTTable structure....
-    rns_tool.base_Ql().decompose_array(destination.data(), gpu_ckks_msg_vec_.in(), sparse_slots_ << 1,
-                                       (uint32_t) slots_ / sparse_slots_, max_coeff_bit_count);
+    rns_tool.base_Ql().decompose_array(destination.data(), gpu_ckks_msg_vec_->in(), sparse_slots_ << 1,
+                                       (uint32_t) slots_ / sparse_slots_, max_coeff_bit_count, stream);
 
-    nwt_2d_radix8_forward_inplace(destination.data(), context.gpu_rns_tables(), coeff_modulus_size, 0);
+    nwt_2d_radix8_forward_inplace(destination.data(), context.gpu_rns_tables(), coeff_modulus_size, 0, stream);
 
-    destination.chain_index() = chain_index;
-    destination.scale() = scale;
-}
-
-void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, double value, size_t chain_index, double scale,
-                                         PhantomPlaintext &destination) {
-    auto &context_data = context.get_context_data(chain_index);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    auto &rns_tool = context_data.gpu_rns_tool();
-    const std::size_t coeff_modulus_size = coeff_modulus.size();
-    const std::size_t coeff_count = parms.poly_modulus_degree();
-
-    // Check that scale is positive and not too large
-    if (scale <= 0 || (static_cast<int>(log2(scale)) + 1 >= context_data.total_coeff_modulus_bit_count())) {
-        throw std::invalid_argument("scale out of bounds");
-    }
-
-    if (sparse_slots_ == 0) {
-        sparse_slots_ = slots_;
-    }
-
-    // Compute the scaled value
-    value *= scale;
-
-    int coeff_bit_count = static_cast<int>(log2(fabs(value))) + 2;
-    if (coeff_bit_count >= context_data.total_coeff_modulus_bit_count()) {
-        throw invalid_argument("encoded value is too large");
-    }
-
-    // Resize destination to appropriate size
-    // Need to first set parms_id to zero, otherwise resize
-    // will throw an exception.
-    destination.chain_index() = 0;
-    destination.resize(coeff_modulus_size, coeff_count);
-
-    // decompose and fill
-    rns_tool.base_Ql().decompose(destination.data(), value, coeff_count, coeff_bit_count);
-
-    destination.chain_index() = chain_index;
-    destination.scale() = scale;
-}
-
-void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, int64_t value, size_t chain_index,
-                                         PhantomPlaintext &destination) {
-    auto &context_data = context.get_context_data(chain_index);
-    auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    auto &rns_tool = context_data.gpu_rns_tool();
-    const std::size_t coeff_modulus_size = coeff_modulus.size();
-    const std::size_t coeff_count = parms.poly_modulus_degree();
-
-    if (sparse_slots_ == 0) {
-        sparse_slots_ = slots_;
-    }
-
-    int coeff_bit_count = static_cast<int>(log2(fabs(value))) + 2;
-    if (coeff_bit_count >= context_data.total_coeff_modulus_bit_count()) {
-        throw invalid_argument("encoded value is too large");
-    }
-
-    // Resize destination to appropriate size
-    // Need to first set parms_id to zero, otherwise resize
-    // will throw an exception.
-    destination.chain_index() = 0;
-    destination.resize(coeff_modulus_size, coeff_count);
-
-    // decompose and fill
-    rns_tool.base_Ql().decompose(destination.data(), value, coeff_count, coeff_bit_count);
-
-    destination.chain_index() = chain_index;
-    destination.scale() = 1.0;
+    destination.chain_index_ = chain_index;
+    destination.scale_ = scale;
 }
 
 void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const PhantomPlaintext &plain,
-                                         cuDoubleComplex *destination) {
-    if (!plain.is_ntt_form()) {
-        throw std::invalid_argument("plain is not in NTT form");
-    }
+                                         cuDoubleComplex *destination, const cudaStream_t &stream) {
     if (!destination) {
         throw std::invalid_argument("destination cannot be null");
     }
@@ -247,25 +172,23 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
     auto &parms = context_data.parms();
     auto &coeff_modulus = parms.coeff_modulus();
     auto &rns_tool = context_data.gpu_rns_tool();
-    const std::size_t coeff_modulus_size = coeff_modulus.size();
-    const std::size_t coeff_count = parms.poly_modulus_degree();
-    const std::size_t rns_poly_uint64_count = coeff_count * coeff_modulus_size;
+    const size_t coeff_modulus_size = coeff_modulus.size();
+    const size_t coeff_count = parms.poly_modulus_degree();
+    const size_t rns_poly_uint64_count = coeff_count * coeff_modulus_size;
 
     if (plain.scale() <= 0 ||
         (static_cast<int>(log2(plain.scale())) >= context_data.total_coeff_modulus_bit_count())) {
         throw std::invalid_argument("scale out of bounds");
     }
 
-    auto decryption_modulus = context_data.total_coeff_modulus();
     auto upper_half_threshold = context_data.upper_half_threshold();
     int logn = arith::get_power_of_two(coeff_count);
-    Pointer<uint64_t> gpu_upper_half_threshold;
-    gpu_upper_half_threshold.acquire(allocate<uint64_t>(global_pool(), upper_half_threshold.size()));
-    cudaMemcpy(gpu_upper_half_threshold.get(), upper_half_threshold.data(),
-               upper_half_threshold.size() * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    auto gpu_upper_half_threshold = cuda_make_shared<uint64_t>(upper_half_threshold.size(), stream);
+    cudaMemcpyAsync(gpu_upper_half_threshold.get(), upper_half_threshold.data(),
+                    upper_half_threshold.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
-    gpu_ckks_msg_vec_.set_sparse_slots(sparse_slots_);
-    cudaMemset(gpu_ckks_msg_vec_.in(), 0, slots_ * sizeof(cuDoubleComplex));
+    gpu_ckks_msg_vec_->set_sparse_slots(sparse_slots_);
+    cudaMemsetAsync(gpu_ckks_msg_vec_->in(), 0, slots_ * sizeof(cuDoubleComplex), stream);
 
     // Quick sanity check
     if ((logn < 0) || (coeff_count < POLY_MOD_DEGREE_MIN) || (coeff_count > POLY_MOD_DEGREE_MAX)) {
@@ -274,23 +197,23 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
 
     double inv_scale = double(1.0) / plain.scale();
     // Create mutable copy of input
-    Pointer<uint64_t> plain_copy;
-    plain_copy.acquire(allocate<uint64_t>(global_pool(), rns_poly_uint64_count));
-    cudaMemcpy(plain_copy.get(), plain.data(), rns_poly_uint64_count * sizeof(uint64_t), cudaMemcpyDeviceToDevice);
+    auto plain_copy = cuda_make_shared<uint64_t>(rns_poly_uint64_count, stream);
+    cudaMemcpyAsync(plain_copy.get(), plain.data(), rns_poly_uint64_count * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
+                    stream);
 
-    nwt_2d_radix8_backward_inplace(plain_copy.get(), context.gpu_rns_tables(), coeff_modulus_size, 0);
+    nwt_2d_radix8_backward_inplace(plain_copy.get(), context.gpu_rns_tables(), coeff_modulus_size, 0, stream);
 
     // CRT-compose the polynomial
     rns_tool.base_Ql().compose_array(gpu_ckks_msg_vec().in(), plain_copy.get(), gpu_upper_half_threshold.get(),
-                                     inv_scale, coeff_count, sparse_slots_ << 1, slots_ / sparse_slots_);
+                                     inv_scale, coeff_count, sparse_slots_ << 1, slots_ / sparse_slots_, stream);
 
-    special_fft_forward(gpu_ckks_msg_vec_);
+    special_fft_forward(*gpu_ckks_msg_vec_, stream);
 
     // finally, bit-reverse and output
-    Pointer<cuDoubleComplex> out;
-    out.acquire(allocate<cuDoubleComplex>(global_pool(), sparse_slots_));
+    auto out = cuda_make_shared<cuDoubleComplex>(sparse_slots_, stream);
     uint32_t log_sparse_n = log2(sparse_slots_);
     uint64_t gridDimGlb = ceil(sparse_slots_ / blockDimGlb.x);
-    bit_reverse<<<gridDimGlb, blockDimGlb>>>(out.get(), gpu_ckks_msg_vec_.in(), sparse_slots_, log_sparse_n);
-    cudaMemcpy(destination, out.get(), sparse_slots_ * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+    bit_reverse<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            out.get(), gpu_ckks_msg_vec_->in(), sparse_slots_, log_sparse_n);
+    cudaMemcpyAsync(destination, out.get(), sparse_slots_ * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost, stream);
 }

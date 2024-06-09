@@ -112,33 +112,4 @@ namespace phantom::arith {
         permutation_tables_ = std::shared_ptr<std::shared_ptr<uint32_t>>(
             std::vector<std::shared_ptr<uint32_t>>(coeff_count_).data());
     }
-
-    void GaloisTool::apply_galois(
-        std::uint64_t *operand, uint32_t galois_elt, const Modulus &modulus, std::uint64_t *result) const {
-        const uint64_t modulus_value = modulus.value();
-        const uint64_t coeff_count_minus_one = coeff_count_ - 1;
-        uint64_t index_raw = 0;
-        for (uint64_t i = 0; i <= coeff_count_minus_one; i++, ++operand, index_raw += galois_elt) {
-            uint64_t index = index_raw & coeff_count_minus_one;
-            uint64_t result_value = *operand;
-            if ((index_raw >> coeff_count_power_) & 1) {
-                // Explicit inline
-                // result[index] = negate_uint_mod(result[index], modulus);
-                int64_t non_zero = (result_value != 0);
-                result_value = (modulus_value - result_value) & static_cast<uint64_t>(-non_zero);
-            }
-            result[index] = result_value;
-        }
-    }
-
-    void GaloisTool::apply_galois_ntt(std::uint64_t *operand, uint32_t galois_elt, std::uint64_t *result) const {
-        generate_table_ntt(galois_elt, permutation_tables_.get()[get_index_from_elt(galois_elt)]);
-        auto table = permutation_tables_.get()[get_index_from_elt(galois_elt)];
-
-        // Perform permutation.
-        for (size_t i = 0; i < coeff_count_; i++) {
-            //result[i] = operand[table[i]];
-        }
-        //SEAL_ITERATE(iter(table, result), coeff_count_, [&](auto I) { get<1>(I) = operand[get<0>(I)]; });
-    }
 }

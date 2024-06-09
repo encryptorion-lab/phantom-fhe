@@ -162,7 +162,8 @@ namespace phantom {
                                           uint64_t temp_mod_size, uint64_t poly_modulus_degree, uint64_t *dst,
                                           const cudaStream_t &stream) const;
 
-        void hps_decrypt_scale_and_round(uint64_t *dst, const uint64_t *src) const;
+        void hps_decrypt_scale_and_round(uint64_t *dst, const uint64_t *src,
+                                         const cudaStream_t &stream) const;
 
         void scaleAndRound_HPS_QR_R(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
@@ -174,27 +175,27 @@ namespace phantom {
 
         void ExpandCRTBasis_Ql_Q_add_to_ct(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
-        void divide_and_round_q_last(const uint64_t *src, size_t cipher_size, uint64_t *dst) const;
+        void divide_and_round_q_last(const uint64_t *src, size_t cipher_size, uint64_t *dst,
+                                     const cudaStream_t &stream) const;
 
         void divide_and_round_q_last_ntt(const uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
-                                         uint64_t *dst) const;
+                                         uint64_t *dst, const cudaStream_t &stream) const;
 
-        /**
-        Compute mod t
-        **/
-        void decrypt_mod_t(uint64_t *dst, const uint64_t *src, const uint64_t poly_degree) const;
+        void decrypt_mod_t(uint64_t *dst, const uint64_t *src, const uint64_t poly_degree,
+                           const cudaStream_t &stream) const;
 
         // BEHZ step 1: Convert from base q to base Bsk U {m_tilde}
-        void fastbconv_m_tilde(uint64_t *dst, uint64_t *src) const;
+        void fastbconv_m_tilde(uint64_t *dst, uint64_t *src, const cudaStream_t &stream) const;
 
         // BEHZ step 2: Reduce q-overflows in with Montgomery reduction, switching base to Bsk
-        void sm_mrq(uint64_t *dst, const uint64_t *src) const;
+        void sm_mrq(uint64_t *dst, const uint64_t *src, const cudaStream_t &stream) const;
 
         // BEHZ step 7: divide by q and floor, producing a result in base Bsk
-        void fast_floor(uint64_t *input_base_q, uint64_t *input_base_Bsk, uint64_t *out_base_Bsk) const;
+        void fast_floor(uint64_t *input_base_q, uint64_t *input_base_Bsk, uint64_t *out_base_Bsk,
+                        const cudaStream_t &stream) const;
 
         // BEHZ step 8: use Shenoy-Kumaresan method to convert the result to base q
-        void fastbconv_sk(uint64_t *input_base_Bsk, uint64_t *out_base_q) const;
+        void fastbconv_sk(uint64_t *input_base_Bsk, uint64_t *out_base_q, const cudaStream_t &stream) const;
 
         __host__ auto *inv_prod_q_mod_Bsk() const { return inv_prod_q_mod_Bsk_.get(); }
 

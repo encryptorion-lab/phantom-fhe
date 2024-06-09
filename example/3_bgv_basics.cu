@@ -24,9 +24,9 @@ using namespace phantom::arith;
 void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV Basics" << std::endl;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
     PhantomBatchEncoder batch_encoder(context);
@@ -39,7 +39,7 @@ void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
         [ 1,  2,  3,  4,  0,  0, ...,  0 ]
         [ 0,  0,  0,  0,  0,  0, ...,  0 ]
     */
-    std::vector<int64_t> pod_matrix(slot_count, 0ULL);
+    std::vector<uint64_t> pod_matrix(slot_count, 0ULL);
     for (size_t i = 0; i < slot_count; i++) {
         pod_matrix[i] = rand() % parms.plain_modulus().value();
         // pod_matrix[i] = i;
@@ -47,14 +47,14 @@ void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
     cout << "Input vector: " << endl;
     print_vector(pod_matrix, 3, 7);
 
-    PhantomPlaintext x_plain(context);
+    PhantomPlaintext x_plain;
 
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
     batch_encoder.encode(context, pod_matrix, x_plain);
 
     // Decode check
-    vector<int64_t> result;
+    vector<uint64_t> result;
     batch_encoder.decode(context, x_plain, result);
     cout << "We can immediately decode this plaintext to check the correctness." << endl;
     print_vector(result, 3, 7);
@@ -66,10 +66,10 @@ void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
     result.clear();
 
     // Symmetric encryption check
-    PhantomCiphertext x_symmetric_cipher(context);
+    PhantomCiphertext x_symmetric_cipher;
     cout << "BGV symmetric test begin, encrypting ......" << endl;
-    secret_key.encrypt_symmetric(context, x_plain, x_symmetric_cipher, false);
-    PhantomPlaintext x_symmetric_plain(context);
+    secret_key.encrypt_symmetric(context, x_plain, x_symmetric_cipher);
+    PhantomPlaintext x_symmetric_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_symmetric_cipher, x_symmetric_plain);
     cout << "Decode the decrypted plaintext." << endl;
@@ -83,9 +83,9 @@ void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
 
     // Asymmetric encryption check
     cout << "BGV asymmetric test begin, encrypting ......" << endl;
-    PhantomCiphertext x_asymmetric_cipher(context);
-    public_key.encrypt_asymmetric(context, x_plain, x_asymmetric_cipher, false);
-    PhantomPlaintext x_asymmetric_plain(context);
+    PhantomCiphertext x_asymmetric_cipher;
+    public_key.encrypt_asymmetric(context, x_plain, x_asymmetric_cipher);
+    PhantomPlaintext x_asymmetric_plain;
     // BECAREFUL FOR THE MULTIPLICATIVE LEVEL!!!
     // cout << "We drop the ciphertext for some level, and Decrypting ......" << endl;
     // mod_switch_to_inplace(context, x_asymmetric_cipher, 3);
@@ -104,9 +104,9 @@ void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
 void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV HomAdd/HomSub test" << std::endl;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
     PhantomBatchEncoder batch_encoder(context);
@@ -119,8 +119,8 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
         [ 1,  2,  3,  4,  0,  0, ...,  0 ]
         [ 0,  0,  0,  0,  0,  0, ...,  0 ]
     */
-    std::vector<int64_t> input1(slot_count, 0ULL);
-    std::vector<int64_t> input2(slot_count, 0ULL);
+    std::vector<uint64_t> input1(slot_count, 0ULL);
+    std::vector<uint64_t> input2(slot_count, 0ULL);
     for (size_t i = 0; i < slot_count; i++) {
         input1[i] = rand() % parms.plain_modulus().value();
         input2[i] = rand() % parms.plain_modulus().value();
@@ -129,26 +129,26 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
     print_vector(input1, 3, 7);
     print_vector(input2, 3, 7);
 
-    PhantomPlaintext x_plain(context), y_plain(context);
+    PhantomPlaintext x_plain, y_plain;
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
     batch_encoder.encode(context, input1, x_plain);
     batch_encoder.encode(context, input2, y_plain);
 
-    PhantomCiphertext x_cipher(context), y_cipher(context);
+    PhantomCiphertext x_cipher, y_cipher;
     cout << "BGV HomAdd/Sub test begin, encrypting ......" << endl;
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_cipher);
 
     cout << "Homomorphic adding ......" << endl;
     add_inplace(context, y_cipher, x_cipher);
     add_inplace(context, x_cipher, y_cipher);
 
-    PhantomPlaintext x_plus_y_plain(context);
+    PhantomPlaintext x_plus_y_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_cipher, x_plus_y_plain);
 
-    vector<int64_t> result;
+    vector<uint64_t> result;
     batch_encoder.decode(context, x_plus_y_plain, result);
     cout << "Decode the decrypted plaintext." << endl;
     print_vector(result, 3, 7);
@@ -165,7 +165,7 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
     sub_inplace(context, y_cipher, x_cipher, true);
     sub_inplace(context, x_cipher, y_cipher, false);
 
-    PhantomPlaintext x_minus_y_plain(context);
+    PhantomPlaintext x_minus_y_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_cipher, x_minus_y_plain);
 
@@ -181,7 +181,7 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
     result.clear();
 
     cout << "Homomorphic add many ......" << endl;
-    vector<vector<int64_t>> input;
+    vector<vector<uint64_t>> input;
     vector<PhantomCiphertext> ciphers;
     uint64_t input_vector_size = 20;
     input.resize(input_vector_size);
@@ -195,20 +195,20 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
         cout << "Input vector " << i << " : length = " << slot_count << endl;
         print_vector(input[i], 3, 7);
 
-        PhantomPlaintext plain(context);
+        PhantomPlaintext plain;
         batch_encoder.encode(context, input[i], plain);
 
-        PhantomCiphertext cipher(context);
-        public_key.encrypt_asymmetric(context, plain, cipher, false);
+        PhantomCiphertext cipher;
+        public_key.encrypt_asymmetric(context, plain, cipher);
 
         ciphers.push_back(cipher);
     }
 
-    PhantomCiphertext sum_cipher(context);
+    PhantomCiphertext sum_cipher;
     add_many(context, ciphers, sum_cipher);
     // add(context, ciphers[0], ciphers[1], sum_cipher);
 
-    PhantomPlaintext sum_plain(context);
+    PhantomPlaintext sum_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, sum_cipher, sum_plain);
     batch_encoder.decode(context, sum_plain, result);
@@ -235,9 +235,9 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
 void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV HomAddPlain/HomSubPlain test" << std::endl;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
     PhantomBatchEncoder batch_encoder(context);
@@ -250,8 +250,8 @@ void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context)
         [ 1,  2,  3,  4,  0,  0, ...,  0 ]
         [ 0,  0,  0,  0,  0,  0, ...,  0 ]
     */
-    std::vector<int64_t> input1(slot_count, 0ULL);
-    std::vector<int64_t> input2(slot_count, 0ULL);
+    std::vector<uint64_t> input1(slot_count, 0ULL);
+    std::vector<uint64_t> input2(slot_count, 0ULL);
     for (size_t i = 0; i < slot_count; i++) {
         input1[i] = rand() % parms.plain_modulus().value();
         input2[i] = rand() % parms.plain_modulus().value();
@@ -262,22 +262,22 @@ void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context)
     print_vector(input2, 3, 7);
 
     //
-    PhantomPlaintext x_plain(context), y_plain(context);
+    PhantomPlaintext x_plain, y_plain;
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
     batch_encoder.encode(context, input1, x_plain);
     batch_encoder.encode(context, input2, y_plain);
 
-    PhantomCiphertext x_cipher(context);
+    PhantomCiphertext x_cipher;
     cout << "BGV HomAddPlain/SubPlain test begin, encrypting ......" << endl;
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
 
-    vector<int64_t> result;
+    vector<uint64_t> result;
     bool correctness = true;
     cout << "Homomorphic adding ......" << endl;
     add_plain_inplace(context, x_cipher, y_plain);
 
-    PhantomPlaintext x_plus_y_plain(context);
+    PhantomPlaintext x_plus_y_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_cipher, x_plus_y_plain);
 
@@ -296,7 +296,7 @@ void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context)
 
     sub_plain_inplace(context, x_cipher, y_plain);
 
-    PhantomPlaintext x_minus_y_plain(context);
+    PhantomPlaintext x_minus_y_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_cipher, x_minus_y_plain);
 
@@ -316,11 +316,11 @@ void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context)
 void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
     std::cout << "Example: BGV HomMul test" << std::endl;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
+    PhantomRelinKey relin_keys;
     secret_key.gen_relinkey(context, relin_keys);
 
     PhantomBatchEncoder batch_encoder(context);
@@ -333,8 +333,8 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
         [ 1,  2,  3,  4,  0,  0, ...,  0 ]
         [ 0,  0,  0,  0,  0,  0, ...,  0 ]
     */
-    std::vector<int64_t> input1(slot_count, 0ULL);
-    std::vector<int64_t> input2(slot_count, 0ULL);
+    std::vector<uint64_t> input1(slot_count, 0ULL);
+    std::vector<uint64_t> input2(slot_count, 0ULL);
     for (size_t i = 0; i < slot_count; i++) {
         input1[i] = rand() % parms.plain_modulus().value();
         input2[i] = rand() % parms.plain_modulus().value();
@@ -344,18 +344,18 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
     print_vector(input1, 3, 7);
     print_vector(input2, 3, 7);
 
-    PhantomPlaintext x_plain(context);
-    PhantomPlaintext y_plain(context);
-    PhantomPlaintext xy_plain(context);
+    PhantomPlaintext x_plain;
+    PhantomPlaintext y_plain;
+    PhantomPlaintext xy_plain;
 
     batch_encoder.encode(context, input1, x_plain);
     batch_encoder.encode(context, input2, y_plain);
 
-    PhantomCiphertext x_cipher(context);
-    PhantomCiphertext y_cipher(context);
+    PhantomCiphertext x_cipher;
+    PhantomCiphertext y_cipher;
 
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_cipher);
 
     cout << "Compute and relinearize x*y." << endl;
     multiply_inplace(context, x_cipher, y_cipher);
@@ -364,7 +364,7 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
 
     secret_key.decrypt(context, x_cipher, xy_plain);
 
-    vector<int64_t> result;
+    vector<uint64_t> result;
     batch_encoder.decode(context, xy_plain, result);
     cout << "Result vector: " << endl;
     print_vector(result, 3, 7);
@@ -388,10 +388,10 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
     cout << "Message vector: " << endl;
     print_vector(input1, 3, 7);
 
-    PhantomPlaintext xx_plain(context);
+    PhantomPlaintext xx_plain;
 
     batch_encoder.encode(context, input1, x_plain);
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
 
     cout << "Compute and relinearize x^2." << endl;
     multiply_inplace(context, x_cipher, x_cipher);

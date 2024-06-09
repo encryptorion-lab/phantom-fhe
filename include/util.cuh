@@ -25,11 +25,12 @@ template<typename T>
 inline void check(T err, const char *const func, const char *const file,
                   const int line) {
     if (err != cudaSuccess) {
-        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
+        std::cerr << std::endl
+                  << "CUDA Runtime Error at: " << file << ":" << line
                   << std::endl;
-        std::cerr << cudaGetErrorString(err) << " " << func << std::endl;
-        // We don't exit when we encounter CUDA errors in this example.
-        // std::exit(EXIT_FAILURE);
+        std::cerr << cudaGetErrorString(err) << " " << func
+                  << std::endl;
+//        std::exit(EXIT_FAILURE);
     }
 }
 
@@ -39,8 +40,7 @@ inline void checkLast(const char *const file, const int line) {
         std::cerr << "CUDA Runtime Error at: " << file << ":" << line
                   << std::endl;
         std::cerr << cudaGetErrorString(err) << std::endl;
-        // We don't exit when we encounter CUDA errors in this example.
-        // std::exit(EXIT_FAILURE);
+        std::exit(EXIT_FAILURE);
     }
 }
 
@@ -64,9 +64,7 @@ inline void print_timer_banner() {
 
 class CUDATimer {
 public:
-    explicit CUDATimer(std::string func_name) {
-        func_name_ = std::move(func_name);
-
+    explicit CUDATimer(std::string func_name) : func_name_(std::move(func_name)) {
         cudaEventCreate(&start_event_);
         cudaEventCreate(&stop_event_);
     }
@@ -85,12 +83,12 @@ public:
                   << mean_time << std::endl;
     }
 
-    inline void start() const {
-        cudaEventRecord(start_event_);
+    inline void start(const cudaStream_t &stream = nullptr) const {
+        cudaEventRecord(start_event_, stream);
     }
 
-    inline void stop() {
-        cudaEventRecord(stop_event_);
+    inline void stop(const cudaStream_t &stream = nullptr) {
+        cudaEventRecord(stop_event_, stream);
         cudaEventSynchronize(stop_event_);
         float milliseconds = 0;
         cudaEventElapsedTime(&milliseconds, start_event_, stop_event_);

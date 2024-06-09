@@ -25,9 +25,9 @@ using namespace phantom::arith;
 void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
     std::cout << "Example: CKKS Basics" << std::endl;
 
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
 
     PhantomCKKSEncoder encoder(context);
@@ -41,15 +41,15 @@ void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, cons
     double rand_imag;
     // srand(time(0));
     for (size_t i = 0; i < msg_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         input.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Input vector: " << endl;
     print_vector(input, 3, 7);
 
     //
-    PhantomPlaintext x_plain(context);
+    PhantomPlaintext x_plain;
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
     encoder.encode(context, input, scale, x_plain);
@@ -69,10 +69,10 @@ void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, cons
     result.clear();
 
     // Symmetric encryption check
-    PhantomCiphertext x_symmetric_cipher(context);
+    PhantomCiphertext x_symmetric_cipher;
     cout << "CKKS symmetric test begin, encrypting ......" << endl;
-    secret_key.encrypt_symmetric(context, x_plain, x_symmetric_cipher, false);
-    PhantomPlaintext x_symmetric_plain(context);
+    secret_key.encrypt_symmetric(context, x_plain, x_symmetric_cipher);
+    PhantomPlaintext x_symmetric_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_symmetric_cipher, x_symmetric_plain);
     cout << "Decode the decrypted plaintext." << endl;
@@ -88,9 +88,9 @@ void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, cons
 
     // Asymmetric encryption check
     cout << "CKKS asymmetric test begin, encrypting ......" << endl;
-    PhantomCiphertext x_asymmetric_cipher(context);
-    public_key.encrypt_asymmetric(context, x_plain, x_asymmetric_cipher, false);
-    PhantomPlaintext x_asymmetric_plain(context);
+    PhantomCiphertext x_asymmetric_cipher;
+    public_key.encrypt_asymmetric(context, x_plain, x_asymmetric_cipher);
+    PhantomPlaintext x_asymmetric_plain;
     // BECAREFUL FOR THE MULTIPLICATIVE LEVEL!!!
     // cout << "We drop the ciphertext for some level, and Decrypting ......" << endl;
     // mod_switch_to_inplace(context, x_asymmetric_cipher, 3);
@@ -112,9 +112,9 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     std::cout << "Example: CKKS evaluation" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
     PhantomCKKSEncoder encoder(context);
 
@@ -129,13 +129,13 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     double rand_real, rand_imag;
     srand(time(0));
     for (size_t i = 0; i < msg_size1; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         input1.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     for (size_t i = 0; i < msg_size2; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         input2.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
 
@@ -144,21 +144,21 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     cout << "Input vector 2: length = " << msg_size2 << endl;
     print_vector(input2, 3, 7);
 
-    PhantomPlaintext x_plain(context), y_plain(context);
+    PhantomPlaintext x_plain, y_plain;
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
     encoder.encode(context, input1, scale, x_plain);
     encoder.encode(context, input2, scale, y_plain);
 
-    PhantomCiphertext x_sym_cipher(context), y_sym_cipher(context);
+    PhantomCiphertext x_sym_cipher, y_sym_cipher;
     cout << "CKKS symmetric HomAdd/Sub test begin, encrypting ......" << endl;
-    secret_key.encrypt_symmetric(context, x_plain, x_sym_cipher, false);
-    secret_key.encrypt_symmetric(context, y_plain, y_sym_cipher, false);
+    secret_key.encrypt_symmetric(context, x_plain, x_sym_cipher);
+    secret_key.encrypt_symmetric(context, y_plain, y_sym_cipher);
 
     cout << "Homomorphic adding ......" << endl;
     add_inplace(context, x_sym_cipher, y_sym_cipher);
 
-    PhantomPlaintext x_plus_y_sym_plain(context);
+    PhantomPlaintext x_plus_y_sym_plain;
     cout << "Decrypting ......" << endl;
 
     secret_key.decrypt(context, x_sym_cipher, x_plus_y_sym_plain);
@@ -182,7 +182,7 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     cout << "Homomorphic subtracting ......" << endl;
     sub_inplace(context, x_sym_cipher, y_sym_cipher);
 
-    PhantomPlaintext x_minus_y_sym_plain(context);
+    PhantomPlaintext x_minus_y_sym_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_sym_cipher, x_minus_y_sym_plain);
     encoder.decode(context, x_minus_y_sym_plain, result);
@@ -196,15 +196,15 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
         throw std::logic_error("Symmetric HomSub error");
     result.clear();
 
-    PhantomCiphertext x_asym_cipher(context), y_asym_cipher(context);
+    PhantomCiphertext x_asym_cipher, y_asym_cipher;
     cout << "CKKS asymmetric HomAdd/Sub test begin, encrypting ......" << endl;
-    public_key.encrypt_asymmetric(context, x_plain, x_asym_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_asym_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_asym_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_asym_cipher);
 
     cout << "Homomorphic adding ......" << endl;
     add_inplace(context, y_asym_cipher, x_asym_cipher);
 
-    PhantomPlaintext x_plus_y_asym_plain(context);
+    PhantomPlaintext x_plus_y_asym_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, y_asym_cipher, x_plus_y_asym_plain);
     encoder.decode(context, x_plus_y_asym_plain, result);
@@ -226,7 +226,7 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
     cout << "Homomorphic subtracting ......" << endl;
     sub_inplace(context, x_asym_cipher, y_asym_cipher, true);
 
-    PhantomPlaintext x_minus_y_asym_plain(context);
+    PhantomPlaintext x_minus_y_asym_plain;
     cout << "Decrypting ......" << endl;
     secret_key.decrypt(context, x_asym_cipher, x_minus_y_asym_plain);
     encoder.decode(context, x_minus_y_asym_plain, result);
@@ -251,19 +251,19 @@ void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, cons
         input[i].reserve(msg_size);
         double rand_real, rand_imag;
         for (size_t j = 0; j < msg_size1; j++) {
-            rand_real = (double)rand() / RAND_MAX;
-            rand_imag = (double)rand() / RAND_MAX;
+            rand_real = (double) rand() / RAND_MAX;
+            rand_imag = (double) rand() / RAND_MAX;
             input[i].push_back(make_cuDoubleComplex(rand_real, rand_imag));
         }
 
         cout << "Input vector " << i << " : length = " << msg_size << endl;
         print_vector(input[i], 3, 7);
 
-        PhantomPlaintext plain(context);
+        PhantomPlaintext plain;
         encoder.encode(context, input[i], scale, plain);
 
-        PhantomCiphertext asym_cipher(context);
-        public_key.encrypt_asymmetric(context, plain, asym_cipher, false);
+        PhantomCiphertext asym_cipher;
+        public_key.encrypt_asymmetric(context, plain, asym_cipher);
 
         ciphers.push_back(asym_cipher);
     }
@@ -303,9 +303,9 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     std::cout << "Example: CKKS cipher multiply plain vector" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
     PhantomCKKSEncoder encoder(context);
 
@@ -322,8 +322,8 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
 
     msg_vec.reserve(msg_size);
     for (size_t i = 0; i < msg_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         msg_vec.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Message vector: " << endl;
@@ -331,14 +331,14 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
 
     const_vec.reserve(const_size);
     for (size_t i = 0; i < const_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         const_vec.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Constant vector: " << endl;
     print_vector(const_vec, 3, 7);
 
-    PhantomPlaintext plain(context), const_plain(context);
+    PhantomPlaintext plain, const_plain;
     // All messages should be with the same length.
     // CKKS encoder can zero-pad messages to the [encoding length]
     // the [encoding length] is determined by the first encoded message
@@ -349,8 +349,8 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     encoder.encode(context, msg_vec, scale, plain);
     encoder.encode(context, const_vec, scale, const_plain);
 
-    PhantomCiphertext sym_cipher(context);
-    secret_key.encrypt_symmetric(context, plain, sym_cipher, false);
+    PhantomCiphertext sym_cipher;
+    secret_key.encrypt_symmetric(context, plain, sym_cipher);
     multiply_plain_inplace(context, sym_cipher, const_plain);
 
     secret_key.decrypt(context, sym_cipher, plain);
@@ -376,8 +376,8 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     msg_size >>= 2;
     msg_vec.reserve(msg_size);
     for (size_t i = 0; i < msg_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         msg_vec.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Message vector: " << endl;
@@ -389,11 +389,10 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     // to the same length with msg_vec
     for (size_t i = 0; i < 128; i++) {
         if (i == 2) {
-            rand_real = (double)rand() / RAND_MAX;
-            rand_imag = (double)rand() / RAND_MAX;
+            rand_real = (double) rand() / RAND_MAX;
+            rand_imag = (double) rand() / RAND_MAX;
             const_vec.push_back(make_cuDoubleComplex(rand_real, rand_imag));
-        }
-        else
+        } else
             const_vec.push_back(make_cuDoubleComplex(0.0, 0.0));
     }
     cout << "Constant vector: " << endl;
@@ -404,8 +403,8 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     encoder.encode(context, msg_vec, scale, plain);
     encoder.encode(context, const_vec, scale, const_plain);
 
-    PhantomCiphertext asym_cipher(context);
-    public_key.encrypt_asymmetric(context, plain, asym_cipher, false);
+    PhantomCiphertext asym_cipher;
+    public_key.encrypt_asymmetric(context, plain, asym_cipher);
     multiply_plain_inplace(context, asym_cipher, const_plain);
 
     secret_key.decrypt(context, asym_cipher, plain);
@@ -431,11 +430,11 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
     std::cout << "Example: CKKS HomMul test" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
+    PhantomRelinKey relin_keys;
     secret_key.gen_relinkey(context, relin_keys);
 
     PhantomCKKSEncoder encoder(context);
@@ -450,8 +449,8 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
     size_t y_size = slot_count;
     x_msg.reserve(x_size);
     for (size_t i = 0; i < x_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         x_msg.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Message vector: " << endl;
@@ -459,26 +458,25 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
 
     y_msg.reserve(y_size);
     for (size_t i = 0; i < y_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         y_msg.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Message vector: " << endl;
     print_vector(y_msg, 3, 7);
 
-    PhantomPlaintext x_plain(context);
-    PhantomPlaintext y_plain(context);
-    PhantomPlaintext xy_plain(context);
+    PhantomPlaintext x_plain;
+    PhantomPlaintext y_plain;
+    PhantomPlaintext xy_plain;
 
     encoder.encode(context, x_msg, scale, x_plain);
     encoder.encode(context, y_msg, scale, y_plain);
 
-    PhantomCiphertext x_cipher(context);
-    PhantomCiphertext y_cipher(context);
+    PhantomCiphertext x_cipher;
+    PhantomCiphertext y_cipher;
 
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
-    public_key.encrypt_asymmetric(context, y_plain, y_cipher, false);
-
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
+    public_key.encrypt_asymmetric(context, y_plain, y_cipher);
     cout << "Compute, relinearize, and rescale x*y." << endl;
     multiply_inplace(context, x_cipher, y_cipher);
     relinearize_inplace(context, x_cipher, relin_keys);
@@ -506,11 +504,11 @@ void example_ckks_rotation(EncryptionParameters &parms, PhantomContext &context,
     std::cout << "Example: CKKS HomRot test" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key(parms);
+    PhantomSecretKey secret_key;
     secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
+    PhantomPublicKey public_key;
     secret_key.gen_publickey(context, public_key);
-    PhantomGaloisKey galois_keys(context);
+    PhantomGaloisKey galois_keys;
     secret_key.create_galois_keys(context, galois_keys);
 
     int step = 3;
@@ -526,21 +524,21 @@ void example_ckks_rotation(EncryptionParameters &parms, PhantomContext &context,
     size_t x_size = slot_count;
     x_msg.reserve(x_size);
     for (size_t i = 0; i < x_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         x_msg.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Message vector: " << endl;
     print_vector(x_msg, 3, 7);
 
-    PhantomPlaintext x_plain(context);
-    PhantomPlaintext x_rot_plain(context);
+    PhantomPlaintext x_plain;
+    PhantomPlaintext x_rot_plain;
 
     encoder.encode(context, x_msg, scale, x_plain);
 
-    PhantomCiphertext x_cipher(context);
+    PhantomCiphertext x_cipher;
 
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
 
     cout << "Compute, rot vector x." << endl;
     rotate_vector_inplace(context, x_cipher, step, galois_keys);
@@ -564,17 +562,17 @@ void example_ckks_rotation(EncryptionParameters &parms, PhantomContext &context,
 
     x_msg.reserve(x_size);
     for (size_t i = 0; i < x_size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
+        rand_real = (double) rand() / RAND_MAX;
+        rand_imag = (double) rand() / RAND_MAX;
         x_msg.push_back(make_cuDoubleComplex(rand_real, rand_imag));
     }
     cout << "Message vector: " << endl;
     print_vector(x_msg, 3, 7);
 
-    PhantomPlaintext x_conj_plain(context);
+    PhantomPlaintext x_conj_plain;
 
     encoder.encode(context, x_msg, scale, x_plain);
-    public_key.encrypt_asymmetric(context, x_plain, x_cipher, false);
+    public_key.encrypt_asymmetric(context, x_plain, x_cipher);
 
     cout << "Compute, conjugate vector x." << endl;
     complex_conjugate_inplace(context, x_cipher, galois_keys);
@@ -593,471 +591,6 @@ void example_ckks_rotation(EncryptionParameters &parms, PhantomContext &context,
         throw std::logic_error("Homomorphic conjugate error");
     result.clear();
     x_msg.clear();
-}
-
-void example_ckks_basics(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
-    std::cout << "Example: CKKS Basics" << std::endl;
-
-    PhantomSecretKey secret_key(parms);
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
-    secret_key.gen_relinkey(context, relin_keys);
-    PhantomCKKSEncoder encoder(context);
-
-    size_t slot_count = encoder.slot_count();
-    cout << "Number of slots: " << slot_count << endl;
-
-    vector<cuDoubleComplex> input;
-    double rand_real, rand_imag;
-    size_t size = slot_count;
-    input.reserve(size);
-    for (size_t i = 0; i < size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
-        input.push_back(make_cuDoubleComplex(rand_real, rand_imag));
-    }
-    cout << "Input vector: " << endl;
-    print_vector(input, 3, 7);
-
-    // cout << "Evaluating polynomial PI*x^3 + 0.4x + 1 ..." << endl;
-
-    /*
-    We create plaintexts for PI, 0.4, and 1 using an overload of CKKSEncoder::encode
-    that encodes the given floating-point value to every slot in the vector.
-    */
-    PhantomPlaintext plain_coeff3(context), plain_coeff1(context), plain_coeff0(context);
-    encoder.encode(context, 3.14159265, scale, plain_coeff3);
-    encoder.encode(context, 0.4, scale, plain_coeff1);
-    encoder.encode(context, 1.0, scale, plain_coeff0);
-
-    PhantomPlaintext x_plain(context);
-    print_line(__LINE__);
-    cout << "Encode input vectors." << endl;
-    encoder.encode(context, input, scale, x_plain);
-    PhantomCiphertext x1_encrypted(context);
-    public_key.encrypt_asymmetric(context, x_plain, x1_encrypted, false);
-
-    /*
-    To compute x^3 we first compute x^2 and relinearize. However, the scale has
-    now grown to 2^80.
-    */
-    PhantomCiphertext x3_encrypted(context);
-    print_line(__LINE__);
-    cout << "Compute x^2 and relinearize:" << endl;
-    x3_encrypted = x1_encrypted;
-    multiply_inplace(context, x3_encrypted, x3_encrypted);
-    relinearize_inplace(context, x3_encrypted, relin_keys);
-    cout << "    + Scale of x^2 before rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Now rescale; in addition to a modulus switch, the scale is reduced down by
-    a factor equal to the prime that was switched away (40-bit prime). Hence, the
-    new scale should be close to 2^40. Note, however, that the scale is not equal
-    to 2^40: this is because the 40-bit prime is only close to 2^40.
-    */
-    print_line(__LINE__);
-    cout << "Rescale x^2." << endl;
-    rescale_to_next_inplace(context, x3_encrypted);
-    cout << "    + Scale of x^2 after rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Now x3_encrypted is at a different level than x1_encrypted, which prevents us
-    from multiplying them to compute x^3. We could simply switch x1_encrypted to
-    the next parameters in the modulus switching chain. However, since we still
-    need to multiply the x^3 term with PI (plain_coeff3), we instead compute PI*x
-    first and multiply that with x^2 to obtain PI*x^3. To this end, we compute
-    PI*x and rescale it back from scale 2^80 to something close to 2^40.
-    */
-    print_line(__LINE__);
-    cout << "Compute and rescale PI*x." << endl;
-    PhantomCiphertext x1_encrypted_coeff3(context);
-    x1_encrypted_coeff3 = x1_encrypted;
-    multiply_plain_inplace(context, x1_encrypted_coeff3, plain_coeff3);
-    cout << "    + Scale of PI*x before rescale: " << log2(x1_encrypted_coeff3.scale()) << " bits" << endl;
-    rescale_to_next_inplace(context, x1_encrypted_coeff3);
-    cout << "    + Scale of PI*x after rescale: " << log2(x1_encrypted_coeff3.scale()) << " bits" << endl;
-
-    /*
-    Since x3_encrypted and x1_encrypted_coeff3 have the same exact scale and use
-    the same encryption parameters, we can multiply them together. We write the
-    result to x3_encrypted, relinearize, and rescale. Note that again the scale
-    is something close to 2^40, but not exactly 2^40 due to yet another scaling
-    by a prime. We are down to the last level in the modulus switching chain.
-    */
-    print_line(__LINE__);
-    cout << "Compute, relinearize, and rescale (PI*x)*x^2." << endl;
-    multiply_inplace(context, x3_encrypted, x1_encrypted_coeff3);
-    relinearize_inplace(context, x3_encrypted, relin_keys);
-    cout << "    + Scale of PI*x^3 before rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-    rescale_to_next_inplace(context, x3_encrypted);
-    cout << "    + Scale of PI*x^3 after rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-
-    // PhantomPlaintext plain_result(context);
-    // print_line(__LINE__);
-    // cout << "Decrypt and decode PI*x^3." << endl;
-    // cout << "    + Expected result:" << endl;
-    // vector<cuDoubleComplex> true_result;
-    // for (size_t i = 0; i < input.size(); i++)
-    // {
-    //     auto x = input[i];
-    //     auto x3 = cuCmul(cuCmul(x, x), make_cuDoubleComplex(x.x * 3.14159265, x.y * 3.14159265));
-    //     true_result.push_back(x3);
-    // }
-    // print_vector(true_result, 3, 7);
-
-    // cout << "===================== decrypt ============================" << endl;
-    // secret_key.decrypt(context, x3_encrypted, plain_result);
-    // vector<cuDoubleComplex> result;
-    // encoder.decode(context, plain_result, result);
-    // print_vector(result, 3, 7);
-    // bool correctness = true;
-    // for (size_t i = 0; i < size; i++)
-    // {
-    //     correctness &= result[i] == true_result[i];
-    // }
-    // if (correctness)
-    //     cout << "    + Computed result ...... Correct." << endl
-    //          << endl
-    //          << "---------------------------------------" << endl;
-    // if (!correctness)
-    //     cout << "    + Computed result ...... inCorrect!!!!!!!!!!!!" << endl
-    //          << endl
-    //          << "---------------------------------------" << endl;
-
-    /*
-    Next we compute the degree one term. All this requires is one multiply_plain
-    with plain_coeff1. We overwrite x1_encrypted with the result.
-    */
-    print_line(__LINE__);
-    cout << "Compute and rescale 0.4*x." << endl;
-    multiply_plain_inplace(context, x1_encrypted, plain_coeff1);
-    cout << "    + Scale of 0.4*x before rescale: " << log2(x1_encrypted.scale()) << " bits" << endl;
-    rescale_to_next_inplace(context, x1_encrypted);
-    cout << "    + Scale of 0.4*x after rescale: " << log2(x1_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Now we would hope to compute the sum of all three terms. However, there is
-    a serious problem: the encryption parameters used by all three terms are
-    different due to modulus switching from rescaling.
-
-    Encrypted addition and subtraction require that the scales of the inputs are
-    the same, and also that the encryption parameters (parms_id) match. If there
-    is a mismatch, Evaluator will throw an exception.
-    */
-    cout << endl;
-    print_line(__LINE__);
-    cout << "Parameters used by all three terms are different." << endl;
-    cout << "    + Modulus chain index for x3_encrypted: " << x3_encrypted.chain_index() << endl;
-    cout << "    + Modulus chain index for x1_encrypted: " << x1_encrypted.chain_index() << endl;
-    cout << "    + Modulus chain index for plain_coeff0: " << plain_coeff0.chain_index() << endl;
-    cout << endl;
-
-    /*
-    Let us carefully consider what the scales are at this point. We denote the
-    primes in coeff_modulus as P_0, P_1, P_2, P_3, in this order. P_3 is used as
-    the special modulus and is not involved in rescalings. After the computations
-    above the scales in ciphertexts are:
-
-        - Product x^2 has scale 2^80 and is at level 2;
-        - Product PI*x has scale 2^80 and is at level 2;
-        - We rescaled both down to scale 2^80/P_2 and level 1;
-        - Product PI*x^3 has scale (2^80/P_2)^2;
-        - We rescaled it down to scale (2^80/P_2)^2/P_1 and level 0;
-        - Product 0.4*x has scale 2^80;
-        - We rescaled it down to scale 2^80/P_2 and level 1;
-        - The contant term 1 has scale 2^40 and is at level 2.
-
-    Although the scales of all three terms are approximately 2^40, their exact
-    values are different, hence they cannot be added together.
-    */
-    print_line(__LINE__);
-    cout << "The exact scales of all three terms are different:" << endl;
-    ios old_fmt(nullptr);
-    old_fmt.copyfmt(cout);
-    cout << fixed << setprecision(10);
-    cout << "    + Exact scale in PI*x^3: " << x3_encrypted.scale() << endl;
-    cout << "    + Exact scale in  0.4*x: " << x1_encrypted.scale() << endl;
-    cout << "    + Exact scale in      1: " << plain_coeff0.scale() << endl;
-    cout << endl;
-    cout.copyfmt(old_fmt);
-
-    print_line(__LINE__);
-    cout << "Normalize scales to scale." << endl;
-    x3_encrypted.scale() = scale;
-    x1_encrypted.scale() = scale;
-
-    /*
-    We still have a problem with mismatching encryption parameters. This is easy
-    to fix by using traditional modulus switching (no rescaling). CKKS supports
-    modulus switching just like the BFV scheme, allowing us to switch away parts
-    of the coefficient modulus when it is simply not needed.
-    */
-    print_line(__LINE__);
-    cout << "Normalize encryption parameters to the lowest level." << endl;
-    auto last_chain_index = x3_encrypted.chain_index();
-    cout << endl << x3_encrypted.chain_index() << endl;
-    mod_switch_to_inplace(context, x3_encrypted, last_chain_index);
-    mod_switch_to_inplace(context, x1_encrypted, last_chain_index);
-    mod_switch_to_inplace(context, plain_coeff0, last_chain_index);
-
-    /*
-    All three ciphertexts are now compatible and can be added.
-    */
-    print_line(__LINE__);
-    cout << "Compute PI*x^3 + 0.4*x + 1." << endl;
-    PhantomCiphertext encrypted_result(context);
-    encrypted_result = x3_encrypted;
-    add_inplace(context, encrypted_result, x1_encrypted);
-    add_plain_inplace(context, encrypted_result, plain_coeff0);
-
-    /*
-    First print the true result.
-    */
-    PhantomPlaintext plain_result(context);
-    print_line(__LINE__);
-    cout << "Decrypt and decode PI*x^3 + 0.4x + 1." << endl;
-    cout << "    + Expected result:" << endl;
-    vector<cuDoubleComplex> true_result;
-    for (size_t i = 0; i < input.size(); i++) {
-        auto x = input[i];
-        auto x3 = cuCmul(cuCmul(x, x), make_cuDoubleComplex(x.x * 3.14159265, x.y * 3.14159265));
-        auto x1 = make_cuDoubleComplex(x.x * 0.4, x.y * 0.4);
-        true_result.push_back(make_cuDoubleComplex(x3.x + x1.x + 1, x3.y + x1.y));
-    }
-    print_vector(true_result, 3, 7);
-
-    /*
-    Decrypt, decode, and print the result.
-    */
-    cout << "===================== decrypt ============================" << endl;
-    secret_key.decrypt(context, encrypted_result, plain_result);
-    vector<cuDoubleComplex> result;
-    encoder.decode(context, plain_result, result);
-    print_vector(result, 3, 7);
-    bool correctness = true;
-    for (size_t i = 0; i < size; i++) {
-        correctness &= result[i] == true_result[i];
-    }
-    if (!correctness)
-        throw std::logic_error("CKKS basics error");
-    result.clear();
-}
-
-void example_ckks_stress_test(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
-    PhantomSecretKey secret_key(parms);
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key(context);
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys(context);
-    secret_key.gen_relinkey(context, relin_keys);
-    PhantomCKKSEncoder encoder(context);
-
-    size_t slot_count = encoder.slot_count();
-
-    vector<cuDoubleComplex> input;
-    double rand_real, rand_imag;
-    size_t size = slot_count;
-    input.reserve(size);
-    for (size_t i = 0; i < size; i++) {
-        rand_real = (double)rand() / RAND_MAX;
-        rand_imag = (double)rand() / RAND_MAX;
-        input.push_back(make_cuDoubleComplex(rand_real, rand_imag));
-    }
-    // cout << "Input vector: " << endl;
-    // print_vector(input, 3, 7);
-
-    // cout << "Evaluating polynomial PI*x^3 + 0.4x + 1 ..." << endl;
-
-    /*
-    We create plaintexts for PI, 0.4, and 1 using an overload of CKKSEncoder::encode
-    that encodes the given floating-point value to every slot in the vector.
-    */
-    PhantomPlaintext plain_coeff3(context), plain_coeff1(context), plain_coeff0(context);
-    encoder.encode(context, 3.14159265, scale, plain_coeff3);
-    encoder.encode(context, 0.4, scale, plain_coeff1);
-    encoder.encode(context, 1.0, scale, plain_coeff0);
-
-    PhantomPlaintext x_plain(context);
-    // print_line(__LINE__);
-    // cout << "Encode input vectors." << endl;
-    encoder.encode(context, input, scale, x_plain);
-    PhantomCiphertext x1_encrypted(context);
-    public_key.encrypt_asymmetric(context, x_plain, x1_encrypted, false);
-
-    /*
-    To compute x^3 we first compute x^2 and relinearize. However, the scale has
-    now grown to 2^80.
-    */
-    PhantomCiphertext x3_encrypted(context);
-    // print_line(__LINE__);
-    // cout << "Compute x^2 and relinearize:" << endl;
-    x3_encrypted = x1_encrypted;
-    multiply_inplace(context, x3_encrypted, x3_encrypted);
-    relinearize_inplace(context, x3_encrypted, relin_keys);
-    // cout << "    + Scale of x^2 before rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Now rescale; in addition to a modulus switch, the scale is reduced down by
-    a factor equal to the prime that was switched away (40-bit prime). Hence, the
-    new scale should be close to 2^40. Note, however, that the scale is not equal
-    to 2^40: this is because the 40-bit prime is only close to 2^40.
-    */
-    // print_line(__LINE__);
-    // cout << "Rescale x^2." << endl;
-    rescale_to_next_inplace(context, x3_encrypted);
-    // cout << "    + Scale of x^2 after rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Now x3_encrypted is at a different level than x1_encrypted, which prevents us
-    from multiplying them to compute x^3. We could simply switch x1_encrypted to
-    the next parameters in the modulus switching chain. However, since we still
-    need to multiply the x^3 term with PI (plain_coeff3), we instead compute PI*x
-    first and multiply that with x^2 to obtain PI*x^3. To this end, we compute
-    PI*x and rescale it back from scale 2^80 to something close to 2^40.
-    */
-    // print_line(__LINE__);
-    // cout << "Compute and rescale PI*x." << endl;
-    PhantomCiphertext x1_encrypted_coeff3(context);
-    x1_encrypted_coeff3 = x1_encrypted;
-    multiply_plain_inplace(context, x1_encrypted_coeff3, plain_coeff3);
-    // cout << "    + Scale of PI*x before rescale: " << log2(x1_encrypted_coeff3.scale()) << " bits" << endl;
-    rescale_to_next_inplace(context, x1_encrypted_coeff3);
-    // cout << "    + Scale of PI*x after rescale: " << log2(x1_encrypted_coeff3.scale()) << " bits" << endl;
-
-    /*
-    Since x3_encrypted and x1_encrypted_coeff3 have the same exact scale and use
-    the same encryption parameters, we can multiply them together. We write the
-    result to x3_encrypted, relinearize, and rescale. Note that again the scale
-    is something close to 2^40, but not exactly 2^40 due to yet another scaling
-    by a prime. We are down to the last level in the modulus switching chain.
-    */
-    // print_line(__LINE__);
-    // cout << "Compute, relinearize, and rescale (PI*x)*x^2." << endl;
-    multiply_inplace(context, x3_encrypted, x1_encrypted_coeff3);
-    relinearize_inplace(context, x3_encrypted, relin_keys);
-    // cout << "    + Scale of PI*x^3 before rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-    rescale_to_next_inplace(context, x3_encrypted);
-    // cout << "    + Scale of PI*x^3 after rescale: " << log2(x3_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Next we compute the degree one term. All this requires is one multiply_plain
-    with plain_coeff1. We overwrite x1_encrypted with the result.
-    */
-    // print_line(__LINE__);
-    // cout << "Compute and rescale 0.4*x." << endl;
-    multiply_plain_inplace(context, x1_encrypted, plain_coeff1);
-    // cout << "    + Scale of 0.4*x before rescale: " << log2(x1_encrypted.scale()) << " bits" << endl;
-    rescale_to_next_inplace(context, x1_encrypted);
-    // cout << "    + Scale of 0.4*x after rescale: " << log2(x1_encrypted.scale()) << " bits" << endl;
-
-    /*
-    Now we would hope to compute the sum of all three terms. However, there is
-    a serious problem: the encryption parameters used by all three terms are
-    different due to modulus switching from rescaling.
-
-    Encrypted addition and subtraction require that the scales of the inputs are
-    the same, and also that the encryption parameters (parms_id) match. If there
-    is a mismatch, Evaluator will throw an exception.
-    */
-    // cout << endl;
-    // print_line(__LINE__);
-    // cout << "Parameters used by all three terms are different." << endl;
-    // cout << "    + Modulus chain index for x3_encrypted: "
-    //      << x3_encrypted.chain_index() << endl;
-    // cout << "    + Modulus chain index for x1_encrypted: "
-    //      << x1_encrypted.chain_index() << endl;
-    // cout << "    + Modulus chain index for plain_coeff0: "
-    //      << plain_coeff0.chain_index() << endl;
-    // cout << endl;
-
-    /*
-    Let us carefully consider what the scales are at this point. We denote the
-    primes in coeff_modulus as P_0, P_1, P_2, P_3, in this order. P_3 is used as
-    the special modulus and is not involved in rescalings. After the computations
-    above the scales in ciphertexts are:
-
-        - Product x^2 has scale 2^80 and is at level 2;
-        - Product PI*x has scale 2^80 and is at level 2;
-        - We rescaled both down to scale 2^80/P_2 and level 1;
-        - Product PI*x^3 has scale (2^80/P_2)^2;
-        - We rescaled it down to scale (2^80/P_2)^2/P_1 and level 0;
-        - Product 0.4*x has scale 2^80;
-        - We rescaled it down to scale 2^80/P_2 and level 1;
-        - The contant term 1 has scale 2^40 and is at level 2.
-
-    Although the scales of all three terms are approximately 2^40, their exact
-    values are different, hence they cannot be added together.
-    */
-    // print_line(__LINE__);
-    // cout << "The exact scales of all three terms are different:" << endl;
-    // ios old_fmt(nullptr);
-    // old_fmt.copyfmt(cout);
-    // cout << fixed << setprecision(10);
-    // cout << "    + Exact scale in PI*x^3: " << x3_encrypted.scale() << endl;
-    // cout << "    + Exact scale in  0.4*x: " << x1_encrypted.scale() << endl;
-    // cout << "    + Exact scale in      1: " << plain_coeff0.scale() << endl;
-    // cout << endl;
-    // cout.copyfmt(old_fmt);
-
-    x3_encrypted.scale() = scale;
-    x1_encrypted.scale() = scale;
-
-    /*
-    We still have a problem with mismatching encryption parameters. This is easy
-    to fix by using traditional modulus switching (no rescaling). CKKS supports
-    modulus switching just like the BFV scheme, allowing us to switch away parts
-    of the coefficient modulus when it is simply not needed.
-    */
-    // print_line(__LINE__);
-    // cout << "Normalize encryption parameters to the lowest level." << endl;
-    auto last_chain_index = x3_encrypted.chain_index();
-    // cout << endl
-    //      << x3_encrypted.chain_index() << endl;
-    mod_switch_to_inplace(context, x1_encrypted, last_chain_index);
-    mod_switch_to_inplace(context, plain_coeff0, last_chain_index);
-
-    /*
-    All three ciphertexts are now compatible and can be added.
-    */
-    // print_line(__LINE__);
-    // cout << "Compute PI*x^3 + 0.4*x + 1." << endl;
-    PhantomCiphertext encrypted_result(context);
-    encrypted_result = x3_encrypted;
-    add_inplace(context, encrypted_result, x1_encrypted);
-    add_plain_inplace(context, encrypted_result, plain_coeff0);
-
-    /*
-    First print the true result.
-    */
-    PhantomPlaintext plain_result(context);
-    // print_line(__LINE__);
-    // cout << "Decrypt and decode PI*x^3 + 0.4x + 1." << endl;
-    // cout << "    + Expected result:" << endl;
-    vector<cuDoubleComplex> true_result;
-    for (size_t i = 0; i < input.size(); i++) {
-        auto x = input[i];
-        auto x3 = cuCmul(cuCmul(x, x), make_cuDoubleComplex(x.x * 3.14159265, x.y * 3.14159265));
-        auto x1 = make_cuDoubleComplex(x.x * 0.4, x.y * 0.4);
-        true_result.push_back(make_cuDoubleComplex(x3.x + x1.x + 1, x3.y + x1.y));
-    }
-    // print_vector(true_result, 3, 7);
-
-    /*
-    Decrypt, decode, and print the result.
-    */
-    // cout << "===================== decrypt ============================" << endl;
-    secret_key.decrypt(context, encrypted_result, plain_result);
-    vector<cuDoubleComplex> result;
-    encoder.decode(context, plain_result, result);
-    // print_vector(result, 3, 7);
-    bool correctness = true;
-    for (size_t i = 0; i < size; i++)
-        correctness &= result[i] == true_result[i];
-    if (!correctness)
-        throw std::logic_error("Stress test error");
-    result.clear();
 }
 
 void examples_ckks() {
@@ -1168,15 +701,11 @@ void examples_ckks() {
         print_parameters(context);
         cout << endl;
 
-        example_ckks_enc(parms, context, scale);
-        example_ckks_add(parms, context, scale);
-        example_ckks_mul_plain(parms, context, scale);
+//        example_ckks_enc(parms, context, scale);
+//        example_ckks_add(parms, context, scale);
+//        example_ckks_mul_plain(parms, context, scale);
         example_ckks_mul(parms, context, scale);
         example_ckks_rotation(parms, context, scale);
-        //        example_ckks_basics(parms, context, scale);
-        //        for (auto i = 0; i < 1000; i++) {
-        //            example_ckks_stress_test(parms, context, scale);
-        //        }
     }
     cout << endl;
 }

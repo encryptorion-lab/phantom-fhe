@@ -836,7 +836,6 @@ void nwt_2d_radix8_forward_inplace(uint64_t *inout,
     size_t phase1_sample_size = SAMPLE_SIZE(poly_degree);
     const size_t phase2_sample_size = poly_degree / phase1_sample_size;
     const size_t per_block_memory = blockDimNTT.x * per_thread_sample_size * sizeof(uint64_t);
-    //
     inplace_fnwt_radix8_phase1<<<
     gridDimNTT, (phase1_sample_size / 8) * per_block_pad,
     (phase1_sample_size + per_block_pad + 1) * per_block_pad * sizeof(uint64_t), stream>>>(

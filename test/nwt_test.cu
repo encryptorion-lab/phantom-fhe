@@ -5,42 +5,45 @@ using namespace phantom::util;
 using namespace phantom::arith;
 
 void test_nwt_1d(size_t log_dim, size_t batch_size) {
+    phantom::util::cuda_stream_wrapper stream_wrapper;
+    const auto &s = stream_wrapper.get_stream();
     size_t dim = 1 << log_dim;
 
     // generate modulus in host
     const auto h_modulus = CoeffModulus::Create(dim, std::vector<int>(batch_size, 50));
     // copy modulus to device
     DModulus *modulus;
-    cudaMalloc(&modulus, batch_size * sizeof(DModulus));
+    cudaMallocAsync(&modulus, batch_size * sizeof(DModulus), s);
     for (size_t i = 0; i < batch_size; i++) {
         modulus[i].set(h_modulus[i].value(), h_modulus[i].const_ratio()[0], h_modulus[i].const_ratio()[1]);
     }
 
     uint64_t *twiddles, *twiddles_shoup;
-    cudaMalloc(&twiddles, batch_size * dim * sizeof(uint64_t));
-    cudaMalloc(&twiddles_shoup, batch_size * dim * sizeof(uint64_t));
+    cudaMallocAsync(&twiddles, batch_size * dim * sizeof(uint64_t), s);
+    cudaMallocAsync(&twiddles_shoup, batch_size * dim * sizeof(uint64_t), s);
     uint64_t *itwiddles, *itwiddles_shoup;
-    cudaMalloc(&itwiddles, batch_size * dim * sizeof(uint64_t));
-    cudaMalloc(&itwiddles_shoup, batch_size * dim * sizeof(uint64_t));
+    cudaMallocAsync(&itwiddles, batch_size * dim * sizeof(uint64_t), s);
+    cudaMallocAsync(&itwiddles_shoup, batch_size * dim * sizeof(uint64_t), s);
     uint64_t *d_n_inv_mod_q, *d_n_inv_mod_q_shoup;
-    cudaMalloc(&d_n_inv_mod_q, batch_size * sizeof(uint64_t));
-    cudaMalloc(&d_n_inv_mod_q_shoup, batch_size * sizeof(uint64_t));
+    cudaMallocAsync(&d_n_inv_mod_q, batch_size * sizeof(uint64_t), s);
+    cudaMallocAsync(&d_n_inv_mod_q_shoup, batch_size * sizeof(uint64_t), s);
 
     for (size_t i = 0; i < batch_size; i++) {
         // generate twiddles in host
         auto h_ntt_table = NTT(log_dim, h_modulus[i]);
         // copy twiddles to device
-        cudaMemcpy(twiddles + i * dim, h_ntt_table.get_from_root_powers().data(),
-                   dim * sizeof(uint64_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(twiddles_shoup + i * dim, h_ntt_table.get_from_root_powers_shoup().data(),
-                   dim * sizeof(uint64_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(itwiddles + i * dim, h_ntt_table.get_from_inv_root_powers().data(),
-                   dim * sizeof(uint64_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(itwiddles_shoup + i * dim, h_ntt_table.get_from_inv_root_powers_shoup().data(),
-                   dim * sizeof(uint64_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_n_inv_mod_q + i, &h_ntt_table.inv_degree_modulo(), sizeof(uint64_t), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_n_inv_mod_q_shoup + i, &h_ntt_table.inv_degree_modulo_shoup(), sizeof(uint64_t),
-                   cudaMemcpyHostToDevice);
+        cudaMemcpyAsync(twiddles + i * dim, h_ntt_table.get_from_root_powers().data(),
+                        dim * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
+        cudaMemcpyAsync(twiddles_shoup + i * dim, h_ntt_table.get_from_root_powers_shoup().data(),
+                        dim * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
+        cudaMemcpyAsync(itwiddles + i * dim, h_ntt_table.get_from_inv_root_powers().data(),
+                        dim * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
+        cudaMemcpyAsync(itwiddles_shoup + i * dim, h_ntt_table.get_from_inv_root_powers_shoup().data(),
+                        dim * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
+        cudaMemcpyAsync(d_n_inv_mod_q + i, &h_ntt_table.inv_degree_modulo(), sizeof(uint64_t), cudaMemcpyHostToDevice,
+                        s);
+        cudaMemcpyAsync(d_n_inv_mod_q_shoup + i, &h_ntt_table.inv_degree_modulo_shoup(), sizeof(uint64_t),
+                        cudaMemcpyHostToDevice, s);
     }
 
     // create input
@@ -50,34 +53,38 @@ void test_nwt_1d(size_t log_dim, size_t batch_size) {
     }
 
     uint64_t *d_data;
-    cudaMalloc(&d_data, batch_size * dim * sizeof(uint64_t));
-    cudaMemcpy(d_data, h_idata, batch_size * dim * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMallocAsync(&d_data, batch_size * dim * sizeof(uint64_t), s);
+    cudaMemcpyAsync(d_data, h_idata, batch_size * dim * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
 
     // fnwt_1d(d_data, twiddles, twiddles_shoup, modulus, dim, batch_size, 0);
-    fnwt_1d_opt(d_data, twiddles, twiddles_shoup, modulus, dim, batch_size, 0);
-    inwt_1d_opt(d_data, itwiddles, itwiddles_shoup, modulus, d_n_inv_mod_q, d_n_inv_mod_q_shoup, dim, batch_size, 0);
+    fnwt_1d_opt(d_data, twiddles, twiddles_shoup, modulus, dim, batch_size, 0, s);
+    inwt_1d_opt(d_data, itwiddles, itwiddles_shoup, modulus, d_n_inv_mod_q, d_n_inv_mod_q_shoup, dim, batch_size, 0, s);
 
     uint64_t *h_odata = new uint64_t[batch_size * dim];
-    cudaMemcpy(h_odata, d_data, batch_size * dim * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(h_odata, d_data, batch_size * dim * sizeof(uint64_t), cudaMemcpyDeviceToHost, s);
+    cudaStreamSynchronize(s);
     for (size_t i = 0; i < batch_size * dim; i++) {
         if (h_idata[i] != h_odata[i]) {
             std::cout << i << " " << h_idata[i] << " != " << h_idata[i] << std::endl;
             throw std::logic_error("Error");
         }
     }
-    cudaFree(modulus);
-    cudaFree(twiddles);
-    cudaFree(twiddles_shoup);
-    cudaFree(itwiddles);
-    cudaFree(itwiddles_shoup);
-    cudaFree(d_n_inv_mod_q);
-    cudaFree(d_n_inv_mod_q_shoup);
-    cudaFree(d_data);
+    cudaFreeAsync(modulus, s);
+    cudaFreeAsync(twiddles, s);
+    cudaFreeAsync(twiddles_shoup, s);
+    cudaFreeAsync(itwiddles, s);
+    cudaFreeAsync(itwiddles_shoup, s);
+    cudaFreeAsync(d_n_inv_mod_q, s);
+    cudaFreeAsync(d_n_inv_mod_q_shoup, s);
+    cudaFreeAsync(d_data, s);
     delete[] h_idata;
     delete[] h_odata;
 }
 
 void test_nwt_2d(size_t log_dim, size_t batch_size) {
+    phantom::util::cuda_stream_wrapper stream_wrapper;
+    const auto &s = stream_wrapper.get_stream();
+
     size_t dim = 1 << log_dim;
 
     // generate modulus in host
@@ -90,7 +97,7 @@ void test_nwt_2d(size_t log_dim, size_t batch_size) {
     }
 
     DNTTTable d_ntt_tables;
-    d_ntt_tables.init(dim, batch_size);
+    d_ntt_tables.init(dim, batch_size, s);
 
     for (size_t i = 0; i < batch_size; i++) {
         // generate twiddles in host
@@ -102,7 +109,7 @@ void test_nwt_2d(size_t log_dim, size_t batch_size) {
                          h_ntt_table.get_from_inv_root_powers_shoup().data(),
                          h_ntt_table.inv_degree_modulo(),
                          h_ntt_table.inv_degree_modulo_shoup(),
-                         i);
+                         i, s);
     }
 
     // create input
@@ -112,13 +119,14 @@ void test_nwt_2d(size_t log_dim, size_t batch_size) {
     }
 
     uint64_t *d_data;
-    cudaMalloc(&d_data, batch_size * dim * sizeof(uint64_t));
-    cudaMemcpy(d_data, h_data, batch_size * dim * sizeof(uint64_t), cudaMemcpyHostToDevice);
+    cudaMallocAsync(&d_data, batch_size * dim * sizeof(uint64_t), s);
+    cudaMemcpyAsync(d_data, h_data, batch_size * dim * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
 
-    nwt_2d_radix8_forward_inplace(d_data, d_ntt_tables, batch_size, 0);
-    nwt_2d_radix8_backward_inplace(d_data, d_ntt_tables, batch_size, 0);
+    nwt_2d_radix8_forward_inplace(d_data, d_ntt_tables, batch_size, 0, s);
+    nwt_2d_radix8_backward_inplace(d_data, d_ntt_tables, batch_size, 0, s);
 
-    cudaMemcpy(h_data, d_data, batch_size * dim * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(h_data, d_data, batch_size * dim * sizeof(uint64_t), cudaMemcpyDeviceToHost, s);
+    cudaStreamSynchronize(s);
     for (size_t i = 0; i < batch_size * dim; i++) {
         if (h_data[i] != 2) {
             std::cout << i << " " << h_data[i] << std::endl;

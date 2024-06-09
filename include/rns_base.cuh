@@ -19,15 +19,11 @@ namespace phantom::arith {
         phantom::util::cuda_shared_ptr<double> qiInv_;
 
     public:
-        DRNSBase() : size_(0) {}
-
-        explicit DRNSBase(const RNSBase &cpu_rns_base, const cudaStream_t &stream) {
-            init(cpu_rns_base, stream);
-        }
+        DRNSBase() = default;
 
         void init(const RNSBase &cpu_rns_base, const cudaStream_t &stream);
 
-        [[nodiscard]] __host__ __device__ __forceinline__ std::size_t size() const noexcept { return size_; }
+        [[nodiscard]] inline auto size() const noexcept { return size_; }
 
         [[nodiscard]] inline auto base() const { return base_.get(); }
 
@@ -45,19 +41,11 @@ namespace phantom::arith {
 
         [[nodiscard]] inline auto qiInv() const { return qiInv_.get(); }
 
-        __host__ void decompose(uint64_t *dst, int64_t value, uint32_t coeff_count, uint32_t coeff_bit_count) const;
+        void decompose_array(uint64_t *dst, const cuDoubleComplex *src, uint32_t sparse_coeff_count,
+                             uint32_t sparse_ratio, uint32_t max_coeff_bit_count, const cudaStream_t &stream) const;
 
-        __host__ void decompose(uint64_t *dst, double value, uint32_t coeff_count, uint32_t coeff_bit_count) const;
-
-        __host__ void decompose_array(uint64_t *dst, const cuDoubleComplex *src, uint32_t sparse_coeff_count,
-                                      uint32_t sparse_ratio, uint32_t max_coeff_bit_count) const;
-
-        __host__ void decompose_array(uint64_t *dst, const uint64_t *src, const DModulus *modulus, size_t poly_degree,
-                                      const uint64_t *plain_upper_half_increment,
-                                      uint64_t plain_upper_half_threshold) const;
-
-        __host__ void compose_array(cuDoubleComplex *dst, const uint64_t *src, const uint64_t *upper_half_threshold,
-                                    double inv_scale, uint32_t coeff_count, uint32_t sparse_coeff_count,
-                                    uint32_t sparse_ratio) const;
+        void compose_array(cuDoubleComplex *dst, const uint64_t *src, const uint64_t *upper_half_threshold,
+                           double inv_scale, uint32_t coeff_count, uint32_t sparse_coeff_count,
+                           uint32_t sparse_ratio, const cudaStream_t &stream) const;
     };
 }
