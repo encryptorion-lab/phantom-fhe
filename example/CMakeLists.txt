@@ -1,11 +1,9 @@
 # test SEAL examples
 add_executable(example_context
-        1_bfv_basics.cu
-        2_encoder.cu
-        3_bgv_basics.cu
-        4_ckks_basics.cu
-        5_bfv_opt.cu
-        6_kernel_fusing.cu
+        1_bfv.cu
+        2_bgv.cu
+        3_ckks.cu
+        4_kernel_fusing.cu
         example.cu
 )
 

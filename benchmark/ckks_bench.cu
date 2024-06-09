@@ -20,8 +20,8 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
 
     auto count = 100;
 
-    PhantomSecretKey secret_key;
     {
+        PhantomSecretKey secret_key;
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
             timer.start();
@@ -30,8 +30,11 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
-    PhantomPublicKey public_key;
+    PhantomSecretKey secret_key;
+    secret_key.gen_secretkey(context);
+
     {
+        PhantomPublicKey public_key;
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
             timer.start();
@@ -40,10 +43,12 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
-    PhantomRelinKey relin_keys;
-    PhantomGaloisKey gal_keys;
+    PhantomPublicKey public_key;
+    secret_key.gen_publickey(context, public_key);
+
     // Generate relinearization keys
     {
+        PhantomRelinKey relin_keys;
         CUDATimer timer("gen_relinkey");
         for (auto i = 0; i < count; i++) {
             timer.start();
@@ -52,6 +57,10 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         }
     }
 
+    PhantomRelinKey relin_keys;
+    secret_key.gen_relinkey(context, relin_keys);
+
+    PhantomGaloisKey gal_keys;
     secret_key.create_galois_keys(context, gal_keys);
 
     PhantomCKKSEncoder ckks_encoder(context);

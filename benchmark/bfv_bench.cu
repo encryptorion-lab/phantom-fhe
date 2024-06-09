@@ -20,8 +20,8 @@ void bfv_performance_test(EncryptionParameters &parms) {
 
     auto count = 100;
 
-    PhantomSecretKey secret_key;
     {
+        PhantomSecretKey secret_key;
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
             timer.start();
@@ -30,8 +30,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
         }
     }
 
-    PhantomPublicKey public_key;
+    PhantomSecretKey secret_key;
+    secret_key.gen_secretkey(context);
+
     {
+        PhantomPublicKey public_key;
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
             timer.start();
@@ -40,11 +43,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
         }
     }
 
-    PhantomRelinKey relin_keys;
-    PhantomGaloisKey gal_keys;
+    PhantomPublicKey public_key;
+    secret_key.gen_publickey(context, public_key);
 
     // Generate relinearization keys
     {
+        PhantomRelinKey relin_keys;
         CUDATimer timer("gen_relinkey");
         for (auto i = 0; i < count; i++) {
             timer.start();
@@ -53,6 +57,9 @@ void bfv_performance_test(EncryptionParameters &parms) {
         }
     }
 
+    PhantomRelinKey relin_keys;
+    secret_key.gen_relinkey(context, relin_keys);
+
     /*
     Generate Galois keys. In larger examples the Galois keys can use a lot of
     memory, which can be a problem in constrained systems. The user should
@@ -60,6 +67,7 @@ void bfv_performance_test(EncryptionParameters &parms) {
     memory pool allocation size. The key generation can also take a long time,
     as can be observed from the print-out.
     */
+    PhantomGaloisKey gal_keys;
     secret_key.create_galois_keys(context, gal_keys);
 
     PhantomBatchEncoder batch_encoder(context);

@@ -21,6 +21,11 @@ int main(int argc, char *argv[]) {
             example_bfv_mul_one_plain();
             example_bfv_rotate_column();
             example_bfv_rotate_row();
+
+            example_bfv_encrypt_decrypt_hps();
+            example_bfv_encrypt_decrypt_hps_asym();
+            example_bfv_hybrid_key_switching();
+            example_bfv_multiply_correctness();
             example_bfv_multiply_benchmark();
             return 0;
         }
@@ -43,34 +48,29 @@ int main(int argc, char *argv[]) {
         cout << "+---------------------------------------------------------+" << endl;
         cout << "| Examples                   | Source Files               |" << endl;
         cout << "+----------------------------+----------------------------+" << endl;
-        cout << "| 1. BFV Basics              | 1_bfv_basics.cu            |" << endl;
-        cout << "| 2. Encoders                | 2_encoders.cu              |" << endl;
-        cout << "| 3. BGV Basics              | 3_bgv_basics.cu            |" << endl;
-        cout << "| 4. CKKS Basics             | 4_ckks_basics.cu           |" << endl;
-        cout << "| 5. BFV Opt                 | 5_bfv_opt.cu               |" << endl;
-        cout << "| 6. Kernel Fusing           | 6_kernel_fusing.cu         |" << endl;
+        cout << "| 1. BFV                     | 1_bfv.cu                   |" << endl;
+        cout << "| 2. BGV                     | 2_bgv.cu                   |" << endl;
+        cout << "| 3. CKKS                    | 3_ckks.cu                  |" << endl;
+        cout << "| 4. Kernel Fusing           | 4_kernel_fusing.cu         |" << endl;
         cout << "+----------------------------+----------------------------+" << endl;
 
         int selection = 0;
         bool valid = true;
         do {
-            cout << endl << "> Run example (1 ~ 6) or exit (0): ";
+            cout << endl << "> Run example (1 ~ 4) or exit (0): ";
             if (!(cin >> selection)) {
                 valid = false;
-            }
-            else if (selection < 0 || selection > 6) {
+            } else if (selection < 0 || selection > 4) {
                 valid = false;
-            }
-            else {
+            } else {
                 valid = true;
             }
             if (!valid) {
-                cout << "  [Beep~~] valid option: type 0 ~ 7" << endl;
+                cout << "  [Beep~~] valid option: type 0 ~ 4" << endl;
                 cin.clear();
                 cin.ignore(numeric_limits<streamsize>::max(), '\n');
             }
-        }
-        while (!valid);
+        } while (!valid);
 
         switch (selection) {
             case 1:
@@ -88,21 +88,7 @@ int main(int argc, char *argv[]) {
                 example_bfv_mul_one_plain();
                 example_bfv_rotate_column();
                 example_bfv_rotate_row();
-                break;
 
-            case 2:
-                example_encoders();
-                break;
-
-            case 3:
-                examples_bgv();
-                break;
-
-            case 4:
-                examples_ckks();
-                break;
-
-            case 5:
                 example_bfv_encrypt_decrypt_hps();
                 example_bfv_encrypt_decrypt_hps_asym();
                 example_bfv_hybrid_key_switching();
@@ -110,7 +96,15 @@ int main(int argc, char *argv[]) {
                 example_bfv_multiply_benchmark();
                 break;
 
-            case 6:
+            case 2:
+                examples_bgv();
+                break;
+
+            case 3:
+                examples_ckks();
+                break;
+
+            case 4:
                 example_kernel_fusing();
                 break;
 
