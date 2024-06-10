@@ -1186,14 +1186,12 @@ namespace phantom {
             const uint64_t *inv_q_last_mod_q, const uint64_t *inv_q_last_mod_q_shoup,
             const uint64_t inv_q_last_mod_t, const uint64_t inv_q_last_mod_t_shoup,
             const DModulus *base_Ql, size_t next_base_q_size,
-            const DModulus *mod_t, uint64_t n) {
+            uint64_t t, uint64_t t_mu_hi, uint64_t n) {
         for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
              tid < n * next_base_q_size; tid += blockDim.x * gridDim.x) {
             size_t i = tid / n;
             auto qi = base_Ql[i].value();
             auto qi_mu_hi = base_Ql[i].const_ratio()[1];
-            auto t = mod_t->value();
-            auto t_mu_hi = mod_t->const_ratio()[1];
             uint64_t ci_last_value = ci_last[tid % n];
             uint64_t delta = barrett_reduce_uint64_uint64(ci_last_value, qi, qi_mu_hi);
             uint64_t ci_last_mod_t = barrett_reduce_uint64_uint64(ci_last_value, t, t_mu_hi);
@@ -1227,7 +1225,7 @@ namespace phantom {
                     inv_q_last_mod_q(), inv_q_last_mod_q_shoup(),
                     inv_q_last_mod_t(), inv_q_last_mod_t_shoup(),
                     rns_tables.modulus(), next_base_q_size,
-                    &t_, n_);
+                    t_.value(), t_.const_ratio()[1], n_);
 
             nwt_2d_radix8_forward_inplace(ci_out, rns_tables, next_base_q_size, 0, stream);
         }
