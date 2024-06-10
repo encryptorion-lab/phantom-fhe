@@ -185,8 +185,6 @@ void PhantomPublicKey::encrypt_asymmetric(const PhantomContext &context, const P
     }
 
     cipher.is_asymmetric_ = true;
-
-    cudaStreamSynchronize(s);
 }
 
 /************************************ PhantomSecretKey ************************************************/
@@ -373,7 +371,6 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context, const cudaSt
     chain_index_ = 0;
     sk_max_power_ = 1;
     gen_flag_ = true;
-    cudaStreamSynchronize(s);
 }
 
 void PhantomSecretKey::gen_publickey(const PhantomContext &context, PhantomPublicKey &pk,
@@ -388,7 +385,6 @@ void PhantomSecretKey::gen_publickey(const PhantomContext &context, PhantomPubli
     pk.pk_.chain_index_ = 0;
 
     pk.gen_flag_ = true;
-    cudaStreamSynchronize(s);
 }
 
 void PhantomSecretKey::gen_relinkey(const PhantomContext &context, PhantomRelinKey &relin_key,
@@ -414,7 +410,6 @@ void PhantomSecretKey::gen_relinkey(const PhantomContext &context, PhantomRelinK
     uint64_t *sk_square = secret_key_array() + coeff_mod_size * poly_degree;
     generate_one_kswitch_key(context, sk_square, relin_key, s);
     relin_key.gen_flag_ = true;
-    cudaStreamSynchronize(s);
 }
 
 void PhantomSecretKey::create_galois_keys(const PhantomContext &context, PhantomGaloisKey &galois_keys,
@@ -461,7 +456,6 @@ void PhantomSecretKey::create_galois_keys(const PhantomContext &context, Phantom
         galois_keys.relin_keys_[galois_elt_idx] = std::move(relin_key);
     }
     galois_keys.gen_flag_ = true;
-    cudaStreamSynchronize(s);
 }
 
 void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const PhantomPlaintext &plain,
@@ -525,7 +519,6 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
     } else {
         throw std::invalid_argument("unsupported scheme.");
     }
-    cudaStreamSynchronize(s);
 }
 
 void PhantomSecretKey::ckks_decrypt(const PhantomContext &context, const PhantomCiphertext &encrypted,
@@ -718,8 +711,6 @@ void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphe
     } else {
         throw std::invalid_argument("unsupported scheme.");
     }
-
-    cudaStreamSynchronize(s);
 }
 
 // Compute the infinity norm of poly
@@ -806,7 +797,6 @@ static void poly_infinity_norm_coeffmod(const uint64_t *poly, size_t coeff_count
     std::vector<uint64_t> host_noise_poly(coeff_mod_size * poly_degree);
     cudaMemcpyAsync(host_noise_poly.data(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t), cudaMemcpyDeviceToHost,
                     s);
-    cudaStreamSynchronize(s);
 
     // CRT-compose the noise
     auto &base_q = context.get_context_data_rns_tool(chain_index).host_base_Ql();

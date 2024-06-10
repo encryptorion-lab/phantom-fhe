@@ -76,7 +76,6 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context, const cuda
                     cudaMemcpyHostToDevice, s);
     cudaMemcpyAsync(gpu_ckks_msg_vec_->mul_group(), rotation_group_.data(), slots_half * sizeof(uint32_t),
                     cudaMemcpyHostToDevice, s);
-    cudaStreamSynchronize(s);
 }
 
 void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cuDoubleComplex *values,

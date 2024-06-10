@@ -46,8 +46,6 @@ namespace phantom::arith {
         qiInv_ = phantom::util::make_cuda_auto_ptr<double>(size_, stream);
         cudaMemcpyAsync(qiInv(), cpu_rns_base.inv(), size_ * sizeof(double),
                         cudaMemcpyHostToDevice, stream);
-
-        cudaStreamSynchronize(stream);
     }
 
     __global__ void decompose_array_uint64(uint64_t *dst, const cuDoubleComplex *src, const DModulus *modulus,

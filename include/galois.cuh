@@ -79,7 +79,6 @@ public:
                                 cudaMemcpyHostToDevice, stream);
             }
         }
-        cudaStreamSynchronize(stream);
     }
 
     PhantomGaloisTool(const PhantomGaloisTool &copy) = delete;

@@ -175,5 +175,4 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
                     ct_i, cx_i, rns_tool.base_Ql().base(), n, size_Ql);
         }
     }
-    cudaStreamSynchronize(s);
 }

@@ -29,7 +29,6 @@ static void negate_internal(const PhantomContext &context, PhantomCiphertext &en
                 poly_degree,
                 coeff_mod_size);
     }
-    cudaStreamSynchronize(stream);
 }
 
 void negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const cudaStream_t &stream) {
@@ -123,7 +122,6 @@ void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
                             cudaMemcpyDeviceToDevice, s);
         }
     }
-    cudaStreamSynchronize(s);
 }
 
 // TODO: fixme
@@ -193,7 +191,6 @@ void add_many(const PhantomContext &context, const vector<PhantomCiphertext> &en
                     reduction_threshold);
         }
     }
-    cudaStreamSynchronize(s);
 }
 
 void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
@@ -277,7 +274,6 @@ void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
             }
         }
     }
-    cudaStreamSynchronize(s);
 }
 
 static void bgv_ckks_multiply(const PhantomContext &context, PhantomCiphertext &encrypted1,
@@ -733,8 +729,6 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
     if (mul_tech == mul_tech_type::hps_overq_leveled) {
         encrypted1.SetNoiseScaleDeg(std::max(encrypted1.GetNoiseScaleDeg(), encrypted2.GetNoiseScaleDeg()) + 1);
     }
-
-    cudaStreamSynchronize(stream);
 }
 
 // encrypted1 = encrypted1 * encrypted2
@@ -958,8 +952,6 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
         }
     }
 
-    cudaStreamSynchronize(stream);
-
     // update the encrypted
     encrypted1.resize(2, decomp_modulus_size, n, stream);
 }
@@ -995,7 +987,6 @@ void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypte
         default:
             throw invalid_argument("unsupported scheme");
     }
-    cudaStreamSynchronize(s);
 }
 
 // encrypted1 = encrypted1 * encrypted2
@@ -1047,7 +1038,6 @@ void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext
         default:
             throw invalid_argument("unsupported scheme");
     }
-    cudaStreamSynchronize(s);
 }
 
 void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
@@ -1109,7 +1099,6 @@ void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
         default:
             throw invalid_argument("unsupported scheme");
     }
-    cudaStreamSynchronize(s);
 }
 
 void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
@@ -1170,7 +1159,6 @@ void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
         default:
             throw invalid_argument("unsupported scheme");
     }
-    cudaStreamSynchronize(s);
 }
 
 static void multiply_plain_ntt(const PhantomContext &context, PhantomCiphertext &encrypted,
@@ -1292,7 +1280,6 @@ void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &en
     } else {
         throw std::invalid_argument("unsupported scheme");
     }
-    cudaStreamSynchronize(s);
 }
 
 void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
@@ -1327,8 +1314,6 @@ void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encry
 
     // update the encrypted
     encrypted.resize(2, decomp_modulus_size, n, s);
-
-    cudaStreamSynchronize(s);
 }
 
 static void mod_switch_scale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
@@ -1447,7 +1432,6 @@ void rescale_to_next(const PhantomContext &context, const PhantomCiphertext &enc
 
     // Modulus switching with scaling
     mod_switch_scale_to_next(context, encrypted, destination, s);
-    cudaStreamSynchronize(s);
 }
 
 void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain, const cudaStream_t &stream) {
@@ -1479,7 +1463,6 @@ void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext 
     cudaMemcpyAsync(plain.data(), data_copy.get(), dest_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
 
     plain.set_chain_index(next_chain_index);
-    cudaStreamSynchronize(s);
 }
 
 void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
@@ -1517,7 +1500,6 @@ void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &
         default:
             throw invalid_argument("unsupported scheme");
     }
-    cudaStreamSynchronize(s);
 }
 
 void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,
@@ -1572,8 +1554,6 @@ void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encr
     // REORDERING IS SAFE NOW
     // Calculate (temp * galois_key[0], temp * galois_key[1]) + (c0, 0)
     switch_key_inplace(context, encrypted, temp.get(), galois_keys.get_relin_keys(galois_elt_index), false, s);
-
-    cudaStreamSynchronize(s);
 }
 
 // TODO: remove recursive chain
@@ -1584,7 +1564,6 @@ static void rotate_internal(const PhantomContext &context, PhantomCiphertext &en
 
     // Is there anything to do?
     if (step == 0) {
-        cudaStreamSynchronize(s);
         return;
     }
 
@@ -1843,6 +1822,4 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
         cudaMemcpyAsync(ct.data() + size_Ql_n, acc_cx.get() + size_QlP_n, size_Ql_n * sizeof(uint64_t),
                         cudaMemcpyDeviceToDevice, s);
     }
-
-    cudaStreamSynchronize(s);
 }

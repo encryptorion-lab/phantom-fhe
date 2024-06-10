@@ -20,7 +20,6 @@ PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context, const cu
     data_ = make_cuda_auto_ptr<uint64_t>(slots_, s);
     matrix_reps_index_map_ = make_cuda_auto_ptr<uint64_t>(slots_, s);
     populate_matrix_reps_index_map(s);
-    cudaStreamSynchronize(s);
 }
 
 void PhantomBatchEncoder::populate_matrix_reps_index_map(const cudaStream_t &stream) const {
@@ -87,7 +86,6 @@ void PhantomBatchEncoder::encode(const PhantomContext &context, const std::vecto
             matrix_reps_index_map_.get(), plain_modulus.value(), slots_);
 
     nwt_2d_radix8_backward_inplace(destination.data(), context.gpu_plain_tables(), 1, 0, s);
-    cudaStreamSynchronize(s);
 }
 
 __global__ void decode_gpu(uint64_t *out, uint64_t *in, uint64_t *index_map, uint64_t slots) {
@@ -114,5 +112,7 @@ void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPla
             out.get(), plain_data_copy.get(), matrix_reps_index_map_.get(), slots_);
 
     cudaMemcpyAsync(destination.data(), out.get(), sizeof(uint64_t) * slots_, cudaMemcpyDeviceToHost, s);
+
+    // explicit synchronization in case user wants to use the result immediately
     cudaStreamSynchronize(s);
 }

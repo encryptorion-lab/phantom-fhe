@@ -965,7 +965,6 @@ namespace phantom {
                                 QlQHatInvModqDivqModq_shoup.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             }
         }
-        cudaStreamSynchronize(stream);
     }
 
     __global__ void perform_final_multiplication(uint64_t *dst, const uint64_t *src, const uint64_t inv_gamma_mod_t,

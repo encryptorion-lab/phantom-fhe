@@ -57,8 +57,6 @@ public:
         PModq_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(ibase_.size(), stream);
         cudaMemcpyAsync(PModq_shoup_.get(), cpu_base_converter.PModq_shoup(),
                         ibase_.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
-
-        cudaStreamSynchronize(stream);
     }
 
     void bConv_BEHZ(uint64_t *dst, const uint64_t *src, size_t n, const cudaStream_t &stream) const;

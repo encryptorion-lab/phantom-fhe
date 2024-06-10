@@ -82,7 +82,6 @@ public:
         destination.chain_index_ = 0;
         destination.resize(context.coeff_mod_size_, context.poly_degree_, s);
         encode_internal(context, values.data(), values.size(), chain_index, scale, destination, s);
-        cudaStreamSynchronize(s);
     }
 
     template<class T>
@@ -103,7 +102,6 @@ public:
         const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
         destination.resize(sparse_slots_);
         decode_internal(context, plain, destination.data(), s);
-        cudaStreamSynchronize(s);
     }
 
     template<class T>
