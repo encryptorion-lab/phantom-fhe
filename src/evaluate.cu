@@ -1321,7 +1321,7 @@ static void mod_switch_scale_to_next(const PhantomContext &context, const Phanto
     // Assuming at this point encrypted is already validated.
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
-    auto &rns_tool = context.get_context_data(encrypted.chain_index()).gpu_rns_tool();
+    auto &rns_tool = context_data.gpu_rns_tool();
 
     // Extract encryption parameters.
     size_t coeff_mod_size = parms.coeff_modulus().size();
@@ -1344,13 +1344,14 @@ static void mod_switch_scale_to_next(const PhantomContext &context, const Phanto
         case scheme_type::bfv:
             rns_tool.divide_and_round_q_last(encrypted_copy.get(), encrypted_size, destination.data(), stream);
             break;
-
-        case scheme_type::ckks:
         case scheme_type::bgv:
+            rns_tool.mod_t_and_divide_q_last_ntt(encrypted_copy.get(), encrypted_size, context.gpu_rns_tables(),
+                                                 destination.data(), stream);
+            break;
+        case scheme_type::ckks:
             rns_tool.divide_and_round_q_last_ntt(encrypted_copy.get(), encrypted_size, context.gpu_rns_tables(),
                                                  destination.data(), stream);
             break;
-
         default:
             throw invalid_argument("unsupported scheme");
     }
@@ -1469,7 +1470,6 @@ void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &
                         PhantomCiphertext &destination, const cudaStream_t &stream) {
     const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
-    // Assuming at this point encrypted is already validated.
     auto &context_data = context.get_context_data(context.get_first_index());
     auto &parms = context_data.parms();
     auto coeff_modulus_size = parms.coeff_modulus().size();
@@ -1481,6 +1481,9 @@ void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &
     }
     if (parms.scheme() == scheme_type::bfv && encrypted.is_ntt_form()) {
         throw std::invalid_argument("BFV encrypted cannot be in NTT form");
+    }
+    if (parms.scheme() == scheme_type::bgv && !(encrypted.is_ntt_form())) {
+        throw std::invalid_argument("BGV encrypted must be in NTT form");
     }
     if (parms.scheme() == scheme_type::ckks && !(encrypted.is_ntt_form())) {
         throw std::invalid_argument("CKKS encrypted must be in NTT form");

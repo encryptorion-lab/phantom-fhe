@@ -6,6 +6,14 @@
 #include "ciphertext.h"
 #include "prng.cuh"
 
+class PhantomSecretKey;
+
+class PhantomPublicKey;
+
+class PhantomRelinKey;
+
+class PhantomGaloisKey;
+
 class PhantomPublicKey {
 
     friend class PhantomSecretKey;
@@ -36,6 +44,9 @@ private:
                                           size_t chain_index, const cudaStream_t &stream) const;
 
 public:
+
+    explicit PhantomPublicKey(const PhantomContext &context, PhantomSecretKey &secret_key,
+                              const cudaStream_t &stream = nullptr);
 
     PhantomPublicKey() = default;
 
@@ -84,6 +95,9 @@ private:
 
 public:
 
+    explicit PhantomRelinKey(const PhantomContext &context, PhantomSecretKey &secret_key,
+                             const cudaStream_t &stream = nullptr);
+
     PhantomRelinKey() = default;
 
     PhantomRelinKey(const PhantomRelinKey &) = delete;
@@ -115,6 +129,9 @@ private:
     std::vector<PhantomRelinKey> relin_keys_;
 
 public:
+
+    explicit PhantomGaloisKey(const PhantomContext &context, PhantomSecretKey &secret_key,
+                              const cudaStream_t &stream = nullptr);
 
     PhantomGaloisKey() = default;
 
@@ -192,6 +209,10 @@ private:
 
 public:
 
+    explicit PhantomSecretKey(const PhantomContext &context, const cudaStream_t &stream = nullptr) {
+        gen_secretkey(context, stream);
+    }
+
     PhantomSecretKey() = default;
 
     PhantomSecretKey(const PhantomSecretKey &) = delete;
@@ -206,9 +227,11 @@ public:
 
     void gen_secretkey(const PhantomContext &context, const cudaStream_t &stream = nullptr);
 
-    void gen_publickey(const PhantomContext &context, PhantomPublicKey &pk, const cudaStream_t &stream = nullptr) const;
+    void gen_publickey(const PhantomContext &context, PhantomPublicKey &pk,
+                       const cudaStream_t &stream = nullptr) const;
 
-    void gen_relinkey(const PhantomContext &context, PhantomRelinKey &relin_key, const cudaStream_t &stream = nullptr);
+    void gen_relinkey(const PhantomContext &context, PhantomRelinKey &relin_key,
+                      const cudaStream_t &stream = nullptr);
 
     void create_galois_keys(const PhantomContext &context, PhantomGaloisKey &galois_key,
                             const cudaStream_t &stream = nullptr) const;
@@ -257,5 +280,4 @@ public:
     */
     [[nodiscard]] int invariant_noise_budget(const PhantomContext &context, const PhantomCiphertext &cipher,
                                              const cudaStream_t &stream = nullptr);
-
 };

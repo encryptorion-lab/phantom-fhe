@@ -62,10 +62,14 @@ namespace phantom {
 
         // Compute base_[last]^(-1) mod base_[i] for i = 0..last-1
         // This is used by modulus switching and rescaling
+        std::vector<uint64_t> q_last_mod_q(size_Ql - 1);
+        std::vector<uint64_t> q_last_mod_q_shoup(size_Ql - 1);
         std::vector<uint64_t> inv_q_last_mod_q(size_Ql - 1);
         std::vector<uint64_t> inv_q_last_mod_q_shoup(size_Ql - 1);
-        uint64_t value_inv_q_last_mod_q;
         for (size_t i = 0; i < size_Ql - 1; i++) {
+            q_last_mod_q[i] = barrett_reduce_64(base_Ql[size_Ql - 1].value(), base_Ql[i]);
+            q_last_mod_q_shoup[i] = compute_shoup(q_last_mod_q[i], base_Ql[i].value());
+            uint64_t value_inv_q_last_mod_q;
             if (!try_invert_uint_mod(base_Ql[size_Ql - 1].value(), base_Ql[i], value_inv_q_last_mod_q)) {
                 throw logic_error("invalid rns bases in computing inv_q_last_mod_q");
             }
@@ -73,8 +77,14 @@ namespace phantom {
             inv_q_last_mod_q_shoup[i] = compute_shoup(value_inv_q_last_mod_q, base_Ql[i].value());
         }
         if (size_Ql > 1) {
+            q_last_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql - 1, stream);
+            q_last_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql - 1, stream);
             inv_q_last_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql - 1, stream);
             inv_q_last_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql - 1, stream);
+            cudaMemcpyAsync(q_last_mod_q_.get(), q_last_mod_q.data(), (size_Ql - 1) * sizeof(uint64_t),
+                            cudaMemcpyHostToDevice, stream);
+            cudaMemcpyAsync(q_last_mod_q_shoup_.get(), q_last_mod_q_shoup.data(), (size_Ql - 1) * sizeof(uint64_t),
+                            cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_q_last_mod_q_.get(), inv_q_last_mod_q.data(), (size_Ql - 1) * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_q_last_mod_q_shoup_.get(), inv_q_last_mod_q_shoup.data(),
@@ -196,6 +206,7 @@ namespace phantom {
 
             q_last_mod_t_ = q_last_mod_t;
             inv_q_last_mod_t_ = inv_q_last_mod_t;
+            inv_q_last_mod_t_shoup_ = compute_shoup(inv_q_last_mod_t, t.value());
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1143,14 +1154,14 @@ namespace phantom {
         }
     }
 
-    void DRNSTool::divide_and_round_q_last_ntt(const uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
+    void DRNSTool::divide_and_round_q_last_ntt(uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
                                                uint64_t *dst, const cudaStream_t &stream) const {
         size_t base_q_size = base_Ql_.size();
         auto next_base_q_size = base_q_size - 1;
         uint64_t gridDimGlb = n_ * next_base_q_size / blockDimGlb.x;
 
         for (size_t i = 0; i < cipher_size; i++) {
-            uint64_t *ci_in = (uint64_t *) src + i * n_ * base_q_size;
+            uint64_t *ci_in = src + i * n_ * base_q_size;
             uint64_t *ci_out = dst + i * n_ * next_base_q_size;
 
             //  Convert ci[last] to non-NTT form
@@ -1166,6 +1177,59 @@ namespace phantom {
             // qlast^(-1) * (ci[j] - (ci[last] mod qj)) mod qj
             divide_and_round_ntt_inv_scalar_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                     ci_out, ci_in, base_Ql_.base(), inv_q_last_mod_q(), inv_q_last_mod_q_shoup(), n_, next_base_q_size);
+        }
+    }
+
+    __global__ static void bgv_mod_t_divide_q_kernel(
+            uint64_t *dst, const uint64_t *cx, const uint64_t *ci_last,
+            const uint64_t *q_last_mod_qi, const uint64_t *q_last_mod_qi_shoup,
+            const uint64_t *inv_q_last_mod_q, const uint64_t *inv_q_last_mod_q_shoup,
+            const uint64_t inv_q_last_mod_t, const uint64_t inv_q_last_mod_t_shoup,
+            const DModulus *base_Ql, size_t next_base_q_size,
+            const DModulus *mod_t, uint64_t n) {
+        for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+             tid < n * next_base_q_size; tid += blockDim.x * gridDim.x) {
+            size_t i = tid / n;
+            auto qi = base_Ql[i].value();
+            auto qi_mu_hi = base_Ql[i].const_ratio()[1];
+            auto t = mod_t->value();
+            auto t_mu_hi = mod_t->const_ratio()[1];
+            uint64_t ci_last_value = ci_last[tid % n];
+            uint64_t delta = barrett_reduce_uint64_uint64(ci_last_value, qi, qi_mu_hi);
+            uint64_t ci_last_mod_t = barrett_reduce_uint64_uint64(ci_last_value, t, t_mu_hi);
+            uint64_t temp = multiply_and_reduce_shoup(ci_last_mod_t, inv_q_last_mod_t, inv_q_last_mod_t_shoup, t);
+            uint64_t correction = multiply_and_reduce_shoup(temp, q_last_mod_qi[i], q_last_mod_qi_shoup[i], qi);
+            temp = sub_uint64_uint64_mod(cx[tid], delta, qi);
+            temp = add_uint64_uint64_mod(temp, correction, qi);
+            dst[tid] = multiply_and_reduce_shoup(temp, inv_q_last_mod_q[i], inv_q_last_mod_q_shoup[i], qi);
+        }
+    }
+
+    void DRNSTool::mod_t_and_divide_q_last_ntt(uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
+                                               uint64_t *dst, const cudaStream_t &stream) const {
+        size_t base_q_size = base_Ql_.size();
+        auto next_base_q_size = base_q_size - 1;
+
+        for (size_t i = 0; i < cipher_size; i++) {
+            uint64_t *ci_in = src + i * n_ * base_q_size;
+            uint64_t *ci_out = dst + i * n_ * next_base_q_size;
+            uint64_t *ci_last = ci_in + n_ * next_base_q_size;
+
+            //  Convert ci_in to non-NTT form
+            nwt_2d_radix8_backward_inplace(ci_in, rns_tables, base_q_size, 0, stream);
+
+            // delta = [Cp + [-Cp * pInv]_t * p]_qi
+            // ci' = [(ci - delta) * pInv]_qi
+            uint64_t gridDimGlb = n_ * next_base_q_size / blockDimGlb.x;
+            bgv_mod_t_divide_q_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                    ci_out, ci_in, ci_last,
+                    q_last_mod_q(), q_last_mod_q_shoup(),
+                    inv_q_last_mod_q(), inv_q_last_mod_q_shoup(),
+                    inv_q_last_mod_t(), inv_q_last_mod_t_shoup(),
+                    rns_tables.modulus(), next_base_q_size,
+                    &t_, n_);
+
+            nwt_2d_radix8_forward_inplace(ci_out, rns_tables, next_base_q_size, 0, stream);
         }
     }
 

@@ -27,6 +27,8 @@ namespace phantom {
         arith::DRNSBase base_Ql_;
         arith::DRNSBase base_QlP_;
         // q[last]^(-1) mod q[i] for i = 0..last-1
+        util::cuda_auto_ptr<uint64_t> q_last_mod_q_;
+        util::cuda_auto_ptr<uint64_t> q_last_mod_q_shoup_;
         util::cuda_auto_ptr<uint64_t> inv_q_last_mod_q_;
         util::cuda_auto_ptr<uint64_t> inv_q_last_mod_q_shoup_;
 
@@ -44,6 +46,7 @@ namespace phantom {
         DModulus t_;
         uint64_t q_last_mod_t_ = 1;
         uint64_t inv_q_last_mod_t_ = 1;
+        uint64_t inv_q_last_mod_t_shoup_ = 1;
         // Base converter: q --> t
         DBaseConverter base_q_to_t_conv_;
 
@@ -178,7 +181,10 @@ namespace phantom {
         void divide_and_round_q_last(const uint64_t *src, size_t cipher_size, uint64_t *dst,
                                      const cudaStream_t &stream) const;
 
-        void divide_and_round_q_last_ntt(const uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
+        void divide_and_round_q_last_ntt(uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
+                                         uint64_t *dst, const cudaStream_t &stream) const;
+
+        void mod_t_and_divide_q_last_ntt(uint64_t *src, size_t cipher_size, const DNTTTable &rns_tables,
                                          uint64_t *dst, const cudaStream_t &stream) const;
 
         void decrypt_mod_t(uint64_t *dst, const uint64_t *src, const uint64_t poly_degree,
@@ -220,6 +226,10 @@ namespace phantom {
         [[nodiscard]] auto *prod_t_gamma_mod_q() const { return prod_t_gamma_mod_q_.get(); }
 
         [[nodiscard]] auto *prod_t_gamma_mod_q_shoup() const { return prod_t_gamma_mod_q_shoup_.get(); }
+
+        [[nodiscard]] auto *q_last_mod_q() const { return q_last_mod_q_.get(); }
+
+        [[nodiscard]] auto *q_last_mod_q_shoup() const { return q_last_mod_q_shoup_.get(); }
 
         [[nodiscard]] auto *inv_q_last_mod_q() const { return inv_q_last_mod_q_.get(); }
 
@@ -368,6 +378,9 @@ namespace phantom {
         [[nodiscard]] auto &q_last_mod_t() const { return q_last_mod_t_; }
 
         [[nodiscard]] auto &inv_q_last_mod_t() const { return inv_q_last_mod_t_; }
+
+        [[nodiscard]] auto &inv_q_last_mod_t_shoup() const { return inv_q_last_mod_t_shoup_; }
+
     };
 
 } // namespace phantom

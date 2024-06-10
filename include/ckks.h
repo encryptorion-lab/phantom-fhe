@@ -85,10 +85,10 @@ public:
     }
 
     template<class T>
-    inline auto encode(const PhantomContext &context, const std::vector<T> &values,
-                       double scale,
-                       size_t chain_index = 1, // first chain index
-                       const cudaStream_t &stream = nullptr) {
+    [[nodiscard]] inline auto encode(const PhantomContext &context, const std::vector<T> &values,
+                                     double scale,
+                                     size_t chain_index = 1, // first chain index
+                                     const cudaStream_t &stream = nullptr) {
         PhantomPlaintext destination;
         encode(context, values, scale, destination, chain_index, stream);
         return destination;
@@ -105,9 +105,9 @@ public:
     }
 
     template<class T>
-    inline auto decode(const PhantomContext &context, const PhantomPlaintext &plain,
-                       const cudaStream_t &stream = nullptr) {
-        std::vector<T> destination(sparse_slots_);
+    [[nodiscard]] inline auto decode(const PhantomContext &context, const PhantomPlaintext &plain,
+                                     const cudaStream_t &stream = nullptr) {
+        std::vector<T> destination;
         decode(context, plain, destination, stream);
         return destination;
     }

@@ -1,18 +1,9 @@
 #include <algorithm>
 #include <chrono>
-#include <complex>
 #include <cstddef>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <limits>
-#include <memory>
 #include <mutex>
-#include <numeric>
-#include <random>
-#include <sstream>
-#include <string>
-#include <thread>
 #include <vector>
 #include "example.h"
 #include "phantom.h"
@@ -21,7 +12,7 @@ using namespace std;
 using namespace phantom;
 using namespace phantom::arith;
 
-void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
+void example_bgv_enc(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV Basics" << std::endl;
 
     PhantomSecretKey secret_key;
@@ -101,7 +92,7 @@ void example_bgv_enc(EncryptionParameters& parms, PhantomContext& context) {
     result.clear();
 }
 
-void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
+void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV HomAdd/HomSub test" << std::endl;
 
     PhantomSecretKey secret_key;
@@ -232,7 +223,7 @@ void example_bgv_add(EncryptionParameters& parms, PhantomContext& context) {
     result.clear();
 }
 
-void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context) {
+void example_bgv_add_plain(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV HomAddPlain/HomSubPlain test" << std::endl;
 
     PhantomSecretKey secret_key;
@@ -313,15 +304,12 @@ void example_bgv_add_plain(EncryptionParameters& parms, PhantomContext& context)
     result.clear();
 }
 
-void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
+void example_bgv_mul(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV HomMul test" << std::endl;
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key(context, secret_key);
+    PhantomRelinKey relin_keys(context, secret_key);
 
     PhantomBatchEncoder batch_encoder(context);
     size_t slot_count = batch_encoder.slot_count();
@@ -333,23 +321,20 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
         [ 1,  2,  3,  4,  0,  0, ...,  0 ]
         [ 0,  0,  0,  0,  0,  0, ...,  0 ]
     */
-    std::vector<uint64_t> input1(slot_count, 0ULL);
-    std::vector<uint64_t> input2(slot_count, 0ULL);
+    std::vector<uint64_t> input1(slot_count);
+    std::vector<uint64_t> input2(slot_count);
     for (size_t i = 0; i < slot_count; i++) {
         input1[i] = rand() % parms.plain_modulus().value();
         input2[i] = rand() % parms.plain_modulus().value();
-        // pod_matrix[i] = i;
     }
     cout << "Input vector: " << endl;
     print_vector(input1, 3, 7);
     print_vector(input2, 3, 7);
 
-    PhantomPlaintext x_plain;
-    PhantomPlaintext y_plain;
     PhantomPlaintext xy_plain;
 
-    batch_encoder.encode(context, input1, x_plain);
-    batch_encoder.encode(context, input2, y_plain);
+    PhantomPlaintext x_plain = batch_encoder.encode(context, input1);
+    PhantomPlaintext y_plain = batch_encoder.encode(context, input2);
 
     PhantomCiphertext x_cipher;
     PhantomCiphertext y_cipher;
@@ -359,13 +344,13 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
 
     cout << "Compute and relinearize x*y." << endl;
     multiply_inplace(context, x_cipher, y_cipher);
-
     relinearize_inplace(context, x_cipher, relin_keys);
+    mod_switch_to_next_inplace(context, x_cipher);
 
     secret_key.decrypt(context, x_cipher, xy_plain);
 
     vector<uint64_t> result;
-    batch_encoder.decode(context, xy_plain, result);
+    result = batch_encoder.decode(context, xy_plain);
     cout << "Result vector: " << endl;
     print_vector(result, 3, 7);
 
@@ -375,16 +360,9 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
     }
     if (!correctness)
         throw std::logic_error("Error in Homomorphic multiplication");
-    result.clear();
-    input1.clear();
-    input2.clear();
 
     std::cout << "Example: BGV HomSqr test" << std::endl;
 
-    input1.reserve(slot_count);
-    for (size_t i = 0; i < slot_count; i++) {
-        input1.push_back(rand() % parms.plain_modulus().value());
-    }
     cout << "Message vector: " << endl;
     print_vector(input1, 3, 7);
 
@@ -395,8 +373,8 @@ void example_bgv_mul(EncryptionParameters& parms, PhantomContext& context) {
 
     cout << "Compute and relinearize x^2." << endl;
     multiply_inplace(context, x_cipher, x_cipher);
-
     relinearize_inplace(context, x_cipher, relin_keys);
+    mod_switch_to_next_inplace(context, x_cipher);
 
     secret_key.decrypt(context, x_cipher, xx_plain);
 
@@ -438,14 +416,14 @@ void examples_bgv() {
     /*
     Note that scheme_type is now "bgv".
     */
-    size_t poly_modulus_degree = 8192;
+    size_t poly_modulus_degree = 16384;
     parms.set_poly_modulus_degree(poly_modulus_degree);
     /*
     We can certainly use BFVDefault coeff_modulus. In later parts of this example,
     we will demonstrate how to choose coeff_modulus that is more useful in BGV.
     */
     size_t alpha = 2;
-    parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, {35, 35, 40, 40}));
+    parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, {35, 35, 35, 35, 40, 40}));
     parms.set_special_modulus_size(alpha);
     //    parms.set_coeff_modulus(CoeffModulus::BFVDefault(poly_modulus_degree));
     parms.set_plain_modulus(PlainModulus::Batching(poly_modulus_degree, 20));
@@ -458,12 +436,6 @@ void examples_bgv() {
     example_bgv_add(parms, context);
     example_bgv_add_plain(parms, context);
     example_bgv_mul(parms, context);
-    //  example_bgv_rotation(parms, context, scale);
-    //  example_bgv_basics(parms, context, scale);
-    //  for (auto i = 0; i < 1000; i++)
-    //  {
-    //      cout << i << " ,  ";
-    //      example_bgv_stress_test(parms, context, scale);
-    //  }
+
     cout << endl;
 };

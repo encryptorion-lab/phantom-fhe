@@ -28,11 +28,26 @@ public:
     */
     explicit PhantomBatchEncoder(const PhantomContext &context, const cudaStream_t &stream = nullptr);
 
-    void encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix, PhantomPlaintext &destination,
-                const cudaStream_t &stream = nullptr) const;
+    void
+    encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix, PhantomPlaintext &destination,
+           const cudaStream_t &stream = nullptr) const;
 
     void decode(const PhantomContext &context, const PhantomPlaintext &plain, std::vector<uint64_t> &destination,
                 const cudaStream_t &stream = nullptr) const;
+
+    [[nodiscard]] inline auto encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix,
+                                     const cudaStream_t &stream = nullptr) const {
+        PhantomPlaintext destination;
+        encode(context, values_matrix, destination, stream);
+        return destination;
+    }
+
+    [[nodiscard]] inline auto decode(const PhantomContext &context, const PhantomPlaintext &plain,
+                                     const cudaStream_t &stream = nullptr) const {
+        std::vector<uint64_t> destination;
+        decode(context, plain, destination, stream);
+        return destination;
+    }
 
     /**
      Returns the number of complex numbers encoded.
