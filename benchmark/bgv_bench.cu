@@ -21,9 +21,9 @@ void bgv_performance_test(EncryptionParameters &parms) {
     auto count = 100;
 
     {
-        PhantomSecretKey secret_key;
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
+            PhantomSecretKey secret_key;
             timer.start();
             secret_key.gen_secretkey(context);
             timer.stop();
@@ -34,9 +34,9 @@ void bgv_performance_test(EncryptionParameters &parms) {
     secret_key.gen_secretkey(context);
 
     {
-        PhantomPublicKey public_key;
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
+            PhantomPublicKey public_key;
             timer.start();
             secret_key.gen_publickey(context, public_key);
             timer.stop();
@@ -48,9 +48,9 @@ void bgv_performance_test(EncryptionParameters &parms) {
 
     // Generate relinearization keys
     {
-        PhantomRelinKey relin_keys;
         CUDATimer timer("gen_relinkey");
         for (auto i = 0; i < count; i++) {
+            PhantomRelinKey relin_keys;
             timer.start();
             secret_key.gen_relinkey(context, relin_keys);
             timer.stop();
