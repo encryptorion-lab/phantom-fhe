@@ -23,10 +23,10 @@ void fnwt_1d_bench(nvbench::state &state) {
     phantom::util::cuda_stream_wrapper stream_wrapper;
     const auto &s = stream_wrapper.get_stream();
 
-    auto inout = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
-    auto modulus = phantom::util::cuda_make_shared<DModulus>(batch_size, s);
-    auto twiddles = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
-    auto twiddles_shoup = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
+    auto inout = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
+    auto modulus = phantom::util::make_cuda_auto_ptr<DModulus>(batch_size, s);
+    auto twiddles = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
+    auto twiddles_shoup = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
 
     state.set_cuda_stream(nvbench::make_cuda_stream_view(s));
     state.exec([&batch_size, &dim, &inout, &twiddles, &twiddles_shoup, &modulus, &s](nvbench::launch &launch) {
@@ -59,13 +59,13 @@ void inwt_1d_bench(nvbench::state &state) {
     phantom::util::cuda_stream_wrapper stream_wrapper;
     const auto &s = stream_wrapper.get_stream();
 
-    auto inout = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
-    auto modulus = phantom::util::cuda_make_shared<DModulus>(batch_size, s);
-    auto twiddles = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
-    auto twiddles_shoup = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
+    auto inout = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
+    auto modulus = phantom::util::make_cuda_auto_ptr<DModulus>(batch_size, s);
+    auto twiddles = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
+    auto twiddles_shoup = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
 
-    auto scalar = phantom::util::cuda_make_shared<uint64_t>(batch_size, s);
-    auto scalar_shoup = phantom::util::cuda_make_shared<uint64_t>(batch_size, s);
+    auto scalar = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size, s);
+    auto scalar_shoup = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size, s);
 
     state.set_cuda_stream(nvbench::make_cuda_stream_view(s));
     state.exec([&batch_size, &dim, &inout, &twiddles, &twiddles_shoup, &modulus, &scalar, &scalar_shoup, &s](
@@ -99,7 +99,7 @@ void fnwt_2d_bench(nvbench::state &state) {
     phantom::util::cuda_stream_wrapper stream_wrapper;
     const auto &s = stream_wrapper.get_stream();
 
-    auto inout = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
+    auto inout = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
 
     DNTTTable ntt_tables;
     ntt_tables.init(dim, batch_size, s);
@@ -134,7 +134,7 @@ void inwt_2d_bench(nvbench::state &state) {
     phantom::util::cuda_stream_wrapper stream_wrapper;
     const auto &s = stream_wrapper.get_stream();
 
-    auto inout = phantom::util::cuda_make_shared<uint64_t>(batch_size * dim, s);
+    auto inout = phantom::util::make_cuda_auto_ptr<uint64_t>(batch_size * dim, s);
 
     DNTTTable ntt_tables;
     ntt_tables.init(dim, batch_size, s);

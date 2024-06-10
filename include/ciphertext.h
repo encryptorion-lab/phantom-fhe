@@ -38,7 +38,7 @@ private:
 
     bool is_asymmetric_ = false;
 
-    phantom::util::cuda_shared_ptr<uint64_t> data_;
+    phantom::util::cuda_auto_ptr<uint64_t> data_;
 
 public:
 
@@ -74,7 +74,7 @@ public:
 
         if (new_size != old_size) {
             auto prev_data(std::move(data_));
-            data_ = phantom::util::cuda_make_shared<uint64_t>(size * coeff_modulus_size * poly_modulus_degree, stream);
+            data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size * coeff_modulus_size * poly_modulus_degree, stream);
             size_t copy_size = std::min(old_size, new_size);
             cudaMemcpyAsync(data_.get(), prev_data.get(), copy_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
                             stream);
@@ -97,7 +97,7 @@ public:
 
         if (new_size != old_size) {
             auto prev_data(std::move(data_));
-            data_ = phantom::util::cuda_make_shared<uint64_t>(size * coeff_modulus_size * poly_modulus_degree, stream);
+            data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size * coeff_modulus_size * poly_modulus_degree, stream);
             size_t copy_size = std::min(old_size, new_size);
             cudaMemcpyAsync(data_.get(), prev_data.get(), copy_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
                             stream);

@@ -177,7 +177,7 @@ void add_many(const PhantomContext &context, const vector<PhantomCiphertext> &en
             add_inplace(context, destination, encrypteds[i], s);
         }
     } else {
-        auto enc_device_ptr = cuda_make_shared<uint64_t *>(encrypteds.size(), s);
+        auto enc_device_ptr = make_cuda_auto_ptr<uint64_t *>(encrypteds.size(), s);
         std::vector<uint64_t *> enc_host_ptr(encrypteds.size());
         for (size_t i = 0; i < encrypteds.size(); i++) {
             enc_host_ptr[i] = encrypteds[i].data();
@@ -353,7 +353,7 @@ static void BEHZ_mul_1(const PhantomContext &context, const PhantomCiphertext &e
     size_t q_coeff_count = poly_degree * base_q_size;
     size_t bsk_coeff_count = poly_degree * base_Bsk_size;
 
-    auto temp_base_Bsk_m_tilde = cuda_make_shared<uint64_t>(poly_degree * base_Bsk_m_tilde_size, stream);
+    auto temp_base_Bsk_m_tilde = make_cuda_auto_ptr<uint64_t>(poly_degree * base_Bsk_m_tilde_size, stream);
 
     cudaMemcpyAsync(encrypted_q, encrypted.data(), encrypted.size() * q_coeff_count * sizeof(uint64_t),
                     cudaMemcpyDeviceToDevice, stream);
@@ -406,10 +406,10 @@ static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &
     const DModulus *base_rns = context.gpu_rns_tables().modulus();
     const DModulus *base_Bsk = rns_tool.base_Bsk().base();
 
-    auto encrypted1_q = cuda_make_shared<uint64_t>(dest_size * poly_degree * base_q_size, stream);
-    auto encrypted1_Bsk = cuda_make_shared<uint64_t>(dest_size * poly_degree * base_Bsk_size, stream);
-    auto encrypted2_q = cuda_make_shared<uint64_t>(encrypted2_size * poly_degree * base_q_size, stream);
-    auto encrypted2_Bsk = cuda_make_shared<uint64_t>(encrypted2_size * poly_degree * base_Bsk_size, stream);
+    auto encrypted1_q = make_cuda_auto_ptr<uint64_t>(dest_size * poly_degree * base_q_size, stream);
+    auto encrypted1_Bsk = make_cuda_auto_ptr<uint64_t>(dest_size * poly_degree * base_Bsk_size, stream);
+    auto encrypted2_q = make_cuda_auto_ptr<uint64_t>(encrypted2_size * poly_degree * base_q_size, stream);
+    auto encrypted2_Bsk = make_cuda_auto_ptr<uint64_t>(encrypted2_size * poly_degree * base_Bsk_size, stream);
 
     // BEHZ, step 1-3
     BEHZ_mul_1(context, encrypted1, encrypted1_q.get(), encrypted1_Bsk.get(), stream);
@@ -470,7 +470,7 @@ static void bfv_multiply_behz(const PhantomContext &context, PhantomCiphertext &
     // Resize encrypted1 to destination size
     encrypted1.resize(context, encrypted1.chain_index(), dest_size, stream);
 
-    auto temp = cuda_make_shared<uint64_t>(poly_degree * base_Bsk_size, stream);
+    auto temp = make_cuda_auto_ptr<uint64_t>(poly_degree * base_Bsk_size, stream);
     for (size_t i = 0; i < dest_size; i++) {
         uint64_t *encrypted1_q_iter = encrypted1_q.get() + i * base_q_size * poly_degree;
         uint64_t *encrypted1_Bsk_iter = encrypted1_Bsk.get() + i * base_Bsk_size * poly_degree;
@@ -634,7 +634,7 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
     const size_t size_QlRl = size_Ql + size_Rl;
 
     /* --------------------------------- ct1 BConv -------------------------------- */
-    auto ct1 = cuda_make_shared<uint64_t>(dest_size * size_QlRl * n, stream);
+    auto ct1 = make_cuda_auto_ptr<uint64_t>(dest_size * size_QlRl * n, stream);
     for (size_t i = 0; i < ct1_size; i++) {
         const uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
@@ -666,7 +666,7 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
                 ct1.get(), base_QlRl, ct1.get(), n, size_QlRl);
     } else {
         /* --------------------------------- ct2 BConv -------------------------------- */
-        auto ct2 = cuda_make_shared<uint64_t>(ct2_size * size_QlRl * n, stream);
+        auto ct2 = make_cuda_auto_ptr<uint64_t>(ct2_size * size_QlRl * n, stream);
         for (size_t i = 0; i < ct2_size; i++) {
             const uint64_t *encrypted2_ptr = encrypted2.data() + i * size_Q * n;
             uint64_t *ct2_ptr = ct2.get() + i * size_QlRl * n;
@@ -717,7 +717,7 @@ bfv_multiply_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         const uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
         if (mul_tech == mul_tech_type::hps) {
-            auto temp = cuda_make_shared<uint64_t>(size_Rl * n, stream);
+            auto temp = make_cuda_auto_ptr<uint64_t>(size_Rl * n, stream);
             // scale and round QlRl to Rl
             rns_tool.scaleAndRound_HPS_QR_R(temp.get(), ct1_ptr, stream);
             // Rl -> Ql
@@ -800,7 +800,7 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     const size_t size_QlRl = size_Ql + size_Rl;
 
     /* --------------------------------- ct1 BConv -------------------------------- */
-    auto ct1 = cuda_make_shared<uint64_t>(dest_size * size_QlRl * n, stream);
+    auto ct1 = make_cuda_auto_ptr<uint64_t>(dest_size * size_QlRl * n, stream);
     for (size_t i = 0; i < ct1_size; i++) {
         const uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
@@ -832,7 +832,7 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
                 ct1.get(), base_QlRl, ct1.get(), n, size_QlRl);
     } else {
         /* --------------------------------- ct2 BConv -------------------------------- */
-        auto ct2 = cuda_make_shared<uint64_t>(ct2_size * size_QlRl * n, stream);
+        auto ct2 = make_cuda_auto_ptr<uint64_t>(ct2_size * size_QlRl * n, stream);
         for (size_t i = 0; i < ct2_size; i++) {
             const uint64_t *encrypted2_ptr = encrypted2.data() + i * size_Q * n;
             uint64_t *ct2_ptr = ct2.get() + i * size_QlRl * n;
@@ -883,7 +883,7 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
         uint64_t *encrypted1_ptr = encrypted1.data() + i * size_Q * n;
         const uint64_t *ct1_ptr = ct1.get() + i * size_QlRl * n;
         if (mul_tech == mul_tech_type::hps) {
-            auto temp = cuda_make_shared<uint64_t>(size_Rl * n, stream);
+            auto temp = make_cuda_auto_ptr<uint64_t>(size_Rl * n, stream);
             // scale and round QlRl to Rl
             rns_tool.scaleAndRound_HPS_QR_R(temp.get(), ct1_ptr, stream);
             // Rl -> Ql
@@ -929,11 +929,11 @@ bfv_mul_relin_hps(const PhantomContext &context, PhantomCiphertext &encrypted1, 
     const size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
     // mod up
-    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
     rns_tool.modup(t_mod_up.get(), c2, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
+    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, stream);
     auto reduction_threshold = (1 << (bits_per_uint64 - rns_tool.qMSB() - 1)) - 1;
     key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, stream>>>(
             cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), modulus_QP, n, size_QP, size_QP_n, size_QlP,
@@ -1094,7 +1094,7 @@ void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
         case scheme_type::bgv: {
             // TODO: make bgv plaintext is_ntt_form true?
             // c0 = c0 + plaintext
-            auto plain_copy = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, s);
+            auto plain_copy = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, s);
             for (size_t i = 0; i < coeff_mod_size; i++) {
                 // modup t -> {q0, q1, ...., qj}
                 nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
@@ -1155,7 +1155,7 @@ void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
         case scheme_type::bgv: {
             // TODO: make bgv plaintext is_ntt_form true?
             // c0 = c0 - plaintext
-            auto plain_copy = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, s);
+            auto plain_copy = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, s);
             for (size_t i = 0; i < coeff_mod_size; i++) {
                 // modup t -> {q0, q1, ...., qj}
                 nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
@@ -1224,7 +1224,7 @@ static void multiply_plain_normal(const PhantomContext &context, PhantomCipherte
     uint64_t gridDimGlb = rns_coeff_count / blockDimGlb.x;
     // Generic case: any plaintext polynomial
     // Allocate temporary space for an entire RNS polynomial
-    auto temp = cuda_make_shared<uint64_t>(rns_coeff_count, stream);
+    auto temp = make_cuda_auto_ptr<uint64_t>(rns_coeff_count, stream);
 
     // if (context_data.qualifiers().using_fast_plain_lift) {
     // if t is smaller than every qi
@@ -1270,7 +1270,7 @@ void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &en
         auto base_rns = context.gpu_rns_tables().modulus();
         auto rns_coeff_count = poly_degree * coeff_mod_size;
 
-        auto plain_copy = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, s);
+        auto plain_copy = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, s);
         for (size_t i = 0; i < coeff_mod_size; i++) {
             // modup t -> {q0, q1, ...., qj}
             nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
@@ -1347,7 +1347,7 @@ static void mod_switch_scale_to_next(const PhantomContext &context, const Phanto
     auto &next_context_data = context.get_context_data(next_index_id);
     auto &next_parms = next_context_data.parms();
 
-    auto encrypted_copy = cuda_make_shared<uint64_t>(encrypted_size * coeff_mod_size * poly_degree, stream);
+    auto encrypted_copy = make_cuda_auto_ptr<uint64_t>(encrypted_size * coeff_mod_size * poly_degree, stream);
     cudaMemcpyAsync(encrypted_copy.get(), encrypted.data(),
                     encrypted_size * coeff_mod_size * poly_degree * sizeof(uint64_t),
                     cudaMemcpyDeviceToDevice, stream);
@@ -1361,6 +1361,7 @@ static void mod_switch_scale_to_next(const PhantomContext &context, const Phanto
             break;
 
         case scheme_type::ckks:
+        case scheme_type::bgv:
             rns_tool.divide_and_round_q_last_ntt(encrypted_copy.get(), encrypted_size, context.gpu_rns_tables(),
                                                  destination.data(), stream);
             break;
@@ -1374,6 +1375,11 @@ static void mod_switch_scale_to_next(const PhantomContext &context, const Phanto
     if (next_parms.scheme() == scheme_type::ckks) {
         // Change the scale when using CKKS
         destination.set_scale(encrypted.scale() / static_cast<double>(parms.coeff_modulus().back().value()));
+    } else if (next_parms.scheme() == scheme_type::bgv) {
+        // Change the correction factor when using BGV
+        destination.set_correction_factor(
+                multiply_uint_mod(encrypted.correction_factor(), rns_tool.inv_q_last_mod_t(),
+                                  next_parms.plain_modulus()));
     }
 }
 
@@ -1396,7 +1402,7 @@ static void mod_switch_drop_to_next(const PhantomContext &context, const Phantom
 
     if (&encrypted == &destination) {
         auto temp = std::move(destination.data_ptr());
-        destination.data_ptr() = cuda_make_shared<uint64_t>(encrypted_size * next_coeff_modulus_size * N, stream);
+        destination.data_ptr() = make_cuda_auto_ptr<uint64_t>(encrypted_size * next_coeff_modulus_size * N, stream);
         for (size_t i{0}; i < encrypted_size; i++) {
             auto temp_iter = temp.get() + i * coeff_modulus_size * N;
             auto encrypted_iter = encrypted.data() + i * next_coeff_modulus_size * N;
@@ -1469,7 +1475,7 @@ void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext 
     auto dest_size = next_coeff_modulus_size * coeff_count;
 
     auto data_copy = std::move(plain.data_ptr());
-    plain.data_ptr() = cuda_make_shared<uint64_t>(dest_size, s);
+    plain.data_ptr() = make_cuda_auto_ptr<uint64_t>(dest_size, s);
     cudaMemcpyAsync(plain.data(), data_copy.get(), dest_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
 
     plain.set_chain_index(next_chain_index);
@@ -1499,10 +1505,10 @@ void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &
 
     switch (scheme) {
         case scheme_type::bfv:
+        case scheme_type::bgv:
             // Modulus switching with scaling
             mod_switch_scale_to_next(context, encrypted, destination, s);
             break;
-
         case scheme_type::ckks:
             // Modulus switching without scaling
             mod_switch_drop_to_next(context, encrypted, destination, s);
@@ -1532,7 +1538,7 @@ void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encr
 
     const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
-    auto temp = cuda_make_shared<uint64_t>(coeff_modulus_size * N, s);
+    auto temp = make_cuda_auto_ptr<uint64_t>(coeff_modulus_size * N, s);
 
     // DO NOT CHANGE EXECUTION ORDER OF FOLLOWING SECTION
     // BEGIN: Apply Galois for each ciphertext
@@ -1698,8 +1704,8 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     auto size_QP_n = size_QP * n;
     auto size_QlP_n = size_QlP * n;
 
-    auto c0 = cuda_make_shared<uint64_t>(size_Ql_n, s);
-    auto c1 = cuda_make_shared<uint64_t>(size_Ql_n, s);
+    auto c0 = make_cuda_auto_ptr<uint64_t>(size_Ql_n, s);
+    auto c1 = make_cuda_auto_ptr<uint64_t>(size_Ql_n, s);
 
     auto elts = key_galois_tool->get_elts_from_steps(steps);
 
@@ -1713,7 +1719,7 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
                 c0.get(), ct.data(), size_Ql_n * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
     }
 
-    auto acc_c0 = cuda_make_shared<uint64_t>(size_Ql_n, s);
+    auto acc_c0 = make_cuda_auto_ptr<uint64_t>(size_Ql_n, s);
 
     auto first_elt = elts[0];
     auto first_iter = find(galois_elts.begin(), galois_elts.end(), first_elt);
@@ -1742,12 +1748,12 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
     // mod up
-    auto modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, s);
+    auto modup_c1 = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
     rns_tool.modup(modup_c1.get(), c1.get(), context.gpu_rns_tables(), scheme, s);
 
     // ------------------------------------------ automorphism c1 ------------------------------------------------------
 
-    auto temp_modup_c1 = cuda_make_shared<uint64_t>(beta * size_QlP_n, s);
+    auto temp_modup_c1 = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
 
     for (size_t b = 0; b < beta; b++) {
         key_galois_tool->apply_galois_ntt(modup_c1.get() + b * size_QlP_n, size_QlP, first_elt_index,
@@ -1756,7 +1762,7 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
 
     // ----------------------------------------- inner product c1 ------------------------------------------------------
 
-    auto acc_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, s);
+    auto acc_cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, s);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
@@ -1766,7 +1772,7 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
 
     // ------------------------------------------ loop accumulate ------------------------------------------------------
 
-    auto temp_c0 = cuda_make_shared<uint64_t>(size_Ql_n, s);
+    auto temp_c0 = make_cuda_auto_ptr<uint64_t>(size_Ql_n, s);
 
     for (size_t i = 1; i < elts.size(); i++) {
         // automorphism c0
@@ -1798,7 +1804,7 @@ void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, cons
         }
 
         // inner product c1
-        auto temp_cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, s);
+        auto temp_cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, s);
         key_switch_inner_prod_c2_and_evk<<<size_QlP_n / blockDimGlb.x, blockDimGlb, 0, s>>>(
                 temp_cx.get(), temp_modup_c1.get(), glk.get_relin_keys(elt_index).public_keys_ptr(), modulus_QP, n,
                 size_QP, size_QP_n, size_QlP, size_QlP_n, size_Q, size_Ql, beta, reduction_threshold);

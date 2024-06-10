@@ -10,9 +10,9 @@ private:
 
     std::size_t slots_;
 
-    phantom::util::cuda_shared_ptr<uint64_t> matrix_reps_index_map_;
+    phantom::util::cuda_auto_ptr<uint64_t> matrix_reps_index_map_;
 
-    phantom::util::cuda_shared_ptr<uint64_t> data_;
+    phantom::util::cuda_auto_ptr<uint64_t> data_;
 
     void populate_matrix_reps_index_map(const cudaStream_t &stream) const;
 

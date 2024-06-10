@@ -20,7 +20,7 @@ private:
     std::size_t poly_modulus_degree_ = 0;
     size_t coeff_modulus_size_ = 0;
     double scale_ = 1.0;
-    phantom::util::cuda_shared_ptr<uint64_t> data_;
+    phantom::util::cuda_auto_ptr<uint64_t> data_;
 
 public:
 
@@ -37,7 +37,7 @@ public:
     ~PhantomPlaintext() = default;
 
     void resize(const size_t coeff_modulus_size, const size_t poly_modulus_degree, const cudaStream_t &stream) {
-        data_ = phantom::util::cuda_make_shared<uint64_t>(coeff_modulus_size * poly_modulus_degree, stream);
+        data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(coeff_modulus_size * poly_modulus_degree, stream);
 
         coeff_modulus_size_ = coeff_modulus_size;
         poly_modulus_degree_ = poly_modulus_degree;

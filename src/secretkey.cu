@@ -29,10 +29,10 @@ PhantomPublicKey::encrypt_zero_asymmetric_internal_internal(const PhantomContext
     // where e[j] <-- chi, u <-- R_3
 
     // first generate the ternary random u
-    auto prng_seed_error = cuda_make_shared<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
+    auto prng_seed_error = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
     random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count, stream);
 
-    auto u = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, stream);
+    auto u = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, stream);
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     // in <-- ternary
@@ -66,7 +66,7 @@ PhantomPublicKey::encrypt_zero_asymmetric_internal_internal(const PhantomContext
                     u.get(), pki, ci, base_rns, ci, poly_degree, coeff_mod_size);
         }
     } else {
-        auto error = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, stream);
+        auto error = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, stream);
 
         for (size_t i = 0; i < cipher.size(); i++) {
             uint64_t *ci = cipher.data() + i * poly_degree * coeff_mod_size;
@@ -170,7 +170,7 @@ void PhantomPublicKey::encrypt_asymmetric(const PhantomContext &context, const P
         auto base_rns = context.gpu_rns_tables().modulus();
 
         // c0 = c0 + plaintext
-        auto plain_copy = cuda_make_shared<uint64_t>(bgv_coeff_mod_size * poly_degree, s);
+        auto plain_copy = make_cuda_auto_ptr<uint64_t>(bgv_coeff_mod_size * poly_degree, s);
         for (size_t i = 0; i < bgv_coeff_mod_size; i++) {
             // modup t -> Q
             nwt_2d_radix8_forward_modup_fuse(plain_copy.get() + i * poly_degree, plain.data(), i,
@@ -206,7 +206,7 @@ void PhantomSecretKey::compute_secret_key_array(const PhantomContext &context, s
     auto coeff_mod_size = coeff_modulus.size();
     auto base_rns = context.gpu_rns_tables().modulus();
 
-    auto new_secret_key_array = cuda_make_shared<uint64_t>(max_power * poly_degree * coeff_mod_size, stream);
+    auto new_secret_key_array = make_cuda_auto_ptr<uint64_t>(max_power * poly_degree * coeff_mod_size, stream);
     // Copy the power of secret key
     cudaMemcpyAsync(new_secret_key_array.get(), secret_key_array(),
                     sk_max_power_ * poly_degree * coeff_mod_size * sizeof(uint64_t),
@@ -249,10 +249,10 @@ void PhantomSecretKey::encrypt_zero_symmetric(const PhantomContext &context, Pha
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     // first generate the error e
-    auto prng_seed_error = cuda_make_shared<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
+    auto prng_seed_error = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
     random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count, stream);
 
-    auto u = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, stream);
+    auto u = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, stream);
 
     sample_error_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
             u.get(), prng_seed_error.get(), base_rns, poly_degree,
@@ -311,11 +311,11 @@ void PhantomSecretKey::generate_one_kswitch_key(const PhantomContext &context, u
     // Every pk_ = [P_{w,q}(s^2)+(-(as+e)), a]
 
     relin_keys.public_keys_.resize(dnum);
-    relin_keys.public_keys_ptr_ = cuda_make_shared<uint64_t *>(dnum, stream);
+    relin_keys.public_keys_ptr_ = make_cuda_auto_ptr<uint64_t *>(dnum, stream);
 
     // First initiate the pk_ = [-(as+e), a]
     for (size_t twr = 0; twr < dnum; twr++) {
-        auto prng_seed_a = cuda_make_shared<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
+        auto prng_seed_a = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
         random_bytes(prng_seed_a.get(), phantom::util::global_variables::prng_seed_byte_count, stream);
         PhantomCiphertext pk;
         encrypt_zero_symmetric(context, pk, prng_seed_a.get(), 0, true, stream);
@@ -352,12 +352,12 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context, const cudaSt
 
     const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
-    data_rns_ = phantom::util::cuda_make_shared<uint64_t>(poly_modulus_degree_ * coeff_modulus_size_, s);
+    data_rns_ = phantom::util::make_cuda_auto_ptr<uint64_t>(poly_modulus_degree_ * coeff_modulus_size_, s);
 
-    auto prng_seed_error = cuda_make_shared<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
+    auto prng_seed_error = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count);
 
-    secret_key_array_ = cuda_make_shared<uint64_t>(poly_degree * coeff_mod_size, s);
+    secret_key_array_ = make_cuda_auto_ptr<uint64_t>(poly_degree * coeff_mod_size, s);
 
     // Copy constant data to device constant memory
     random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count, s);
@@ -382,7 +382,7 @@ void PhantomSecretKey::gen_publickey(const PhantomContext &context, PhantomPubli
         throw std::logic_error("cannot generate public key twice");
 
     const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
-    pk.prng_seed_a_ = cuda_make_shared<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
+    pk.prng_seed_a_ = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(pk.prng_seed_a_.get(), phantom::util::global_variables::prng_seed_byte_count, s);
     encrypt_zero_symmetric(context, pk.pk_, pk.prng_seed_a_.get(), 0, true, s);
     pk.pk_.chain_index_ = 0;
@@ -440,7 +440,7 @@ void PhantomSecretKey::create_galois_keys(const PhantomContext &context, Phantom
     // get galois_elts
     auto &galois_elts = key_galois_tool->galois_elts();
 
-    auto rotated_secret_key = cuda_make_shared<uint64_t>(key_mod_size * poly_degree, s);
+    auto rotated_secret_key = make_cuda_auto_ptr<uint64_t>(key_mod_size * poly_degree, s);
     auto secret_key = secret_key_array_.get();
 
     auto relin_key_num = galois_elts.size();
@@ -473,7 +473,7 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
 
     const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
 
-    auto prng_seed_a = cuda_make_shared<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
+    auto prng_seed_a = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(prng_seed_a.get(), phantom::util::global_variables::prng_seed_byte_count, s);
 
     if (scheme == phantom::scheme_type::bfv) {
@@ -511,7 +511,7 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
         auto base_rns = context.gpu_rns_tables().modulus();
 
         // c0 = c0 + plaintext
-        auto plain_copy = cuda_make_shared<uint64_t>(bgv_coeff_mod_size * poly_degree, s);
+        auto plain_copy = make_cuda_auto_ptr<uint64_t>(bgv_coeff_mod_size * poly_degree, s);
         for (size_t i = 0; i < bgv_coeff_mod_size; i++) {
             cudaMemcpyAsync(plain_copy.get() + i * poly_degree, plain.data(), sizeof(uint64_t) * poly_degree,
                             cudaMemcpyDeviceToDevice, s);
@@ -588,9 +588,9 @@ void PhantomSecretKey::bfv_decrypt(const PhantomContext &context, const PhantomC
 
     // Compute c_1 *s, ..., c_{count-1} * s^{count-1} mod q
     // The secret key powers are already NTT transformed.
-    auto inner_prod = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, stream);
+    auto inner_prod = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, stream);
     cudaMemsetAsync(inner_prod.get(), 0UL, coeff_mod_size * poly_degree * sizeof(uint64_t), stream);
-    auto temp = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, stream);
+    auto temp = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, stream);
 
     uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
     for (size_t i = 1; i <= needed_sk_power; i++) {
@@ -655,7 +655,7 @@ void PhantomSecretKey::bgv_decrypt(const PhantomContext &context, const PhantomC
     }
 
     uint64_t *c0 = encrypted.data();
-    auto inner_prod = cuda_make_shared<uint64_t>(coeff_mod_size * poly_degree, stream);
+    auto inner_prod = make_cuda_auto_ptr<uint64_t>(coeff_mod_size * poly_degree, stream);
     cudaMemcpyAsync(inner_prod.get(), c0, coeff_mod_size * poly_degree * sizeof(uint64_t),
                     cudaMemcpyDeviceToDevice, stream);
 

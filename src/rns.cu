@@ -73,8 +73,8 @@ namespace phantom {
             inv_q_last_mod_q_shoup[i] = compute_shoup(value_inv_q_last_mod_q, base_Ql[i].value());
         }
         if (size_Ql > 1) {
-            inv_q_last_mod_q_ = cuda_make_shared<uint64_t>(size_Ql - 1, stream);
-            inv_q_last_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql - 1, stream);
+            inv_q_last_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql - 1, stream);
+            inv_q_last_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql - 1, stream);
             cudaMemcpyAsync(inv_q_last_mod_q_.get(), inv_q_last_mod_q.data(), (size_Ql - 1) * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_q_last_mod_q_shoup_.get(), inv_q_last_mod_q_shoup.data(),
@@ -110,15 +110,15 @@ namespace phantom {
                 bigPInv_mod_q_shoup[i] = compute_shoup(tmp, base_qi.value());
             }
 
-            bigP_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
-            bigP_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            bigP_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
+            bigP_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
             cudaMemcpyAsync(bigP_mod_q_.get(), bigP_mod_q.data(), size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice,
                             stream);
             cudaMemcpyAsync(bigP_mod_q_shoup_.get(), bigP_mod_q_shoup.data(), size_Ql * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
 
-            bigPInv_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
-            bigPInv_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            bigPInv_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
+            bigPInv_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
             cudaMemcpyAsync(bigPInv_mod_q_.get(), bigPInv_mod_q.data(), size_Ql * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(bigPInv_mod_q_shoup_.get(), bigPInv_mod_q_shoup.data(), size_Ql * sizeof(uint64_t),
@@ -164,8 +164,8 @@ namespace phantom {
                     v_base_part_Ql_to_compl_part_QlP_conv.push_back(base_part_Ql_to_compl_part_QlP_conv);
                 }
 
-                partQlHatInv_mod_Ql_concat_ = cuda_make_shared<uint64_t>(size_Ql, stream);
-                partQlHatInv_mod_Ql_concat_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+                partQlHatInv_mod_Ql_concat_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
+                partQlHatInv_mod_Ql_concat_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
                 cudaMemcpyAsync(partQlHatInv_mod_Ql_concat_.get(), partQlHatInv_mod_Ql_concat.data(),
                                 size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(partQlHatInv_mod_Ql_concat_shoup_.get(), partQlHatInv_mod_Ql_concat_shoup.data(),
@@ -231,8 +231,8 @@ namespace phantom {
                     }
                 }
 
-                pjInv_mod_q_ = cuda_make_shared<uint64_t>(size_Ql * size_P, stream);
-                pjInv_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql * size_P, stream);
+                pjInv_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql * size_P, stream);
+                pjInv_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql * size_P, stream);
                 cudaMemcpyAsync(pjInv_mod_q_.get(), pjInv_mod_q.data(), size_Ql * size_P * sizeof(uint64_t),
                                 cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(pjInv_mod_q_shoup_.get(), pjInv_mod_q_shoup.data(), size_Ql * size_P * sizeof(uint64_t),
@@ -248,8 +248,8 @@ namespace phantom {
                     pjInv_mod_t_shoup[j] = compute_shoup(pjInv_mod_t_value, t.value());
                 }
 
-                pjInv_mod_t_ = cuda_make_shared<uint64_t>(size_P, stream);
-                pjInv_mod_t_shoup_ = cuda_make_shared<uint64_t>(size_P, stream);
+                pjInv_mod_t_ = make_cuda_auto_ptr<uint64_t>(size_P, stream);
+                pjInv_mod_t_shoup_ = make_cuda_auto_ptr<uint64_t>(size_P, stream);
                 cudaMemcpyAsync(pjInv_mod_t_.get(), pjInv_mod_t.data(), size_P * sizeof(uint64_t),
                                 cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(pjInv_mod_t_shoup_.get(), pjInv_mod_t_shoup.data(), size_P * sizeof(uint64_t),
@@ -302,8 +302,8 @@ namespace phantom {
                 tInv_mod_q_shoup[i] = compute_shoup(tInv_mod_qi_value, qi.value());
             }
 
-            tInv_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
-            tInv_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            tInv_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
+            tInv_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
             cudaMemcpyAsync(tInv_mod_q_.get(), tInv_mod_q.data(), size_Ql * sizeof(uint64_t), cudaMemcpyHostToDevice,
                             stream);
             cudaMemcpyAsync(tInv_mod_q_shoup_.get(), tInv_mod_q_shoup.data(), size_Ql * sizeof(uint64_t),
@@ -343,8 +343,8 @@ namespace phantom {
                 prod_t_gamma_mod_q_shoup[i] = compute_shoup(prod_t_gamma_mod_q[i], base_Ql[i].value());
             }
 
-            prod_t_gamma_mod_q_ = cuda_make_shared<uint64_t>(size_Ql, stream);
-            prod_t_gamma_mod_q_shoup_ = cuda_make_shared<uint64_t>(size_Ql, stream);
+            prod_t_gamma_mod_q_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
+            prod_t_gamma_mod_q_shoup_ = make_cuda_auto_ptr<uint64_t>(size_Ql, stream);
             cudaMemcpyAsync(prod_t_gamma_mod_q_.get(), prod_t_gamma_mod_q.data(), size_Ql * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(prod_t_gamma_mod_q_shoup_.get(), prod_t_gamma_mod_q_shoup.data(),
@@ -363,8 +363,8 @@ namespace phantom {
                 neg_inv_q_mod_t_gamma_shoup[i] = compute_shoup(neg_inv_q_mod_t_gamma[i], base_t_gamma[i].value());
             }
 
-            neg_inv_q_mod_t_gamma_ = cuda_make_shared<uint64_t>(base_t_gamma_size, stream);
-            neg_inv_q_mod_t_gamma_shoup_ = cuda_make_shared<uint64_t>(base_t_gamma_size, stream);
+            neg_inv_q_mod_t_gamma_ = make_cuda_auto_ptr<uint64_t>(base_t_gamma_size, stream);
+            neg_inv_q_mod_t_gamma_shoup_ = make_cuda_auto_ptr<uint64_t>(base_t_gamma_size, stream);
             cudaMemcpyAsync(neg_inv_q_mod_t_gamma_.get(), neg_inv_q_mod_t_gamma.data(),
                             base_t_gamma_size * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(neg_inv_q_mod_t_gamma_shoup_.get(), neg_inv_q_mod_t_gamma_shoup.data(),
@@ -443,8 +443,8 @@ namespace phantom {
                 m_tilde_QHatInvModq[i] = multiply_uint_mod(m_tilde.value(), QHatInvModqi, qi);
                 m_tilde_QHatInvModq_shoup[i] = compute_shoup(m_tilde_QHatInvModq[i], qi.value());
             }
-            m_tilde_QHatInvModq_ = cuda_make_shared<uint64_t>(m_tilde_QHatInvModq.size(), stream);
-            m_tilde_QHatInvModq_shoup_ = cuda_make_shared<uint64_t>(m_tilde_QHatInvModq.size(), stream);
+            m_tilde_QHatInvModq_ = make_cuda_auto_ptr<uint64_t>(m_tilde_QHatInvModq.size(), stream);
+            m_tilde_QHatInvModq_shoup_ = make_cuda_auto_ptr<uint64_t>(m_tilde_QHatInvModq.size(), stream);
             cudaMemcpyAsync(m_tilde_QHatInvModq_.get(), m_tilde_QHatInvModq.data(),
                             sizeof(uint64_t) * m_tilde_QHatInvModq.size(), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(m_tilde_QHatInvModq_shoup_.get(), m_tilde_QHatInvModq_shoup.data(),
@@ -457,8 +457,8 @@ namespace phantom {
                 tModBsk[i] = t.value();
                 tModBsk_shoup[i] = compute_shoup(t.value(), base_Bsk[i].value());
             }
-            tModBsk_ = cuda_make_shared<uint64_t>(tModBsk.size(), stream);
-            tModBsk_shoup_ = cuda_make_shared<uint64_t>(tModBsk_shoup.size(), stream);
+            tModBsk_ = make_cuda_auto_ptr<uint64_t>(tModBsk.size(), stream);
+            tModBsk_shoup_ = make_cuda_auto_ptr<uint64_t>(tModBsk_shoup.size(), stream);
             cudaMemcpyAsync(tModBsk_.get(), tModBsk.data(), tModBsk.size() * sizeof(uint64_t), cudaMemcpyHostToDevice,
                             stream);
             cudaMemcpyAsync(tModBsk_shoup_.get(), tModBsk_shoup.data(), tModBsk_shoup.size() * sizeof(uint64_t),
@@ -485,7 +485,7 @@ namespace phantom {
             for (size_t i = 0; i < prod_B_mod_q.size(); i++) {
                 prod_B_mod_q[i] = modulo_uint(base_B.big_modulus(), base_B_size, base_Q[i]);
             }
-            prod_B_mod_q_ = cuda_make_shared<uint64_t>(prod_B_mod_q.size(), stream);
+            prod_B_mod_q_ = make_cuda_auto_ptr<uint64_t>(prod_B_mod_q.size(), stream);
             cudaMemcpyAsync(prod_B_mod_q_.get(), prod_B_mod_q.data(), prod_B_mod_q.size() * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
 
@@ -502,8 +502,8 @@ namespace phantom {
                 inv_prod_q_mod_Bsk[i] = temp;
                 inv_prod_q_mod_Bsk_shoup[i] = compute_shoup(temp, base_Bsk[i].value());
             }
-            inv_prod_q_mod_Bsk_ = cuda_make_shared<uint64_t>(inv_prod_q_mod_Bsk.size(), stream);
-            inv_prod_q_mod_Bsk_shoup_ = cuda_make_shared<uint64_t>(inv_prod_q_mod_Bsk_shoup.size(), stream);
+            inv_prod_q_mod_Bsk_ = make_cuda_auto_ptr<uint64_t>(inv_prod_q_mod_Bsk.size(), stream);
+            inv_prod_q_mod_Bsk_shoup_ = make_cuda_auto_ptr<uint64_t>(inv_prod_q_mod_Bsk_shoup.size(), stream);
             cudaMemcpyAsync(inv_prod_q_mod_Bsk_.get(), inv_prod_q_mod_Bsk.data(),
                             inv_prod_q_mod_Bsk.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_prod_q_mod_Bsk_shoup_.get(), inv_prod_q_mod_Bsk_shoup.data(),
@@ -529,8 +529,8 @@ namespace phantom {
                 inv_m_tilde_mod_Bsk[i] = temp;
                 inv_m_tilde_mod_Bsk_shoup[i] = compute_shoup(temp, base_Bsk[i].value());
             }
-            inv_m_tilde_mod_Bsk_ = cuda_make_shared<uint64_t>(inv_m_tilde_mod_Bsk.size(), stream);
-            inv_m_tilde_mod_Bsk_shoup_ = cuda_make_shared<uint64_t>(inv_m_tilde_mod_Bsk_shoup.size(), stream);
+            inv_m_tilde_mod_Bsk_ = make_cuda_auto_ptr<uint64_t>(inv_m_tilde_mod_Bsk.size(), stream);
+            inv_m_tilde_mod_Bsk_shoup_ = make_cuda_auto_ptr<uint64_t>(inv_m_tilde_mod_Bsk_shoup.size(), stream);
             cudaMemcpyAsync(inv_m_tilde_mod_Bsk_.get(), inv_m_tilde_mod_Bsk.data(),
                             sizeof(uint64_t) * inv_m_tilde_mod_Bsk.size(), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(inv_m_tilde_mod_Bsk_shoup_.get(), inv_m_tilde_mod_Bsk_shoup.data(),
@@ -551,7 +551,7 @@ namespace phantom {
             for (size_t i = 0; i < base_Bsk_size; i++) {
                 prod_q_mod_Bsk[i] = modulo_uint(base_Q.big_modulus(), size_Q, base_Bsk[i]);
             }
-            prod_q_mod_Bsk_ = cuda_make_shared<uint64_t>(prod_q_mod_Bsk.size(), stream);
+            prod_q_mod_Bsk_ = make_cuda_auto_ptr<uint64_t>(prod_q_mod_Bsk.size(), stream);
             cudaMemcpyAsync(prod_q_mod_Bsk_.get(), prod_q_mod_Bsk.data(), prod_q_mod_Bsk.size() * sizeof(uint64_t),
                             cudaMemcpyHostToDevice, stream);
         }
@@ -606,9 +606,9 @@ namespace phantom {
 
                 t_QHatInv_mod_q_div_q_mod_t[i] = value_t_QHatInv_mod_q_div_q_mod_t;
                 t_QHatInv_mod_q_div_q_mod_t_shoup[i] = compute_shoup(value_t_QHatInv_mod_q_div_q_mod_t, t.value());
-                t_QHatInv_mod_q_div_q_mod_t_ = cuda_make_shared<uint64_t>(t_QHatInv_mod_q_div_q_mod_t.size(), stream);
+                t_QHatInv_mod_q_div_q_mod_t_ = make_cuda_auto_ptr<uint64_t>(t_QHatInv_mod_q_div_q_mod_t.size(), stream);
                 t_QHatInv_mod_q_div_q_mod_t_shoup_ =
-                        cuda_make_shared<uint64_t>(t_QHatInv_mod_q_div_q_mod_t_shoup.size(), stream);
+                        make_cuda_auto_ptr<uint64_t>(t_QHatInv_mod_q_div_q_mod_t_shoup.size(), stream);
                 cudaMemcpyAsync(t_QHatInv_mod_q_div_q_mod_t_.get(), t_QHatInv_mod_q_div_q_mod_t.data(),
                                 t_QHatInv_mod_q_div_q_mod_t.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(t_QHatInv_mod_q_div_q_mod_t_shoup_.get(), t_QHatInv_mod_q_div_q_mod_t_shoup.data(),
@@ -618,7 +618,7 @@ namespace phantom {
                 uint64_t numerator = modulo_uint(big_t_QHatInv_mod_qi.data(), 2, qi);
                 uint64_t denominator = qi.value();
                 t_QHatInv_mod_q_div_q_frac[i] = static_cast<double>(numerator) / static_cast<double>(denominator);
-                t_QHatInv_mod_q_div_q_frac_ = cuda_make_shared<double>(t_QHatInv_mod_q_div_q_frac.size(), stream);
+                t_QHatInv_mod_q_div_q_frac_ = make_cuda_auto_ptr<double>(t_QHatInv_mod_q_div_q_frac.size(), stream);
                 cudaMemcpyAsync(t_QHatInv_mod_q_div_q_frac_.get(), t_QHatInv_mod_q_div_q_frac.data(),
                                 t_QHatInv_mod_q_div_q_frac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
@@ -643,9 +643,9 @@ namespace phantom {
                     t_QHatInv_mod_q_B_div_q_mod_t_shoup[i] =
                             compute_shoup(value_t_QHatInv_mod_q_B_div_q_mod_t, t.value());
                     t_QHatInv_mod_q_B_div_q_mod_t_ =
-                            cuda_make_shared<uint64_t>(t_QHatInv_mod_q_B_div_q_mod_t.size(), stream);
+                            make_cuda_auto_ptr<uint64_t>(t_QHatInv_mod_q_B_div_q_mod_t.size(), stream);
                     t_QHatInv_mod_q_B_div_q_mod_t_shoup_ =
-                            cuda_make_shared<uint64_t>(t_QHatInv_mod_q_B_div_q_mod_t_shoup.size(), stream);
+                            make_cuda_auto_ptr<uint64_t>(t_QHatInv_mod_q_B_div_q_mod_t_shoup.size(), stream);
                     cudaMemcpyAsync(t_QHatInv_mod_q_B_div_q_mod_t_.get(), t_QHatInv_mod_q_B_div_q_mod_t.data(),
                                     t_QHatInv_mod_q_B_div_q_mod_t.size() * sizeof(uint64_t), cudaMemcpyHostToDevice,
                                     stream);
@@ -656,8 +656,8 @@ namespace phantom {
 
                     numerator = modulo_uint(t_QHatInv_B_mod_qi.data(), 2, qi);
                     t_QHatInv_mod_q_B_div_q_frac[i] = static_cast<double>(numerator) / static_cast<double>(denominator);
-                    t_QHatInv_mod_q_B_div_q_frac_ = cuda_make_shared<double>(t_QHatInv_mod_q_B_div_q_frac.size(),
-                                                                             stream);
+                    t_QHatInv_mod_q_B_div_q_frac_ = make_cuda_auto_ptr<double>(t_QHatInv_mod_q_B_div_q_frac.size(),
+                                                                               stream);
                     cudaMemcpyAsync(t_QHatInv_mod_q_B_div_q_frac_.get(), t_QHatInv_mod_q_B_div_q_frac.data(),
                                     t_QHatInv_mod_q_B_div_q_frac.size() * sizeof(double), cudaMemcpyHostToDevice,
                                     stream);
@@ -732,7 +732,7 @@ namespace phantom {
                 uint64_t tRSHatInvModsModqi = modulo_uint(tRSHatInvMods[i].data(), size_R + 2, qi);
                 tRSHatInvModsDivsFrac[i] = static_cast<double>(tRSHatInvModsModqi) / static_cast<double>(qi.value());
             }
-            tRSHatInvModsDivsFrac_ = cuda_make_shared<double>(tRSHatInvModsDivsFrac.size(), stream);
+            tRSHatInvModsDivsFrac_ = make_cuda_auto_ptr<double>(tRSHatInvModsDivsFrac.size(), stream);
             cudaMemcpyAsync(tRSHatInvModsDivsFrac_.get(), tRSHatInvModsDivsFrac.data(),
                             tRSHatInvModsDivsFrac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
@@ -767,8 +767,8 @@ namespace phantom {
                 tRSHatInvModsDivsModr_shoup[j * (size_Q + 1) + size_Q] =
                         compute_shoup(tRSHatInvModsDivrjModrj, rj.value());
             }
-            tRSHatInvModsDivsModr_ = cuda_make_shared<uint64_t>(tRSHatInvModsDivsModr.size(), stream);
-            tRSHatInvModsDivsModr_shoup_ = cuda_make_shared<uint64_t>(tRSHatInvModsDivsModr_shoup.size(), stream);
+            tRSHatInvModsDivsModr_ = make_cuda_auto_ptr<uint64_t>(tRSHatInvModsDivsModr.size(), stream);
+            tRSHatInvModsDivsModr_shoup_ = make_cuda_auto_ptr<uint64_t>(tRSHatInvModsDivsModr_shoup.size(), stream);
             cudaMemcpyAsync(tRSHatInvModsDivsModr_.get(), tRSHatInvModsDivsModr.data(),
                             tRSHatInvModsDivsModr.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(tRSHatInvModsDivsModr_shoup_.get(), tRSHatInvModsDivsModr_shoup.data(),
@@ -838,7 +838,7 @@ namespace phantom {
                 tQlSlHatInvModsDivsFrac[j] =
                         static_cast<double>(tQlSlHatInvModsModrj) / static_cast<double>(rj.value());
             }
-            tQlSlHatInvModsDivsFrac_ = cuda_make_shared<double>(tQlSlHatInvModsDivsFrac.size(), stream);
+            tQlSlHatInvModsDivsFrac_ = make_cuda_auto_ptr<double>(tQlSlHatInvModsDivsFrac.size(), stream);
             cudaMemcpyAsync(tQlSlHatInvModsDivsFrac_.get(), tQlSlHatInvModsDivsFrac.data(),
                             tQlSlHatInvModsDivsFrac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
@@ -874,8 +874,8 @@ namespace phantom {
                 tQlSlHatInvModsDivsModq_shoup[i * (size_Rl + 1) + size_Rl] =
                         compute_shoup(tQlSlHatInvModsDivqiModqi, qi.value());
             }
-            tQlSlHatInvModsDivsModq_ = cuda_make_shared<uint64_t>(tQlSlHatInvModsDivsModq.size(), stream);
-            tQlSlHatInvModsDivsModq_shoup_ = cuda_make_shared<uint64_t>(tQlSlHatInvModsDivsModq_shoup.size(), stream);
+            tQlSlHatInvModsDivsModq_ = make_cuda_auto_ptr<uint64_t>(tQlSlHatInvModsDivsModq.size(), stream);
+            tQlSlHatInvModsDivsModq_shoup_ = make_cuda_auto_ptr<uint64_t>(tQlSlHatInvModsDivsModq_shoup.size(), stream);
             cudaMemcpyAsync(tQlSlHatInvModsDivsModq_.get(), tQlSlHatInvModsDivsModq.data(),
                             tQlSlHatInvModsDivsModq.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
             cudaMemcpyAsync(tQlSlHatInvModsDivsModq_shoup_.get(), tQlSlHatInvModsDivsModq_shoup.data(),
@@ -921,7 +921,7 @@ namespace phantom {
                     QlQHatInvModqDivqFrac[j] =
                             static_cast<double>(QlQHatInvModqModrj) / static_cast<double>(rj.value());
                 }
-                QlQHatInvModqDivqFrac_ = cuda_make_shared<double>(QlQHatInvModqDivqFrac.size(), stream);
+                QlQHatInvModqDivqFrac_ = make_cuda_auto_ptr<double>(QlQHatInvModqDivqFrac.size(), stream);
                 cudaMemcpyAsync(QlQHatInvModqDivqFrac_.get(), QlQHatInvModqDivqFrac.data(),
                                 QlQHatInvModqDivqFrac.size() * sizeof(double), cudaMemcpyHostToDevice, stream);
 
@@ -957,8 +957,8 @@ namespace phantom {
                     QlQHatInvModqDivqModq_shoup[i * (size_QlDrop + 1) + size_QlDrop] =
                             compute_shoup(QlQHatInvModqDivqiModqi, qi.value());
                 }
-                QlQHatInvModqDivqModq_ = cuda_make_shared<uint64_t>(QlQHatInvModqDivqModq.size(), stream);
-                QlQHatInvModqDivqModq_shoup_ = cuda_make_shared<uint64_t>(QlQHatInvModqDivqModq_shoup.size(), stream);
+                QlQHatInvModqDivqModq_ = make_cuda_auto_ptr<uint64_t>(QlQHatInvModqDivqModq.size(), stream);
+                QlQHatInvModqDivqModq_shoup_ = make_cuda_auto_ptr<uint64_t>(QlQHatInvModqDivqModq_shoup.size(), stream);
                 cudaMemcpyAsync(QlQHatInvModqDivqModq_.get(), QlQHatInvModqDivqModq.data(),
                                 QlQHatInvModqDivqModq.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
                 cudaMemcpyAsync(QlQHatInvModqDivqModq_shoup_.get(), QlQHatInvModqDivqModq_shoup.data(),
@@ -1036,7 +1036,7 @@ namespace phantom {
                     n_, base_t_gamma_.base());
         } else {
             // Need additional memory
-            auto t_gamma = cuda_make_shared<uint64_t>(base_t_gamma_size * n_, stream);
+            auto t_gamma = make_cuda_auto_ptr<uint64_t>(base_t_gamma_size * n_, stream);
 
             // Convert from q to {t, gamma}
             base_q_to_t_gamma_conv_.bConv_BEHZ(t_gamma.get(), temp, n_, stream);
@@ -1187,7 +1187,7 @@ namespace phantom {
         size_t base_Bsk_size = base_Bsk_.size();
         auto n = n_;
 
-        auto temp_bconv = cuda_make_shared<uint64_t>(base_Q_size * n, stream);
+        auto temp_bconv = make_cuda_auto_ptr<uint64_t>(base_Q_size * n, stream);
 
         constexpr int unroll_factor = 2;
 
@@ -1335,7 +1335,7 @@ namespace phantom {
 
         // Convert q -> Bsk
 
-        auto temp_bconv = cuda_make_shared<uint64_t>(base_Q_size * n, stream);
+        auto temp_bconv = make_cuda_auto_ptr<uint64_t>(base_Q_size * n, stream);
 
         constexpr int unroll_factor = 2;
 
@@ -1413,9 +1413,9 @@ namespace phantom {
 
         uint64_t *input_base_m_sk = input_base_Bsk + size_B * n;
 
-        auto temp_bconv = cuda_make_shared<uint64_t>(size_B * n, stream);
+        auto temp_bconv = make_cuda_auto_ptr<uint64_t>(size_B * n, stream);
 
-        auto temp_m_sk = cuda_make_shared<uint64_t>(n, stream);
+        auto temp_m_sk = make_cuda_auto_ptr<uint64_t>(n, stream);
 
         constexpr int unroll_factor = 2;
 

@@ -54,13 +54,13 @@ private:
 
     uint64_t n_ = 0; // vector length for this NWT
     uint64_t size_ = 0; // coeff_modulus_size
-    phantom::util::cuda_shared_ptr<DModulus> modulus_; // modulus for this NWT
-    phantom::util::cuda_shared_ptr<uint64_t> twiddle_; // forward NTT table
-    phantom::util::cuda_shared_ptr<uint64_t> twiddle_shoup_; // forward NTT table
-    phantom::util::cuda_shared_ptr<uint64_t> itwiddle_; // inverse NTT table
-    phantom::util::cuda_shared_ptr<uint64_t> itwiddle_shoup_; // inverse NTT table
-    phantom::util::cuda_shared_ptr<uint64_t> n_inv_mod_q_; // n^(-1) modulo q
-    phantom::util::cuda_shared_ptr<uint64_t> n_inv_mod_q_shoup_; // n^(-1) modulo q, shoup version
+    phantom::util::cuda_auto_ptr<DModulus> modulus_; // modulus for this NWT
+    phantom::util::cuda_auto_ptr<uint64_t> twiddle_; // forward NTT table
+    phantom::util::cuda_auto_ptr<uint64_t> twiddle_shoup_; // forward NTT table
+    phantom::util::cuda_auto_ptr<uint64_t> itwiddle_; // inverse NTT table
+    phantom::util::cuda_auto_ptr<uint64_t> itwiddle_shoup_; // inverse NTT table
+    phantom::util::cuda_auto_ptr<uint64_t> n_inv_mod_q_; // n^(-1) modulo q
+    phantom::util::cuda_auto_ptr<uint64_t> n_inv_mod_q_shoup_; // n^(-1) modulo q, shoup version
 
 public:
 
@@ -98,13 +98,13 @@ public:
               const uint64_t *twiddle_shoup, const uint64_t *itwiddle, const uint64_t *itwiddle_shoup,
               const uint64_t *n_inv_mod_q, const uint64_t *n_inv_mod_q_shoup,
               const cudaStream_t &stream) : n_(n), size_(size) {
-        modulus_ = phantom::util::cuda_make_shared<DModulus>(size, stream);
-        twiddle_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        twiddle_shoup_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        itwiddle_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        itwiddle_shoup_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        n_inv_mod_q_ = phantom::util::cuda_make_shared<uint64_t>(size, stream);
-        n_inv_mod_q_shoup_ = phantom::util::cuda_make_shared<uint64_t>(size, stream);
+        modulus_ = phantom::util::make_cuda_auto_ptr<DModulus>(size, stream);
+        twiddle_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        twiddle_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        itwiddle_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        itwiddle_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        n_inv_mod_q_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size, stream);
+        n_inv_mod_q_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size, stream);
         cudaMemcpyAsync(modulus_.get(), modulus, size * sizeof(DModulus), cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(twiddle_.get(), twiddle, n * size * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(twiddle_shoup_.get(), twiddle_shoup, n * size * sizeof(uint64_t), cudaMemcpyHostToDevice,
@@ -120,13 +120,13 @@ public:
     void init(const uint64_t n, const uint64_t size, const cudaStream_t &stream) {
         n_ = n;
         size_ = size;
-        modulus_ = phantom::util::cuda_make_shared<DModulus>(size, stream);
-        twiddle_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        twiddle_shoup_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        itwiddle_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        itwiddle_shoup_ = phantom::util::cuda_make_shared<uint64_t>(n * size, stream);
-        n_inv_mod_q_ = phantom::util::cuda_make_shared<uint64_t>(size, stream);
-        n_inv_mod_q_shoup_ = phantom::util::cuda_make_shared<uint64_t>(size, stream);
+        modulus_ = phantom::util::make_cuda_auto_ptr<DModulus>(size, stream);
+        twiddle_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        twiddle_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        itwiddle_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        itwiddle_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(n * size, stream);
+        n_inv_mod_q_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size, stream);
+        n_inv_mod_q_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size, stream);
     }
 
     void set(const DModulus *modulus, const uint64_t *twiddle, const uint64_t *twiddle_shoup, const uint64_t *itwiddle,

@@ -19,8 +19,8 @@ private:
     std::size_t coeff_count_ = 0;
     std::vector<size_t> galois_indexs_{};
     std::vector<uint32_t> galois_elts_{};
-    std::vector<phantom::util::cuda_shared_ptr<uint32_t>> permutation_tables_;
-    std::vector<phantom::util::cuda_shared_ptr<uint64_t>> index_raw_tables_; // only used by bfv
+    std::vector<phantom::util::cuda_auto_ptr<uint32_t>> permutation_tables_;
+    std::vector<phantom::util::cuda_auto_ptr<uint64_t>> index_raw_tables_; // only used by bfv
     bool is_bfv_;
 
 public:
@@ -50,7 +50,7 @@ public:
         permutation_tables_.resize(galois_elts_size);
         std::vector<uint32_t> u32temp(coeff_count_);
         for (std::size_t idx{0}; idx < galois_elts_size; idx++) {
-            permutation_tables_[idx] = phantom::util::cuda_make_shared<uint32_t>(coeff_count_, stream);
+            permutation_tables_[idx] = phantom::util::make_cuda_auto_ptr<uint32_t>(coeff_count_, stream);
             auto galois_elt = galois_elts_.at(idx);
             auto temp_ptr = u32temp.data();
             for (size_t i = coeff_count_; i < coeff_count_ << 1; i++) {
@@ -67,7 +67,7 @@ public:
             index_raw_tables_.resize(galois_elts_size);
             std::vector<uint64_t> u64temp(coeff_count_);
             for (std::size_t idx = 0; idx < galois_elts_size; idx++) {
-                index_raw_tables_[idx] = phantom::util::cuda_make_shared<uint64_t>(coeff_count_, stream);
+                index_raw_tables_[idx] = phantom::util::make_cuda_auto_ptr<uint64_t>(coeff_count_, stream);
                 auto galois_elt = galois_elts_.at(idx);
                 auto temp_ptr = u64temp.data();
                 uint64_t index_raw = 0;

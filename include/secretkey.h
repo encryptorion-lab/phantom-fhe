@@ -14,7 +14,7 @@ private:
 
     bool gen_flag_ = false;
     PhantomCiphertext pk_;
-    phantom::util::cuda_shared_ptr<uint8_t> prng_seed_a_; // for compress pk
+    phantom::util::cuda_auto_ptr<uint8_t> prng_seed_a_; // for compress pk
 
     /** Encrypt zero using the public key, internal function, no modulus switch here.
      * @param[in] context PhantomContext
@@ -79,8 +79,8 @@ private:
 
     bool gen_flag_ = false;
     phantom::parms_id_type parms_id_ = phantom::parms_id_zero;
-    std::vector<phantom::util::cuda_shared_ptr<uint64_t>> public_keys_;
-    phantom::util::cuda_shared_ptr<uint64_t *> public_keys_ptr_;
+    std::vector<phantom::util::cuda_auto_ptr<uint64_t>> public_keys_;
+    phantom::util::cuda_auto_ptr<uint64_t *> public_keys_ptr_;
 
 public:
 
@@ -146,8 +146,8 @@ private:
     uint64_t poly_modulus_degree_ = 0;
     uint64_t coeff_modulus_size_ = 0;
 
-    phantom::util::cuda_shared_ptr<uint64_t> data_rns_;
-    phantom::util::cuda_shared_ptr<uint64_t> secret_key_array_; // the powers of secret key
+    phantom::util::cuda_auto_ptr<uint64_t> data_rns_;
+    phantom::util::cuda_auto_ptr<uint64_t> secret_key_array_; // the powers of secret key
 
     /** Generate the powers of secret key
      * @param[in] context PhantomContext

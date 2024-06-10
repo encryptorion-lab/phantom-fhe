@@ -28,9 +28,9 @@ private:
 
     uint32_t m_{}; // order of the multiplicative group
     uint32_t sparse_slots_ = 0;
-    phantom::util::cuda_shared_ptr<cuDoubleComplex> in_; // input buffer, length must be n
-    phantom::util::cuda_shared_ptr<cuDoubleComplex> twiddle_; // forward FFT table
-    phantom::util::cuda_shared_ptr<uint32_t> mul_group_;
+    phantom::util::cuda_auto_ptr<cuDoubleComplex> in_; // input buffer, length must be n
+    phantom::util::cuda_auto_ptr<cuDoubleComplex> twiddle_; // forward FFT table
+    phantom::util::cuda_auto_ptr<uint32_t> mul_group_;
 
 public:
 
@@ -39,9 +39,9 @@ public:
         const uint32_t slots = coeff_count >> 1; // n/2
         const uint32_t slots_half = slots >> 1;
 
-        in_ = phantom::util::cuda_make_shared<cuDoubleComplex>(slots, stream);
-        twiddle_ = phantom::util::cuda_make_shared<cuDoubleComplex>(m_, stream);
-        mul_group_ = phantom::util::cuda_make_shared<uint32_t>(slots_half, stream);
+        in_ = phantom::util::make_cuda_auto_ptr<cuDoubleComplex>(slots, stream);
+        twiddle_ = phantom::util::make_cuda_auto_ptr<cuDoubleComplex>(m_, stream);
+        mul_group_ = phantom::util::make_cuda_auto_ptr<uint32_t>(slots_half, stream);
     }
 
     DCKKSEncoderInfo(const DCKKSEncoderInfo &copy) = delete;

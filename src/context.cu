@@ -200,8 +200,8 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, cons
                                plain_ntt_tables->inv_degree_modulo(), plain_ntt_tables->inv_degree_modulo_shoup(), 0,
                                s);
 
-        plain_modulus_ = cuda_make_shared<uint64_t>(coeff_mod_size_, s);
-        plain_modulus_shoup_ = cuda_make_shared<uint64_t>(coeff_mod_size_, s);
+        plain_modulus_ = make_cuda_auto_ptr<uint64_t>(coeff_mod_size_, s);
+        plain_modulus_shoup_ = make_cuda_auto_ptr<uint64_t>(coeff_mod_size_, s);
         cudaMemcpyAsync(plain_modulus_.get(), get_context_data(0).plain_modulus().data(),
                         coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice, s);
         cudaMemcpyAsync(plain_modulus_shoup_.get(), get_context_data(0).plain_modulus_shoup().data(),
@@ -210,8 +210,8 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, cons
 
     if (params.scheme() == phantom::scheme_type::bfv) {
         const auto coeff_div_plain_size = (coeff_mod_size_ * 2 - total_parm_size() + 1) * total_parm_size() / 2;
-        coeff_div_plain_ = cuda_make_shared<uint64_t>(coeff_div_plain_size, s);
-        coeff_div_plain_shoup_ = cuda_make_shared<uint64_t>(coeff_div_plain_size, s);
+        coeff_div_plain_ = make_cuda_auto_ptr<uint64_t>(coeff_div_plain_size, s);
+        coeff_div_plain_shoup_ = make_cuda_auto_ptr<uint64_t>(coeff_div_plain_size, s);
         auto cdp_pos = 0;
         for (size_t i = 0; i < total_parm_size(); i++) {
             const auto size = get_context_data(i).coeff_div_plain_modulus().size();
@@ -225,7 +225,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, cons
             cdp_pos += size;
         }
 
-        plain_upper_half_increment_ = cuda_make_shared<uint64_t>(coeff_mod_size_, s);
+        plain_upper_half_increment_ = make_cuda_auto_ptr<uint64_t>(coeff_mod_size_, s);
         cudaMemcpyAsync(plain_upper_half_increment_.get(),
                         get_context_data(0).plain_upper_half_increment().data(),
                         coeff_mod_size_ * sizeof(uint64_t), cudaMemcpyHostToDevice, s);

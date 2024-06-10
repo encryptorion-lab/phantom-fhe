@@ -136,7 +136,7 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
     auto size_QlP_n = size_QlP * n;
 
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
-        auto t_cks = phantom::util::cuda_make_shared<uint64_t>(size_Q * n, s);
+        auto t_cks = phantom::util::make_cuda_auto_ptr<uint64_t>(size_Q * n, s);
         cudaMemcpyAsync(t_cks.get(), cks, size_Q * n * sizeof(uint64_t),
                         cudaMemcpyDeviceToDevice, s);
         rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get(), s);
@@ -144,11 +144,11 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
 
     // mod up
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
-    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, s);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
     rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, s);
 
     // key switch
-    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, s);
+    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, s);
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
     key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), rns_tool, modulus_QP,
@@ -165,7 +165,7 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
 
         if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
             auto ct_i = encrypted.data() + i * size_Q * n;
-            auto t_cx = cuda_make_shared<uint64_t>(size_Q * n, s);
+            auto t_cx = make_cuda_auto_ptr<uint64_t>(size_Q * n, s);
             rns_tool.ExpandCRTBasis_Ql_Q(t_cx.get(), cx_i, s);
             add_to_ct_kernel<<<(size_Q * n) / blockDimGlb.x, blockDimGlb, 0, s>>>(
                     ct_i, t_cx.get(), rns_tool.base_Q().base(), n, size_Q);

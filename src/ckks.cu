@@ -117,7 +117,7 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
 
     gpu_ckks_msg_vec_->set_sparse_slots(sparse_slots_);
     PHANTOM_CHECK_CUDA(cudaMemsetAsync(gpu_ckks_msg_vec_->in(), 0, slots_ * sizeof(cuDoubleComplex), stream));
-    auto temp = cuda_make_shared<cuDoubleComplex>(values_size, stream);
+    auto temp = make_cuda_auto_ptr<cuDoubleComplex>(values_size, stream);
     PHANTOM_CHECK_CUDA(cudaMemsetAsync(temp.get(), 0, values_size * sizeof(cuDoubleComplex), stream));
     PHANTOM_CHECK_CUDA(
             cudaMemcpyAsync(temp.get(), values, sizeof(cuDoubleComplex) * values_size, cudaMemcpyHostToDevice, stream));
@@ -183,7 +183,7 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
 
     auto upper_half_threshold = context_data.upper_half_threshold();
     int logn = arith::get_power_of_two(coeff_count);
-    auto gpu_upper_half_threshold = cuda_make_shared<uint64_t>(upper_half_threshold.size(), stream);
+    auto gpu_upper_half_threshold = make_cuda_auto_ptr<uint64_t>(upper_half_threshold.size(), stream);
     cudaMemcpyAsync(gpu_upper_half_threshold.get(), upper_half_threshold.data(),
                     upper_half_threshold.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
@@ -197,7 +197,7 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
 
     double inv_scale = double(1.0) / plain.scale();
     // Create mutable copy of input
-    auto plain_copy = cuda_make_shared<uint64_t>(rns_poly_uint64_count, stream);
+    auto plain_copy = make_cuda_auto_ptr<uint64_t>(rns_poly_uint64_count, stream);
     cudaMemcpyAsync(plain_copy.get(), plain.data(), rns_poly_uint64_count * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
                     stream);
 
@@ -210,7 +210,7 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
     special_fft_forward(*gpu_ckks_msg_vec_, stream);
 
     // finally, bit-reverse and output
-    auto out = cuda_make_shared<cuDoubleComplex>(sparse_slots_, stream);
+    auto out = make_cuda_auto_ptr<cuDoubleComplex>(sparse_slots_, stream);
     uint32_t log_sparse_n = log2(sparse_slots_);
     uint64_t gridDimGlb = ceil(sparse_slots_ / blockDimGlb.x);
     bit_reverse<<<gridDimGlb, blockDimGlb, 0, stream>>>(

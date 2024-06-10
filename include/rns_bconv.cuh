@@ -7,13 +7,13 @@ private:
     phantom::arith::DRNSBase ibase_;
     phantom::arith::DRNSBase obase_;
 
-    phantom::util::cuda_shared_ptr<uint64_t> qiHat_mod_pj_;
-    phantom::util::cuda_shared_ptr<uint64_t> alpha_Q_mod_pj_;
-    phantom::util::cuda_shared_ptr<uint64_t> negPQHatInvModq_;
-    phantom::util::cuda_shared_ptr<uint64_t> negPQHatInvModq_shoup_;
-    phantom::util::cuda_shared_ptr<uint64_t> QInvModp_;
-    phantom::util::cuda_shared_ptr<uint64_t> PModq_;
-    phantom::util::cuda_shared_ptr<uint64_t> PModq_shoup_;
+    phantom::util::cuda_auto_ptr<uint64_t> qiHat_mod_pj_;
+    phantom::util::cuda_auto_ptr<uint64_t> alpha_Q_mod_pj_;
+    phantom::util::cuda_auto_ptr<uint64_t> negPQHatInvModq_;
+    phantom::util::cuda_auto_ptr<uint64_t> negPQHatInvModq_shoup_;
+    phantom::util::cuda_auto_ptr<uint64_t> QInvModp_;
+    phantom::util::cuda_auto_ptr<uint64_t> PModq_;
+    phantom::util::cuda_auto_ptr<uint64_t> PModq_shoup_;
 
 public:
 
@@ -27,34 +27,34 @@ public:
         ibase_.init(cpu_base_converter.ibase(), stream);
         obase_.init(cpu_base_converter.obase(), stream);
 
-        qiHat_mod_pj_ = phantom::util::cuda_make_shared<uint64_t>(obase_.size() * ibase_.size(), stream);
+        qiHat_mod_pj_ = phantom::util::make_cuda_auto_ptr<uint64_t>(obase_.size() * ibase_.size(), stream);
         for (size_t idx = 0; idx < obase_.size(); idx++)
             cudaMemcpyAsync(qiHat_mod_pj_.get() + idx * ibase_.size(), cpu_base_converter.QHatModp(idx),
                             ibase_.size() * sizeof(std::uint64_t), cudaMemcpyHostToDevice, stream);
 
-        alpha_Q_mod_pj_ = phantom::util::cuda_make_shared<uint64_t>((ibase_.size() + 1) * obase_.size(), stream);
+        alpha_Q_mod_pj_ = phantom::util::make_cuda_auto_ptr<uint64_t>((ibase_.size() + 1) * obase_.size(), stream);
         for (size_t idx = 0; idx < ibase_.size() + 1; idx++)
             cudaMemcpyAsync(alpha_Q_mod_pj_.get() + idx * obase_.size(), cpu_base_converter.alphaQModp(idx),
                             obase_.size() * sizeof(std::uint64_t), cudaMemcpyHostToDevice, stream);
 
-        negPQHatInvModq_ = phantom::util::cuda_make_shared<uint64_t>(ibase_.size(), stream);
+        negPQHatInvModq_ = phantom::util::make_cuda_auto_ptr<uint64_t>(ibase_.size(), stream);
         cudaMemcpyAsync(negPQHatInvModq_.get(), cpu_base_converter.negPQHatInvModq(),
                         ibase_.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
-        negPQHatInvModq_shoup_ = phantom::util::cuda_make_shared<uint64_t>(ibase_.size(), stream);
+        negPQHatInvModq_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(ibase_.size(), stream);
         cudaMemcpyAsync(negPQHatInvModq_shoup_.get(), cpu_base_converter.negPQHatInvModq_shoup(),
                         ibase_.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 
-        QInvModp_ = phantom::util::cuda_make_shared<uint64_t>(obase_.size() * ibase_.size(), stream);
+        QInvModp_ = phantom::util::make_cuda_auto_ptr<uint64_t>(obase_.size() * ibase_.size(), stream);
         for (size_t idx = 0; idx < obase_.size(); idx++)
             cudaMemcpyAsync(QInvModp_.get() + idx * ibase_.size(), cpu_base_converter.QInvModp(idx),
                             ibase_.size() * sizeof(std::uint64_t), cudaMemcpyHostToDevice, stream);
 
-        PModq_ = phantom::util::cuda_make_shared<uint64_t>(ibase_.size(), stream);
+        PModq_ = phantom::util::make_cuda_auto_ptr<uint64_t>(ibase_.size(), stream);
         cudaMemcpyAsync(PModq_.get(), cpu_base_converter.PModq(), ibase_.size() * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, stream);
 
-        PModq_shoup_ = phantom::util::cuda_make_shared<uint64_t>(ibase_.size(), stream);
+        PModq_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(ibase_.size(), stream);
         cudaMemcpyAsync(PModq_shoup_.get(), cpu_base_converter.PModq_shoup(),
                         ibase_.size() * sizeof(uint64_t), cudaMemcpyHostToDevice, stream);
 

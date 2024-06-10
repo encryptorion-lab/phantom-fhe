@@ -9,14 +9,14 @@ namespace phantom::arith {
     private:
         std::size_t size_{};
 
-        phantom::util::cuda_shared_ptr<DModulus> base_;
-        phantom::util::cuda_shared_ptr<uint64_t> big_Q_;
-        phantom::util::cuda_shared_ptr<uint64_t> big_qiHat_;
-        phantom::util::cuda_shared_ptr<uint64_t> qiHat_mod_qi_;
-        phantom::util::cuda_shared_ptr<uint64_t> qiHat_mod_qi_shoup_;
-        phantom::util::cuda_shared_ptr<uint64_t> qiHatInv_mod_qi_;
-        phantom::util::cuda_shared_ptr<uint64_t> qiHatInv_mod_qi_shoup_;
-        phantom::util::cuda_shared_ptr<double> qiInv_;
+        phantom::util::cuda_auto_ptr<DModulus> base_;
+        phantom::util::cuda_auto_ptr<uint64_t> big_Q_;
+        phantom::util::cuda_auto_ptr<uint64_t> big_qiHat_;
+        phantom::util::cuda_auto_ptr<uint64_t> qiHat_mod_qi_;
+        phantom::util::cuda_auto_ptr<uint64_t> qiHat_mod_qi_shoup_;
+        phantom::util::cuda_auto_ptr<uint64_t> qiHatInv_mod_qi_;
+        phantom::util::cuda_auto_ptr<uint64_t> qiHatInv_mod_qi_shoup_;
+        phantom::util::cuda_auto_ptr<double> qiInv_;
 
     public:
         DRNSBase() = default;

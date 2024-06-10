@@ -10,10 +10,6 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     print_parameters(context);
     cout << endl;
 
-    auto &context_data = context.get_context_data(context.get_first_index());
-    auto &first_parms = context_data.parms();
-    size_t poly_modulus_degree = first_parms.poly_modulus_degree();
-
     const auto &stream = context.get_cuda_stream(0);
 
     print_timer_banner();
@@ -24,46 +20,46 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
             PhantomSecretKey secret_key;
-            timer.start();
-            secret_key.gen_secretkey(context);
-            timer.stop();
+            timer.start(stream);
+            secret_key.gen_secretkey(context, stream);
+            timer.stop(stream);
         }
     }
 
     PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
+    secret_key.gen_secretkey(context, stream);
 
     {
         CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
             PhantomPublicKey public_key;
-            timer.start();
-            secret_key.gen_publickey(context, public_key);
-            timer.stop();
+            timer.start(stream);
+            secret_key.gen_publickey(context, public_key, stream);
+            timer.stop(stream);
         }
     }
 
     PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    secret_key.gen_publickey(context, public_key, stream);
 
     // Generate relinearization keys
     {
         CUDATimer timer("gen_relinkey");
         for (auto i = 0; i < count; i++) {
             PhantomRelinKey relin_keys;
-            timer.start();
-            secret_key.gen_relinkey(context, relin_keys);
-            timer.stop();
+            timer.start(stream);
+            secret_key.gen_relinkey(context, relin_keys, stream);
+            timer.stop(stream);
         }
     }
 
     PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys);
+    secret_key.gen_relinkey(context, relin_keys, stream);
 
     PhantomGaloisKey gal_keys;
-    secret_key.create_galois_keys(context, gal_keys);
+    secret_key.create_galois_keys(context, gal_keys, stream);
 
-    PhantomCKKSEncoder ckks_encoder(context);
+    PhantomCKKSEncoder ckks_encoder(context, stream);
 
     /*
     Populate a vector of floating-point values to batch.
@@ -88,9 +84,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     {
         CUDATimer timer("encode");
         for (auto i = 0; i < count; i++) {
-            timer.start();
-            ckks_encoder.encode(context, pod_vector, scale, plain);
-            timer.stop();
+            timer.start(stream);
+            ckks_encoder.encode(context, pod_vector, scale, plain, 1, stream);
+            timer.stop(stream);
         }
     }
 
@@ -100,9 +96,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     {
         CUDATimer timer("decode");
         for (auto i = 0; i < count; i++) {
-            timer.start();
-            ckks_encoder.decode(context, plain, pod_vector2);
-            timer.stop();
+            timer.start(stream);
+            ckks_encoder.decode(context, plain, pod_vector2, stream);
+            timer.stop(stream);
         }
     }
 
@@ -113,9 +109,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     {
         CUDATimer timer("encrypt_asymmetric");
         for (auto i = 0; i < count; i++) {
-            timer.start();
-            public_key.encrypt_asymmetric(context, plain, encrypted);
-            timer.stop();
+            timer.start(stream);
+            public_key.encrypt_asymmetric(context, plain, encrypted, stream);
+            timer.stop(stream);
         }
     }
 
@@ -126,9 +122,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     {
         CUDATimer timer("decrypt");
         for (auto i = 0; i < count; i++) {
-            timer.start();
-            secret_key.decrypt(context, encrypted, plain2);
-            timer.stop();
+            timer.start(stream);
+            secret_key.decrypt(context, encrypted, plain2, stream);
+            timer.stop(stream);
         }
     }
 
@@ -137,14 +133,14 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     PhantomCiphertext encrypted1;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
         pod_vector3[j] = make_cuDoubleComplex(double(1), double(0));
-    ckks_encoder.encode(context, pod_vector3, scale, plain);
-    public_key.encrypt_asymmetric(context, plain, encrypted1);
+    ckks_encoder.encode(context, pod_vector3, scale, plain, 1, stream);
+    public_key.encrypt_asymmetric(context, plain, encrypted1, stream);
 
     PhantomCiphertext encrypted2;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
         pod_vector4[j] = make_cuDoubleComplex(double(1), double(0));
-    ckks_encoder.encode(context, pod_vector4, scale, plain2);
-    public_key.encrypt_asymmetric(context, plain2, encrypted2);
+    ckks_encoder.encode(context, pod_vector4, scale, plain2, 1, stream);
+    public_key.encrypt_asymmetric(context, plain2, encrypted2, stream);
 
     /*
     [Add]
@@ -153,9 +149,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("add");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start();
-            add_inplace(context, tmp_ct, encrypted2);
-            timer.stop();
+            timer.start(stream);
+            add_inplace(context, tmp_ct, encrypted2, stream);
+            timer.stop(stream);
         }
     }
 
@@ -166,9 +162,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("add_plain");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start();
-            add_plain_inplace(context, tmp_ct, plain);
-            timer.stop();
+            timer.start(stream);
+            add_plain_inplace(context, tmp_ct, plain, stream);
+            timer.stop(stream);
         }
     }
 
@@ -193,9 +189,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("multiply_plain");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start();
-            multiply_plain_inplace(context, tmp_ct, plain);
-            timer.stop();
+            timer.start(stream);
+            multiply_plain_inplace(context, tmp_ct, plain, stream);
+            timer.stop(stream);
         }
     }
 
@@ -206,11 +202,11 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("rescale_to_next");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            multiply_inplace(context, tmp_ct, encrypted2);
-            relinearize_inplace(context, tmp_ct, relin_keys);
-            timer.start();
-            rescale_to_next_inplace(context, tmp_ct);
-            timer.stop();
+            multiply_inplace(context, tmp_ct, encrypted2, stream);
+            relinearize_inplace(context, tmp_ct, relin_keys, stream);
+            timer.start(stream);
+            rescale_to_next_inplace(context, tmp_ct, stream);
+            timer.stop(stream);
         }
     }
 
@@ -221,9 +217,9 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("rotate_vector_one_step");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start();
-            rotate_vector_inplace(context, tmp_ct, 1, gal_keys);
-            timer.stop();
+            timer.start(stream);
+            rotate_vector_inplace(context, tmp_ct, 1, gal_keys, stream);
+            timer.stop(stream);
         }
     }
 }

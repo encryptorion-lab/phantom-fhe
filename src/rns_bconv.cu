@@ -213,7 +213,7 @@ void DBaseConverter::bConv_BEHZ(uint64_t *dst, const uint64_t *src, size_t n, co
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
 
-    auto temp = cuda_make_shared<uint64_t>(ibase_size * n, stream);
+    auto temp = make_cuda_auto_ptr<uint64_t>(ibase_size * n, stream);
 
     constexpr int unroll_factor = 2;
 
@@ -232,7 +232,7 @@ void DBaseConverter::bConv_BEHZ_var1(uint64_t *dst, const uint64_t *src, size_t 
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
 
-    auto temp = cuda_make_shared<uint64_t>(ibase_size * n, stream);
+    auto temp = make_cuda_auto_ptr<uint64_t>(ibase_size * n, stream);
 
     constexpr int unroll_factor = 2;
 
@@ -355,7 +355,7 @@ void DBaseConverter::bConv_HPS(uint64_t *dst, const uint64_t *src, size_t n, con
     size_t ibase_size = ibase_.size();
     size_t obase_size = obase_.size();
 
-    auto temp = cuda_make_shared<uint64_t>(ibase_size * n, stream);
+    auto temp = make_cuda_auto_ptr<uint64_t>(ibase_size * n, stream);
 
     constexpr int unroll_factor = 2;
 
@@ -541,7 +541,7 @@ void DRNSTool::modup(uint64_t *dst, const uint64_t *cks, const DNTTTable &ntt_ta
     size_t alpha = size_P;
     size_t beta = v_base_part_Ql_to_compl_part_QlP_conv_.size();
 
-    auto t_cks = cuda_make_shared<uint64_t>(size_Ql_n, stream);
+    auto t_cks = make_cuda_auto_ptr<uint64_t>(size_Ql_n, stream);
 
     // cks is in NTT domain, t_cks is in normal domain
     if (alpha == 1) {
@@ -717,7 +717,7 @@ void DRNSTool::moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tabl
     size_t size_QlP = size_Ql + size_P_;
     size_t size_Ql_n = size_Ql * n;
 
-    auto delta = cuda_make_shared<uint64_t>(size_QlP * n, stream);
+    auto delta = make_cuda_auto_ptr<uint64_t>(size_QlP * n, stream);
 
     if (scheme == scheme_type::ckks) {
         // Transform cx_i[P] to normal domain
@@ -732,7 +732,7 @@ void DRNSTool::moddown(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable &ntt_tabl
     if (scheme == scheme_type::bgv) {
         base_P_to_Ql_conv_.bConv_BEHZ(delta.get(), cx_i + size_Ql_n, n, stream);
 
-        auto temp_t = cuda_make_shared<uint64_t>(n, stream);
+        auto temp_t = make_cuda_auto_ptr<uint64_t>(n, stream);
 
         base_P_to_t_conv_.bConv_BEHZ(temp_t.get(), cx_i + size_Ql_n, n, stream);
 
@@ -780,7 +780,7 @@ void DRNSTool::moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable 
     size_t alpha = size_P_;
     size_t size_Ql_n = size_Ql * n;
 
-    auto delta = cuda_make_shared<uint64_t>(size_Ql_n, stream);
+    auto delta = make_cuda_auto_ptr<uint64_t>(size_Ql_n, stream);
 
     if (scheme == scheme_type::ckks) {
         // Transform cx_i[P] to normal domain
@@ -801,7 +801,7 @@ void DRNSTool::moddown_from_NTT(uint64_t *ct_i, uint64_t *cx_i, const DNTTTable 
     }
 
     if (scheme == scheme_type::bgv) {
-        auto temp_t = cuda_make_shared<uint64_t>(n, stream);
+        auto temp_t = make_cuda_auto_ptr<uint64_t>(n, stream);
 
         base_P_to_t_conv_.bConv_BEHZ(temp_t.get(), cx_i + size_Ql_n, n, stream);
 

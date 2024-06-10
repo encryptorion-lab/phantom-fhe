@@ -26,7 +26,7 @@ namespace phantom::util {
     };
 
     template<class T>
-    class cuda_shared_ptr {
+    class cuda_auto_ptr {
 
     private:
         T *ptr_ = nullptr;
@@ -34,16 +34,16 @@ namespace phantom::util {
         cudaStream_t cudaStream_ = nullptr;
 
     public:
-        cuda_shared_ptr() = default;
+        cuda_auto_ptr() = default;
 
-        explicit cuda_shared_ptr(T *ptr, size_t n, const cudaStream_t &stream) {
+        explicit cuda_auto_ptr(T *ptr, size_t n, const cudaStream_t &stream) {
             ptr_ = ptr;
             n_ = n;
             cudaStream_ = stream;
         }
 
         // copy constructor
-        cuda_shared_ptr(const cuda_shared_ptr &obj) {
+        cuda_auto_ptr(const cuda_auto_ptr &obj) {
             PHANTOM_CHECK_CUDA(cudaMallocAsync(&this->ptr_, obj.n_ * sizeof(T), obj.cudaStream_));
             PHANTOM_CHECK_CUDA(cudaMemcpyAsync(this->ptr_, obj.ptr_, obj.n_ * sizeof(T), cudaMemcpyDeviceToDevice,
                                                obj.cudaStream_));
@@ -52,7 +52,7 @@ namespace phantom::util {
         }
 
         // copy assignment
-        cuda_shared_ptr &operator=(const cuda_shared_ptr &obj) {
+        cuda_auto_ptr &operator=(const cuda_auto_ptr &obj) {
             if (this == &obj) {
                 return *this;
             }
@@ -68,7 +68,7 @@ namespace phantom::util {
         }
 
         // move constructor
-        cuda_shared_ptr(cuda_shared_ptr &&dyingObj) noexcept {
+        cuda_auto_ptr(cuda_auto_ptr &&dyingObj) noexcept {
             // share the underlying pointer
             this->ptr_ = dyingObj.ptr_;
             this->n_ = dyingObj.n_;
@@ -81,7 +81,7 @@ namespace phantom::util {
         }
 
         // move assignment
-        cuda_shared_ptr &operator=(cuda_shared_ptr &&dyingObj) noexcept {
+        cuda_auto_ptr &operator=(cuda_auto_ptr &&dyingObj) noexcept {
             if (this == &dyingObj) {
                 return *this;
             }
@@ -100,7 +100,7 @@ namespace phantom::util {
             return *this;
         }
 
-        ~cuda_shared_ptr() // destructor
+        ~cuda_auto_ptr() // destructor
         {
             reset();
         }
@@ -141,9 +141,9 @@ namespace phantom::util {
     };
 
     template<class T>
-    cuda_shared_ptr<T> cuda_make_shared(size_t n, const cudaStream_t &stream) {
+    cuda_auto_ptr<T> make_cuda_auto_ptr(size_t n, const cudaStream_t &stream) {
         T *ptr;
         PHANTOM_CHECK_CUDA(cudaMallocAsync(&ptr, n * sizeof(T), stream));
-        return cuda_shared_ptr<T>(ptr, n, stream);
+        return cuda_auto_ptr<T>(ptr, n, stream);
     }
 }

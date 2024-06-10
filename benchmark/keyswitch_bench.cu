@@ -98,7 +98,7 @@ void modup_bench(nvbench::state &state) {
     const auto &stream = context.get_cuda_stream(0);
 
     // mod up
-    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
 
     state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
     state.exec([&rns_tool, &t_mod_up, cks, &context, &scheme, &stream](nvbench::launch &launch) {
@@ -201,12 +201,12 @@ void keyswitch_bench(nvbench::state &state) {
     const auto &stream = context.get_cuda_stream(0);
 
     // mod up
-    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
 
     rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
+    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, stream);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
@@ -314,11 +314,11 @@ void moddown_bench(nvbench::state &state) {
     const auto &stream = context.get_cuda_stream(0);
 
     // mod up
-    auto t_mod_up = cuda_make_shared<uint64_t>(beta * size_QlP_n, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
     rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
 
     // key switch
-    auto cx = cuda_make_shared<uint64_t>(2 * size_QlP_n, stream);
+    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, stream);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;

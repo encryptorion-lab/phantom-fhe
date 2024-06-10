@@ -154,15 +154,18 @@ void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encry
                          const PhantomRelinKey &relin_keys,
                          const cudaStream_t &stream = nullptr);
 
+// ciphertext
 void mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
                         PhantomCiphertext &destination,
                         const cudaStream_t &stream = nullptr);
 
+// ciphertext
 inline void mod_switch_to_next_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
                                        const cudaStream_t &stream = nullptr) {
     mod_switch_to_next(context, encrypted, encrypted, stream);
 }
 
+// ciphertext
 inline void mod_switch_to_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t chain_index,
                                   const cudaStream_t &stream = nullptr) {
     if (encrypted.chain_index() > chain_index) {
@@ -174,9 +177,11 @@ inline void mod_switch_to_inplace(const PhantomContext &context, PhantomCipherte
     }
 }
 
+// plaintext
 void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain,
                                 const cudaStream_t &stream = nullptr);
 
+// plaintext
 inline void mod_switch_to_inplace(const PhantomContext &context, PhantomPlaintext &plain, size_t chain_index,
                                   const cudaStream_t &stream = nullptr) {
     if (plain.chain_index() > chain_index) {

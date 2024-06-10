@@ -13,7 +13,7 @@ namespace phantom::arith {
     void DRNSBase::init(const RNSBase &cpu_rns_base, const cudaStream_t &stream) {
         size_ = cpu_rns_base.size();
 
-        base_ = phantom::util::cuda_make_shared<DModulus>(size_, stream);
+        base_ = phantom::util::make_cuda_auto_ptr<DModulus>(size_, stream);
         for (size_t idx = 0; idx < size_; idx++) {
             auto temp_modulus = *(cpu_rns_base.base() + idx);
             DModulus temp(temp_modulus.value(), temp_modulus.const_ratio().at(0), temp_modulus.const_ratio().at(1));
@@ -21,29 +21,29 @@ namespace phantom::arith {
                             cudaMemcpyHostToDevice, stream);
         }
 
-        big_Q_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream);
+        big_Q_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_, stream);
         cudaMemcpyAsync(big_modulus(), cpu_rns_base.big_modulus(), size_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, stream);
 
-        big_qiHat_ = phantom::util::cuda_make_shared<uint64_t>(size_ * size_, stream);
+        big_qiHat_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_ * size_, stream);
         cudaMemcpyAsync(big_qiHat(), cpu_rns_base.big_qiHat(), size_ * size_ * sizeof(std::uint64_t),
                         cudaMemcpyHostToDevice, stream);
 
-        qiHat_mod_qi_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream);
-        qiHat_mod_qi_shoup_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream);
+        qiHat_mod_qi_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_, stream);
+        qiHat_mod_qi_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_, stream);
         cudaMemcpyAsync(qiHat_mod_qi_.get(), cpu_rns_base.qiHat_mod_qi(), size_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(qiHat_mod_qi_shoup_.get(), cpu_rns_base.qiHat_mod_qi_shoup(), size_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, stream);
 
-        qiHatInv_mod_qi_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream);
-        qiHatInv_mod_qi_shoup_ = phantom::util::cuda_make_shared<uint64_t>(size_, stream);
+        qiHatInv_mod_qi_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_, stream);
+        qiHatInv_mod_qi_shoup_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_, stream);
         cudaMemcpyAsync(qiHatInv_mod_qi_.get(), cpu_rns_base.QHatInvModq(), size_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, stream);
         cudaMemcpyAsync(qiHatInv_mod_qi_shoup_.get(), cpu_rns_base.QHatInvModq_shoup(), size_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, stream);
 
-        qiInv_ = phantom::util::cuda_make_shared<double>(size_, stream);
+        qiInv_ = phantom::util::make_cuda_auto_ptr<double>(size_, stream);
         cudaMemcpyAsync(qiInv(), cpu_rns_base.inv(), size_ * sizeof(double),
                         cudaMemcpyHostToDevice, stream);
 
@@ -189,7 +189,7 @@ namespace phantom::arith {
                     dst, src, base(), sparse_poly_degree, sparse_ratio,
                     size());
         } else {
-            auto coeffu = cuda_make_shared<uint64_t>(sparse_poly_degree * (size() + 1), stream);
+            auto coeffu = make_cuda_auto_ptr<uint64_t>(sparse_poly_degree * (size() + 1), stream);
             decompose_array_uint_slow_first_part<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                     coeffu.get(), src, sparse_poly_degree, size());
             decompose_array_uint_slow_second_part<<<gridDimGlb, blockDimGlb, 0, stream>>>(
@@ -270,8 +270,8 @@ namespace phantom::arith {
         }
 
         uint32_t rns_poly_uint64_count = sparse_coeff_count * size();
-        auto temp_prod_array = cuda_make_shared<uint64_t>(rns_poly_uint64_count, stream);
-        auto acc_mod_array = cuda_make_shared<uint64_t>(rns_poly_uint64_count, stream);
+        auto temp_prod_array = make_cuda_auto_ptr<uint64_t>(rns_poly_uint64_count, stream);
+        auto acc_mod_array = make_cuda_auto_ptr<uint64_t>(rns_poly_uint64_count, stream);
         cudaMemsetAsync(acc_mod_array.get(), 0, rns_poly_uint64_count * sizeof(uint64_t), stream);
 
         uint64_t gridDimGlb = ceil(sparse_coeff_count / blockDimGlb.x);

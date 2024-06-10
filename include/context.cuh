@@ -166,13 +166,13 @@ public:
 
     DNTTTable gpu_plain_tables_;
 
-    phantom::util::cuda_shared_ptr<uint64_t> coeff_div_plain_;
-    phantom::util::cuda_shared_ptr<uint64_t> coeff_div_plain_shoup_;
+    phantom::util::cuda_auto_ptr<uint64_t> coeff_div_plain_;
+    phantom::util::cuda_auto_ptr<uint64_t> coeff_div_plain_shoup_;
     // stores all the values for all possible modulus switch, auto choose the corresponding start pos
-    phantom::util::cuda_shared_ptr<uint64_t> plain_modulus_; // shoup pre-computations of (t mod qi)
-    phantom::util::cuda_shared_ptr<uint64_t> plain_modulus_shoup_; // shoup pre-computations of (t mod qi)
+    phantom::util::cuda_auto_ptr<uint64_t> plain_modulus_; // shoup pre-computations of (t mod qi)
+    phantom::util::cuda_auto_ptr<uint64_t> plain_modulus_shoup_; // shoup pre-computations of (t mod qi)
 
-    phantom::util::cuda_shared_ptr<uint64_t> plain_upper_half_increment_;
+    phantom::util::cuda_auto_ptr<uint64_t> plain_upper_half_increment_;
 
     std::size_t coeff_mod_size_ = 0; // corresponding to the key param index, i.e., all coeff prime exists.
     std::size_t poly_degree_ = 0; // unchanged

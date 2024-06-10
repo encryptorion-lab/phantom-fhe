@@ -17,8 +17,8 @@ PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context, const cu
     slots_ = poly_degree;
 
     // Populate matrix representation index map
-    data_ = cuda_make_shared<uint64_t>(slots_, s);
-    matrix_reps_index_map_ = cuda_make_shared<uint64_t>(slots_, s);
+    data_ = make_cuda_auto_ptr<uint64_t>(slots_, s);
+    matrix_reps_index_map_ = make_cuda_auto_ptr<uint64_t>(slots_, s);
     populate_matrix_reps_index_map(s);
     cudaStreamSynchronize(s);
 }
@@ -75,7 +75,7 @@ void PhantomBatchEncoder::encode(const PhantomContext &context, const std::vecto
     destination.coeff_modulus_size_ = 1;
     destination.poly_modulus_degree_ = context.poly_degree_;
     // Malloc memory
-    destination.data_ = phantom::util::cuda_make_shared<uint64_t>(
+    destination.data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(
             destination.coeff_modulus_size_ * destination.poly_modulus_degree_, s);
 
     cudaMemcpyAsync(data_.get(), values_matrix.data(), values_matrix.size() * sizeof(uint64_t),
@@ -103,12 +103,12 @@ void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPla
     destination.resize(plain.poly_modulus_degree_);
 
     // Copy plain.data_
-    auto plain_data_copy = cuda_make_shared<uint64_t>(slots_, s);
+    auto plain_data_copy = make_cuda_auto_ptr<uint64_t>(slots_, s);
     cudaMemcpyAsync(plain_data_copy.get(), plain.data(), slots_ * sizeof(uint64_t), cudaMemcpyDeviceToDevice, s);
 
     nwt_2d_radix8_forward_inplace(plain_data_copy.get(), context.gpu_plain_tables(), 1, 0, s);
 
-    auto out = cuda_make_shared<uint64_t>(slots_, s);
+    auto out = make_cuda_auto_ptr<uint64_t>(slots_, s);
     uint64_t gridDimGlb = ceil(slots_ / blockDimGlb.x);
     decode_gpu<<<gridDimGlb, blockDimGlb, 0, s>>>(
             out.get(), plain_data_copy.get(), matrix_reps_index_map_.get(), slots_);
