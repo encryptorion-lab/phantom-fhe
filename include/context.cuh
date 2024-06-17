@@ -18,6 +18,39 @@ namespace phantom {
 
     // stores pre-computation data for a given set of encryption parameters.
     class ContextData {
+
+    private:
+
+        EncryptionParameters parms_;
+
+        std::shared_ptr<DRNSTool> gpu_rns_tool_;
+
+        std::shared_ptr<arith::RNSNTT> small_ntt_tables_;
+
+        std::shared_ptr<arith::NTT> plain_ntt_tables_;
+
+        std::vector<std::uint64_t> total_coeff_modulus_;
+
+        int total_coeff_modulus_bit_count_ = 0;
+
+        std::vector<uint64_t> coeff_div_plain_modulus_;
+        std::vector<uint64_t> coeff_div_plain_modulus_shoup_;
+
+        std::vector<uint64_t> plain_modulus_;
+        std::vector<uint64_t> plain_modulus_shoup_;
+
+        std::uint64_t plain_upper_half_threshold_ = 0;
+
+        std::vector<std::uint64_t> plain_upper_half_increment_;
+
+        std::vector<std::uint64_t> upper_half_threshold_;
+
+        std::vector<std::uint64_t> upper_half_increment_;
+
+        std::uint64_t coeff_modulus_mod_plain_modulus_ = 0;
+
+        std::size_t chain_index_ = 0;
+
     public:
         explicit ContextData(const EncryptionParameters &params, const cudaStream_t &stream);
 
@@ -94,57 +127,8 @@ namespace phantom {
         [[nodiscard]] std::size_t chain_index() const noexcept { return chain_index_; }
 
         void set_chain_index(const std::size_t chain_index) noexcept { chain_index_ = chain_index; }
-
-    private:
-        EncryptionParameters parms_;
-
-        std::shared_ptr<DRNSTool> gpu_rns_tool_;
-
-        std::shared_ptr<arith::RNSNTT> small_ntt_tables_;
-
-        std::shared_ptr<arith::NTT> plain_ntt_tables_;
-
-        std::vector<std::uint64_t> total_coeff_modulus_;
-
-        int total_coeff_modulus_bit_count_ = 0;
-
-        std::vector<uint64_t> coeff_div_plain_modulus_;
-        std::vector<uint64_t> coeff_div_plain_modulus_shoup_;
-
-        std::vector<uint64_t> plain_modulus_;
-        std::vector<uint64_t> plain_modulus_shoup_;
-
-        std::uint64_t plain_upper_half_threshold_ = 0;
-
-        std::vector<std::uint64_t> plain_upper_half_increment_;
-
-        std::vector<std::uint64_t> upper_half_threshold_;
-
-        std::vector<std::uint64_t> upper_half_increment_;
-
-        std::uint64_t coeff_modulus_mod_plain_modulus_ = 0;
-
-        std::size_t chain_index_ = 0;
     };
 
-    inline bool is_scale_within_bounds(const double scale, const ContextData &context_data,
-                                       const EncryptionParameters &parms) {
-        int scale_bit_count_bound = 0;
-        switch (parms.scheme()) {
-            case scheme_type::bfv:
-            case scheme_type::bgv:
-                scale_bit_count_bound = parms.plain_modulus().bit_count();
-                break;
-            case scheme_type::ckks:
-                scale_bit_count_bound = context_data.total_coeff_modulus_bit_count();
-                break;
-            default:
-                // Unsupported scheme; check will fail
-                scale_bit_count_bound = -1;
-                break;
-        }
-        return !(scale <= 0 || (static_cast<int>(log2(scale)) >= scale_bit_count_bound));
-    }
 } // namespace phantom
 
 class PhantomContext {
@@ -185,7 +169,6 @@ public:
     void operator=(const PhantomContext &) = delete;
 
     ~PhantomContext() = default;
-    //        phantom::util::global_variables::global_memory_pool->Release();
 
     /**
      * Return the contextdata for the provided index,
@@ -272,20 +255,6 @@ public:
     [[nodiscard]] auto get_previous_index(const size_t index) const { return previous_parm_index(index); }
 
     [[nodiscard]] auto get_next_index(const size_t index) const { return next_parm_index(index); }
-
-    auto get_coeff_div_plain(const size_t index) const {
-        if (index > total_parm_size())
-            throw std::invalid_argument("index invalid");
-        const size_t pos = (coeff_mod_size_ * 2 + 1 - index) * index / 2;
-        return coeff_div_plain_.get() + pos;
-    }
-
-    auto get_coeff_div_plain_shoup(const size_t index) const {
-        if (index > total_parm_size())
-            throw std::invalid_argument("index invalid");
-        const size_t pos = (coeff_mod_size_ * 2 + 1 - index) * index / 2;
-        return coeff_div_plain_shoup_.get() + pos;
-    }
 
     [[nodiscard]] auto &get_cuda_stream(size_t index) const { return cuda_streams_wrappers_.at(index)->get_stream(); }
 

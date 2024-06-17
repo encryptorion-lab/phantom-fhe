@@ -33,6 +33,9 @@ PYBIND11_MODULE(pyPhantom, m) {
 
     m.def("coeff_modulus_create", &phantom::arith::CoeffModulus::Create);
 
+    py::class_<phantom::util::cuda_stream_wrapper>(m, "cuda_stream_wrapper")
+            .def(py::init<>());
+
     py::class_<phantom::EncryptionParameters>(m, "params")
             .def(py::init<phantom::scheme_type>())
             .def("set_mul_tech", &phantom::EncryptionParameters::set_mul_tech)
