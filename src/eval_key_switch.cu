@@ -88,9 +88,9 @@ key_switch_inner_prod(uint64_t *p_cx, const uint64_t *p_t_mod_up, const uint64_t
 }
 
 // cks refers to cipher to be key-switched
-void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, uint64_t *cks,
-                        const PhantomRelinKey &relin_keys, bool is_relin, const cudaStream_t &stream) {
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+void keyswitch_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, uint64_t *c2,
+                       const PhantomRelinKey &relin_keys, bool is_relin, const cudaStream_t &stream) {
+    const auto &s = stream;
 
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
@@ -120,7 +120,7 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
     } else if (scheme == scheme_type::bgv || scheme == scheme_type::ckks) {
         levelsDropped = encrypted.chain_index() - 1;
     } else {
-        throw invalid_argument("unsupported scheme in switch_key_inplace");
+        throw invalid_argument("unsupported scheme in keyswitch_inplace");
     }
 
     auto &rns_tool = context.get_context_data(1 + levelsDropped).gpu_rns_tool();
@@ -137,15 +137,15 @@ void switch_key_inplace(const PhantomContext &context, PhantomCiphertext &encryp
 
     if (mul_tech == mul_tech_type::hps_overq_leveled && levelsDropped) {
         auto t_cks = phantom::util::make_cuda_auto_ptr<uint64_t>(size_Q * n, s);
-        cudaMemcpyAsync(t_cks.get(), cks, size_Q * n * sizeof(uint64_t),
+        cudaMemcpyAsync(t_cks.get(), c2, size_Q * n * sizeof(uint64_t),
                         cudaMemcpyDeviceToDevice, s);
-        rns_tool.scaleAndRound_HPS_Q_Ql(cks, t_cks.get(), s);
+        rns_tool.scaleAndRound_HPS_Q_Ql(c2, t_cks.get(), s);
     }
 
     // mod up
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
     auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, s);
+    rns_tool.modup(t_mod_up.get(), c2, context.gpu_rns_tables(), scheme, s);
 
     // key switch
     auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, s);

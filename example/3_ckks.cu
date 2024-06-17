@@ -1,18 +1,10 @@
 #include <algorithm>
 #include <chrono>
-#include <complex>
 #include <cstddef>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <limits>
-#include <memory>
 #include <mutex>
-#include <numeric>
 #include <random>
-#include <sstream>
-#include <string>
-#include <thread>
 #include <vector>
 #include "example.h"
 #include "phantom.h"
@@ -21,14 +13,13 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::arith;
+using namespace phantom::util;
 
-void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
-    std::cout << "Example: CKKS Basics" << std::endl;
+void example_ckks_enc(PhantomContext &context, const double &scale) {
+    std::cout << "Example: CKKS Encode&Encrypt" << std::endl;
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
 
     PhantomCKKSEncoder encoder(context);
     size_t slot_count = encoder.slot_count();
@@ -52,7 +43,7 @@ void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, cons
     PhantomPlaintext x_plain;
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
-    encoder.encode(context, input, scale, x_plain);
+    encoder.encode(context, input, scale, x_plain, 1);
 
     bool correctness = true;
 
@@ -108,14 +99,12 @@ void example_ckks_enc(EncryptionParameters &parms, PhantomContext &context, cons
     result.clear();
 }
 
-void example_ckks_add(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
-    std::cout << "Example: CKKS evaluation" << std::endl;
+void example_ckks_add(PhantomContext &context, const double &scale) {
+    std::cout << "Example: CKKS Add" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
     PhantomCKKSEncoder encoder(context);
 
     size_t slot_count = encoder.slot_count();
@@ -303,10 +292,8 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     std::cout << "Example: CKKS cipher multiply plain vector" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
     PhantomCKKSEncoder encoder(context);
 
     size_t slot_count = encoder.slot_count();
@@ -430,12 +417,9 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
     std::cout << "Example: CKKS HomMul test" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
     PhantomCKKSEncoder encoder(context);
 
@@ -480,7 +464,7 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
     cout << "Compute, relinearize, and rescale x*y." << endl;
     multiply_inplace(context, x_cipher, y_cipher);
     relinearize_inplace(context, x_cipher, relin_keys);
-    rescale_to_next_inplace(context, x_cipher);
+    mod_switch_to_next_inplace(context, x_cipher);
     cout << "    + Scale of x*y after rescale: " << log2(x_cipher.scale()) << " bits" << endl;
 
     secret_key.decrypt(context, x_cipher, xy_plain);
@@ -504,12 +488,9 @@ void example_ckks_rotation(EncryptionParameters &parms, PhantomContext &context,
     std::cout << "Example: CKKS HomRot test" << std::endl;
 
     // KeyGen
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
-    PhantomGaloisKey galois_keys;
-    secret_key.create_galois_keys(context, galois_keys);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomGaloisKey galois_keys = secret_key.create_galois_keys(context);
 
     int step = 3;
 
@@ -701,9 +682,9 @@ void examples_ckks() {
         print_parameters(context);
         cout << endl;
 
-//        example_ckks_enc(parms, context, scale);
-//        example_ckks_add(parms, context, scale);
-//        example_ckks_mul_plain(parms, context, scale);
+        example_ckks_enc(context, scale);
+        example_ckks_add(context, scale);
+        example_ckks_mul_plain(parms, context, scale);
         example_ckks_mul(parms, context, scale);
         example_ckks_rotation(parms, context, scale);
     }

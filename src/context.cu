@@ -13,6 +13,10 @@ using namespace phantom::util;
 using namespace phantom::arith;
 
 namespace phantom {
+    namespace util::global_variables {
+        std::unique_ptr<util::cuda_stream_wrapper> default_stream;
+    }
+
     ContextData::ContextData(const EncryptionParameters &params, const cudaStream_t &stream) {
         parms_ = params;
         const auto &key_modulus = params.key_modulus();
@@ -118,7 +122,7 @@ namespace phantom {
     }
 }
 
-PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, const cudaStream_t &stream) {
+PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
     if (params.coeff_modulus().size() == 1)
         throw std::invalid_argument("The coefficient modulus must be a vector of at least two primes");
 
@@ -130,12 +134,9 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, cons
     uint64_t threshold = UINT64_MAX;
     cudaMemPoolSetAttribute(mempool, cudaMemPoolAttrReleaseThreshold, &threshold);
 
-    // Create CUDA streams
-    cuda_streams_wrappers_.resize(phantom::util::n_cuda_streams);
-    for (size_t i = 0; i < phantom::util::n_cuda_streams; ++i)
-        cuda_streams_wrappers_[i] = std::make_shared<phantom::util::cuda_stream_wrapper>();
+    phantom::util::global_variables::default_stream = std::make_unique<phantom::util::cuda_stream_wrapper>();
 
-    const auto &s = stream != nullptr ? stream : get_cuda_stream(0);
+    const auto &s = phantom::util::global_variables::default_stream->get_stream();
 
     using_keyswitching_ = false;
     mul_tech_ = params.mul_tech();
@@ -234,4 +235,6 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params, cons
     int log_n = phantom::arith::get_power_of_two(poly_degree_);
     bool is_bfv = (params.scheme() == phantom::scheme_type::bfv);
     key_galois_tool_ = std::make_unique<PhantomGaloisTool>(params.galois_elts(), log_n, s, is_bfv);
+
+    cudaStreamSynchronize(s);
 }

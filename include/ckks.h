@@ -59,7 +59,8 @@ public:
      * @param[in] context The PhantomContext
      * @throws std::invalid_argument if scheme is not scheme_type::CKKS
      */
-    explicit PhantomCKKSEncoder(const PhantomContext &context, const cudaStream_t &stream = nullptr);
+    explicit PhantomCKKSEncoder(const PhantomContext &context,
+                                const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
 
     PhantomCKKSEncoder(const PhantomCKKSEncoder &copy) = delete;
 
@@ -77,8 +78,8 @@ public:
                        double scale,
                        PhantomPlaintext &destination,
                        size_t chain_index = 1, // first chain index
-                       const cudaStream_t &stream = nullptr) {
-        const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+                       const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+        const auto &s = stream_wrapper.get_stream();
         destination.chain_index_ = 0;
         destination.resize(context.coeff_mod_size_, context.poly_degree_, s);
         encode_internal(context, values.data(), values.size(), chain_index, scale, destination, s);
@@ -88,9 +89,9 @@ public:
     [[nodiscard]] inline auto encode(const PhantomContext &context, const std::vector<T> &values,
                                      double scale,
                                      size_t chain_index = 1, // first chain index
-                                     const cudaStream_t &stream = nullptr) {
+                                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
         PhantomPlaintext destination;
-        encode(context, values, scale, destination, chain_index, stream);
+        encode(context, values, scale, destination, chain_index, stream_wrapper);
         return destination;
     }
 
@@ -98,17 +99,17 @@ public:
     inline void decode(const PhantomContext &context,
                        const PhantomPlaintext &plain,
                        std::vector<T> &destination,
-                       const cudaStream_t &stream = nullptr) {
-        const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+                       const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+        const auto &s = stream_wrapper.get_stream();
         destination.resize(sparse_slots_);
         decode_internal(context, plain, destination.data(), s);
     }
 
     template<class T>
     [[nodiscard]] inline auto decode(const PhantomContext &context, const PhantomPlaintext &plain,
-                                     const cudaStream_t &stream = nullptr) {
+                                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
         std::vector<T> destination;
-        decode(context, plain, destination, stream);
+        decode(context, plain, destination, stream_wrapper);
         return destination;
     }
 

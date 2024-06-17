@@ -128,12 +128,13 @@ void PhantomPublicKey::encrypt_zero_asymmetric_internal(const PhantomContext &co
 
 
 void PhantomPublicKey::encrypt_asymmetric(const PhantomContext &context, const PhantomPlaintext &plain,
-                                          PhantomCiphertext &cipher, const cudaStream_t &stream) {
+                                          PhantomCiphertext &cipher,
+                                          const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     auto &context_data = context.get_context_data(0); // i.e. 0 is key_param_id
     auto &parms = context_data.parms();
     auto scheme = parms.scheme();
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream_wrapper.get_stream();
 
     cipher.scale_ = 1.0;
     cipher.correction_factor_ = 1;
@@ -352,12 +353,12 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context, const cudaSt
     poly_modulus_degree_ = parms.poly_modulus_degree();
     coeff_modulus_size_ = parms.coeff_modulus().size();
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream;
 
     data_rns_ = phantom::util::make_cuda_auto_ptr<uint64_t>(poly_modulus_degree_ * coeff_modulus_size_, s);
 
     auto prng_seed_error = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
-    random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count);
+    random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count, s);
 
     secret_key_array_ = make_cuda_auto_ptr<uint64_t>(poly_degree * coeff_mod_size, s);
 
@@ -377,26 +378,26 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context, const cudaSt
     gen_flag_ = true;
 }
 
-void PhantomSecretKey::gen_publickey(const PhantomContext &context, PhantomPublicKey &pk,
-                                     const cudaStream_t &stream) const {
-    if (pk.gen_flag_)
-        throw std::logic_error("cannot generate public key twice");
+PhantomPublicKey PhantomSecretKey::gen_publickey(const PhantomContext &context,
+                                                 const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
+    PhantomPublicKey pk;
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream_wrapper.get_stream();
     pk.prng_seed_a_ = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(pk.prng_seed_a_.get(), phantom::util::global_variables::prng_seed_byte_count, s);
     encrypt_zero_symmetric(context, pk.pk_, pk.prng_seed_a_.get(), 0, true, s);
     pk.pk_.chain_index_ = 0;
 
     pk.gen_flag_ = true;
+
+    return pk;
 }
 
-void PhantomSecretKey::gen_relinkey(const PhantomContext &context, PhantomRelinKey &relin_key,
-                                    const cudaStream_t &stream) {
-    if (relin_key.gen_flag_)
-        throw std::logic_error("cannot generate relin key twice");
+PhantomRelinKey PhantomSecretKey::gen_relinkey(const PhantomContext &context,
+                                               const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    PhantomRelinKey relin_key;
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream_wrapper.get_stream();
 
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
@@ -414,18 +415,14 @@ void PhantomSecretKey::gen_relinkey(const PhantomContext &context, PhantomRelinK
     uint64_t *sk_square = secret_key_array() + coeff_mod_size * poly_degree;
     generate_one_kswitch_key(context, sk_square, relin_key, s);
     relin_key.gen_flag_ = true;
+
+    return relin_key;
 }
 
-void PhantomSecretKey::create_galois_keys(const PhantomContext &context, PhantomGaloisKey &galois_keys,
-                                          const cudaStream_t &stream) const {
-    if (galois_keys.gen_flag_) {
-        throw std::logic_error("cannot generate galois keys twice");
-    }
+PhantomGaloisKey PhantomSecretKey::create_galois_keys(const PhantomContext &context,
+                                                      const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
+    PhantomGaloisKey galois_keys;
 
-    // Check to see if secret key and public key have been generated
-    if (!gen_flag_) {
-        throw logic_error("cannot generate relinearization keys for unspecified secret key");
-    }
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
     auto &key_parms = key_context_data.parms();
@@ -434,7 +431,7 @@ void PhantomSecretKey::create_galois_keys(const PhantomContext &context, Phantom
     auto poly_degree = key_parms.poly_modulus_degree();
     auto key_mod_size = key_modulus.size();
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream_wrapper.get_stream();
 
     // get galois_elts
     auto &galois_elts = key_galois_tool->galois_elts();
@@ -460,16 +457,19 @@ void PhantomSecretKey::create_galois_keys(const PhantomContext &context, Phantom
         galois_keys.relin_keys_[galois_elt_idx] = std::move(relin_key);
     }
     galois_keys.gen_flag_ = true;
+
+    return galois_keys;
 }
 
 void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const PhantomPlaintext &plain,
-                                         PhantomCiphertext &cipher, const cudaStream_t &stream) const {
+                                         PhantomCiphertext &cipher,
+                                         const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
     auto &context_data = context.get_context_data(0); // Use key_parm_id for obtaining scheme
     auto &parms = context_data.parms();
     auto scheme = parms.scheme();
     bool is_ntt_form = false;
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream_wrapper.get_stream();
 
     auto prng_seed_a = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(prng_seed_a.get(), phantom::util::global_variables::prng_seed_byte_count, s);
@@ -690,7 +690,7 @@ void PhantomSecretKey::bgv_decrypt(const PhantomContext &context, const PhantomC
 }
 
 void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphertext &cipher,
-                               PhantomPlaintext &plain, const cudaStream_t &stream) {
+                               PhantomPlaintext &plain, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     auto &context_data = context.get_context_data(cipher.chain_index());
     auto &parms = context_data.parms();
     auto &coeff_modulus = parms.coeff_modulus();
@@ -698,7 +698,7 @@ void PhantomSecretKey::decrypt(const PhantomContext &context, const PhantomCiphe
     auto coeff_mod_size = coeff_modulus.size();
     auto scheme = parms.scheme();
 
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+    const auto &s = stream_wrapper.get_stream();
 
     // init plaintext
     if (parms.scheme() == phantom::scheme_type::bfv || parms.scheme() == phantom::scheme_type::bgv)
@@ -748,10 +748,10 @@ static void poly_infinity_norm_coeffmod(const uint64_t *poly, size_t coeff_count
     }
 }
 
-[[nodiscard]] int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context,
-                                                           const PhantomCiphertext &cipher,
-                                                           const cudaStream_t &stream) {
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context,
+                                             const PhantomCiphertext &cipher,
+                                             const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    const auto &s = stream_wrapper.get_stream();
 
     auto chain_index = cipher.chain_index();
     auto &context_data = context.get_context_data(chain_index);
@@ -827,19 +827,4 @@ static void poly_infinity_norm_coeffmod(const uint64_t *poly, size_t coeff_count
                          get_significant_bit_count_uint(norm.data(), coeff_mod_size) - 1;
 
     return max(0, bit_count_diff);
-}
-
-PhantomPublicKey::PhantomPublicKey(const PhantomContext &context, PhantomSecretKey &secret_key,
-                                   const cudaStream_t &stream) {
-    secret_key.gen_publickey(context, *this, stream);
-}
-
-PhantomRelinKey::PhantomRelinKey(const PhantomContext &context, PhantomSecretKey &secret_key,
-                                 const cudaStream_t &stream) {
-    secret_key.gen_relinkey(context, *this, stream);
-}
-
-PhantomGaloisKey::PhantomGaloisKey(const PhantomContext &context, PhantomSecretKey &secret_key,
-                                   const cudaStream_t &stream) {
-    secret_key.create_galois_keys(context, *this, stream);
 }

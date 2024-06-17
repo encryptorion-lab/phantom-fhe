@@ -8,7 +8,7 @@
  * @param[out] buf The obtained random number, will be used as seed
  * @param[in] count The required length of the random
  */
-void inline random_bytes(unsigned char *buf, size_t count, const cudaStream_t &stream = nullptr) {
+void inline random_bytes(unsigned char *buf, size_t count, const cudaStream_t &stream) {
     std::random_device rd;
     std::uniform_int_distribution<unsigned short> dist(std::numeric_limits<unsigned char>::min(),
                                                        std::numeric_limits<unsigned char>::max());

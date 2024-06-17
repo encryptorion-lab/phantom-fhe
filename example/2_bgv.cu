@@ -15,10 +15,8 @@ using namespace phantom::arith;
 void example_bgv_enc(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV Basics" << std::endl;
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
 
     PhantomBatchEncoder batch_encoder(context);
     size_t slot_count = batch_encoder.slot_count();
@@ -95,10 +93,8 @@ void example_bgv_enc(EncryptionParameters &parms, PhantomContext &context) {
 void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV HomAdd/HomSub test" << std::endl;
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
 
     PhantomBatchEncoder batch_encoder(context);
     size_t slot_count = batch_encoder.slot_count();
@@ -226,10 +222,8 @@ void example_bgv_add(EncryptionParameters &parms, PhantomContext &context) {
 void example_bgv_add_plain(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV HomAddPlain/HomSubPlain test" << std::endl;
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
 
     PhantomBatchEncoder batch_encoder(context);
     size_t slot_count = batch_encoder.slot_count();
@@ -308,8 +302,8 @@ void example_bgv_mul(EncryptionParameters &parms, PhantomContext &context) {
     std::cout << "Example: BGV HomMul test" << std::endl;
 
     PhantomSecretKey secret_key(context);
-    PhantomPublicKey public_key(context, secret_key);
-    PhantomRelinKey relin_keys(context, secret_key);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
     PhantomBatchEncoder batch_encoder(context);
     size_t slot_count = batch_encoder.slot_count();

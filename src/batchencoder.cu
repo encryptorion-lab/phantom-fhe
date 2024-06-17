@@ -4,8 +4,9 @@ using namespace std;
 using namespace phantom;
 using namespace phantom::util;
 
-PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context, const cudaStream_t &stream) {
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context,
+                                         const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    const auto &s = stream_wrapper.get_stream();
     auto &context_data = context.get_context_data(0);
     auto &parms = context_data.parms();
     if (parms.scheme() != scheme_type::bfv && parms.scheme() != scheme_type::bgv) {
@@ -60,8 +61,8 @@ __global__ void encode_gpu(uint64_t *out, uint64_t *in, size_t in_size, uint64_t
 }
 
 void PhantomBatchEncoder::encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix,
-                                 PhantomPlaintext &destination, const cudaStream_t &stream) const {
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+                                 PhantomPlaintext &destination, const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
+    const auto &s = stream_wrapper.get_stream();
 
     auto &context_data = context.get_context_data(0);
     auto &parms = context_data.parms();
@@ -95,8 +96,8 @@ __global__ void decode_gpu(uint64_t *out, uint64_t *in, uint64_t *index_map, uin
 }
 
 void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPlaintext &plain,
-                                 std::vector<uint64_t> &destination, const cudaStream_t &stream) const {
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+                                 std::vector<uint64_t> &destination, const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
+    const auto &s = stream_wrapper.get_stream();
 
     destination.resize(plain.poly_modulus_degree_);
 

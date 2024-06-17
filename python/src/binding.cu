@@ -33,9 +33,6 @@ PYBIND11_MODULE(pyPhantom, m) {
 
     m.def("coeff_modulus_create", &phantom::arith::CoeffModulus::Create);
 
-    py::class_<phantom::util::cuda_stream_wrapper>(m, "cuda_stream_wrapper")
-            .def(py::init<>());
-
     py::class_<phantom::EncryptionParameters>(m, "params")
             .def(py::init<phantom::scheme_type>())
             .def("set_mul_tech", &phantom::EncryptionParameters::set_mul_tech)
@@ -44,24 +41,36 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def("set_galois_elts", &phantom::EncryptionParameters::set_galois_elts)
             .def("set_coeff_modulus", &phantom::EncryptionParameters::set_coeff_modulus);
 
+    py::class_<phantom::util::cuda_stream_wrapper>(m, "cuda_stream")
+            .def(py::init<>());
+
     py::class_<PhantomContext>(m, "context")
             .def(py::init<phantom::EncryptionParameters &>());
 
     py::class_<PhantomSecretKey>(m, "secret_key")
-            .def(py::init<>())
-            .def("gen_secretkey", &PhantomSecretKey::gen_secretkey, py::arg(), py::arg("stream") = nullptr)
-            .def("gen_publickey", &PhantomSecretKey::gen_publickey)
-            .def("gen_relinkey", &PhantomSecretKey::gen_relinkey)
-            .def("create_galois_keys", &PhantomSecretKey::create_galois_keys)
-            .def("encrypt_symmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &>(
-                    &PhantomSecretKey::encrypt_symmetric, py::const_))
+            .def(py::init<const PhantomContext &, const phantom::util::cuda_stream_wrapper &>(),
+                 py::arg(), py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("gen_publickey", &PhantomSecretKey::gen_publickey, py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("gen_relinkey", &PhantomSecretKey::gen_relinkey, py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("create_galois_keys", &PhantomSecretKey::create_galois_keys, py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("encrypt_symmetric",
+                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomSecretKey::encrypt_symmetric, py::const_), py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
             .def("decrypt",
-                 py::overload_cast<const PhantomContext &, const PhantomCiphertext &>(&PhantomSecretKey::decrypt));
+                 py::overload_cast<const PhantomContext &, const PhantomCiphertext &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomSecretKey::decrypt), py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
     py::class_<PhantomPublicKey>(m, "public_key")
             .def(py::init<>())
-            .def("encrypt_asymmetric", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const >(
-                    &PhantomPublicKey::encrypt_asymmetric));
+            .def("encrypt_asymmetric",
+                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomPublicKey::encrypt_asymmetric), py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
     py::class_<PhantomRelinKey>(m, "relin_key")
             .def(py::init<>());
@@ -71,15 +80,48 @@ PYBIND11_MODULE(pyPhantom, m) {
 
     m.def("get_elts_from_steps", &get_elts_from_steps);
 
-    py::class_<PhantomCKKSEncoder>(m, "ckks_encoder")
-            .def(py::init<PhantomContext &>())
-            .def("slot_count", &PhantomCKKSEncoder::slot_count)
-            .def("encode", py::overload_cast<const PhantomContext &, const std::vector<double> &, double>(
-                    &PhantomCKKSEncoder::encode))
-            .def("encode_to", py::overload_cast<const PhantomContext &, const std::vector<double> &, size_t, double>(
-                    &PhantomCKKSEncoder::encode))
+
+    py::class_<PhantomBatchEncoder>(m, "batch_encoder")
+            .def(py::init<const PhantomContext &, const phantom::util::cuda_stream_wrapper &>(),
+                 py::arg(), py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("slot_count", &PhantomBatchEncoder::slot_count)
+            .def("encode",
+                 py::overload_cast<const PhantomContext &, const std::vector<uint64_t> &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomBatchEncoder::encode, py::const_),
+                 py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
             .def("decode",
-                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &>(&PhantomCKKSEncoder::decode));
+                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomBatchEncoder::decode, py::const_),
+                 py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    py::class_<PhantomCKKSEncoder>(m, "ckks_encoder")
+            .def(py::init<const PhantomContext &, const phantom::util::cuda_stream_wrapper &>(),
+                 py::arg(), py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("slot_count", &PhantomCKKSEncoder::slot_count)
+            .def("encode",
+                 py::overload_cast<const PhantomContext &, const std::vector<cuDoubleComplex> &, double, size_t, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomCKKSEncoder::encode<cuDoubleComplex>),
+                 py::arg(), py::arg(), py::arg(),
+                 py::arg("chain_index") = 1,
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("encode",
+                 py::overload_cast<const PhantomContext &, const std::vector<double> &, double, size_t, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomCKKSEncoder::encode<double>),
+                 py::arg(), py::arg(), py::arg(),
+                 py::arg("chain_index") = 1,
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("decode",
+                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomCKKSEncoder::decode<cuDoubleComplex>),
+                 py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream)
+            .def("decode",
+                 py::overload_cast<const PhantomContext &, const PhantomPlaintext &, const phantom::util::cuda_stream_wrapper &>(
+                         &PhantomCKKSEncoder::decode<double>),
+                 py::arg(), py::arg(),
+                 py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
     py::class_<PhantomPlaintext>(m, "plaintext")
             .def(py::init<>());
@@ -88,43 +130,70 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<>())
             .def("set_scale", &PhantomCiphertext::set_scale);
 
-    m.def("negate_inplace", &negate_inplace);
+    m.def("negate", &negate, py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("add_inplace", &add_inplace);
-    m.def("add_plain_inplace", &add_plain_inplace);
-    m.def("add_many", &add_many);
+    m.def("add", &add, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("sub_inplace", &sub_inplace, py::arg(), py::arg(), py::arg(), py::arg("negate") = false);
-    m.def("sub_plain_inplace", &sub_plain_inplace);
+    m.def("add_plain", &add_plain, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("multiply_inplace", &multiply_inplace);
-    m.def("multiply_and_relin_inplace", &multiply_and_relin_inplace);
-    m.def("multiply_plain_inplace", &multiply_plain_inplace);
+    m.def("add_many", &add_many, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("relinearize_inplace", &relinearize_inplace);
+    m.def("sub", &sub, py::arg(), py::arg(), py::arg(),
+          py::arg("negate") = false,
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("mod_switch_to_inplace",
-          py::overload_cast<const PhantomContext &, PhantomPlaintext &, size_t>(&mod_switch_to_inplace));
-    m.def("mod_switch_to_inplace",
-          py::overload_cast<const PhantomContext &, PhantomCiphertext &, size_t>(&mod_switch_to_inplace));
+    m.def("sub_plain", &sub_plain, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("multiply", &multiply, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("multiply_and_relin", &multiply_and_relin, py::arg(), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("multiply_plain", &multiply_plain, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("relinearize", &relinearize, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
     m.def("mod_switch_to_next",
-          py::overload_cast<const PhantomContext &, const PhantomCiphertext &, PhantomCiphertext
-          &>(&mod_switch_to_next));
-    m.def("mod_switch_to_next_inplace",
-          py::overload_cast<const PhantomContext &, PhantomPlaintext &>(&mod_switch_to_next_inplace));
-    m.def("mod_switch_to_next_inplace",
-          py::overload_cast<const PhantomContext &, PhantomCiphertext &>(&mod_switch_to_next_inplace));
-    m.def("rescale_to_next", &rescale_to_next);
-    m.def("rescale_to_next_inplace", &rescale_to_next_inplace);
+          py::overload_cast<const PhantomContext &, const PhantomPlaintext &,
+                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to_next), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("apply_galois_inplace", &apply_galois_inplace);
+    m.def("mod_switch_to_next",
+          py::overload_cast<const PhantomContext &, const PhantomCiphertext &,
+                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to_next), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("rotate_rows_inplace", &rotate_rows_inplace);
-    m.def("rotate_columns_inplace", &rotate_columns_inplace);
-    m.def("rotate_vector_inplace", &rotate_vector_inplace);
+    m.def("mod_switch_to", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, size_t,
+                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("hoisting", &hoisting);
-    m.def("hoisting_inplace", &hoisting_inplace);
+    m.def("mod_switch_to", py::overload_cast<const PhantomContext &, const PhantomCiphertext &, size_t,
+                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("complex_conjugate_inplace", &complex_conjugate_inplace);
+    m.def("apply_galois", &apply_galois, py::arg(), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("rotate_rows", &rotate_rows, py::arg(), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("rotate_columns", &rotate_columns, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("rotate_vector", &rotate_vector, py::arg(), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("complex_conjugate", &complex_conjugate, py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
+
+    m.def("hoisting", &hoisting, py::arg(), py::arg(), py::arg(), py::arg(),
+          py::arg("cuda_stream") = *phantom::util::global_variables::default_stream);
 }

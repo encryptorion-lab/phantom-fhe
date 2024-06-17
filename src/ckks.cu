@@ -27,8 +27,8 @@ __global__ void bit_reverse(cuDoubleComplex *dst, cuDoubleComplex *src, uint32_t
     }
 }
 
-PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context, const cudaStream_t &stream) {
-    const auto &s = stream != nullptr ? stream : context.get_cuda_stream(0);
+PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    const auto &s = stream_wrapper.get_stream();
 
     auto &context_data = context.get_context_data(first_chain_index_);
     auto &parms = context_data.parms();

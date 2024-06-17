@@ -21,12 +21,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     auto count = 100;
 
     {
-        CUDATimer timer("gen_secretkey");
+        CUDATimer timer("gen_secretkey", stream);
         for (auto i = 0; i < count; i++) {
             PhantomSecretKey secret_key;
-            timer.start(stream);
+            timer.start();
             secret_key.gen_secretkey(context, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -34,12 +34,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     secret_key.gen_secretkey(context, stream);
 
     {
-        CUDATimer timer("gen_publickey");
+        CUDATimer timer("gen_publickey", stream);
         for (auto i = 0; i < count; i++) {
             PhantomPublicKey public_key;
-            timer.start(stream);
+            timer.start();
             secret_key.gen_publickey(context, public_key, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -48,12 +48,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
 
     // Generate relinearization keys
     {
-        CUDATimer timer("gen_relinkey");
+        CUDATimer timer("gen_relinkey", stream);
         for (auto i = 0; i < count; i++) {
             PhantomRelinKey relin_keys;
-            timer.start(stream);
+            timer.start();
             secret_key.gen_relinkey(context, relin_keys, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -91,11 +91,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     right size so unnecessary reallocations are avoided.
     */
     {
-        CUDATimer timer("encode");
+        CUDATimer timer("encode", stream);
         for (auto i = 0; i < count; i++) {
-            timer.start(stream);
+            timer.start();
             batch_encoder.encode(context, pod_vector, plain, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -105,11 +105,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     */
     vector<uint64_t> pod_vector2(slot_count);
     {
-        CUDATimer timer("decode");
+        CUDATimer timer("decode", stream);
         for (auto i = 0; i < count; i++) {
-            timer.start(stream);
+            timer.start();
             batch_encoder.decode(context, plain, pod_vector2, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -125,11 +125,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     */
     PhantomCiphertext encrypted;
     {
-        CUDATimer timer("encrypt_asymmetric");
+        CUDATimer timer("encrypt_asymmetric", stream);
         for (auto i = 0; i < count; i++) {
-            timer.start(stream);
+            timer.start();
             public_key.encrypt_asymmetric(context, plain, encrypted, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -138,11 +138,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     We decrypt what we just encrypted.
     */
     {
-        CUDATimer timer("decrypt");
+        CUDATimer timer("decrypt", stream);
         for (auto i = 0; i < count; i++) {
-            timer.start(stream);
+            timer.start();
             secret_key.decrypt(context, encrypted, plain, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -162,12 +162,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     We create two ciphertexts and perform a few additions with them.
     */
     {
-        CUDATimer timer("add_inplace");
+        CUDATimer timer("add_inplace", stream);
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start(stream);
+            timer.start();
             add_inplace(context, tmp_ct, encrypted2, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -175,12 +175,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     [Add Plain]
     */
     {
-        CUDATimer timer("add_plain");
+        CUDATimer timer("add_plain", stream);
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start(stream);
+            timer.start();
             add_plain_inplace(context, tmp_ct, plain, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -191,13 +191,13 @@ void bfv_performance_test(EncryptionParameters &parms) {
     to avoid reallocating during multiplication.
     */
     {
-        CUDATimer timer("multiply");
+        CUDATimer timer("multiply", stream);
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start(stream);
+            timer.start();
             multiply_inplace(context, tmp_ct, encrypted2, stream);
             relinearize_inplace(context, tmp_ct, relin_keys, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -208,12 +208,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     encrypted2 here.
     */
     {
-        CUDATimer timer("multiply_plain");
+        CUDATimer timer("multiply_plain", stream);
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start(stream);
+            timer.start();
             multiply_plain_inplace(context, tmp_ct, plain, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 
@@ -222,12 +222,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     We rotate matrix rows by one step left and measure the time.
     */
     {
-        CUDATimer timer("rotate_rows_inplace_one_step");
+        CUDATimer timer("rotate_rows_inplace_one_step", stream);
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
-            timer.start(stream);
+            timer.start();
             rotate_rows_inplace(context, tmp_ct, 1, gal_keys, stream);
-            timer.stop(stream);
+            timer.stop();
         }
     }
 }

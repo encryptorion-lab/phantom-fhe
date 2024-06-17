@@ -134,9 +134,6 @@ namespace phantom {
 class PhantomContext {
 public:
 
-    // must be destroyed at last
-    std::vector<std::shared_ptr<phantom::util::cuda_stream_wrapper>> cuda_streams_wrappers_;
-
     std::vector<phantom::ContextData> context_data_;
 
     bool using_keyswitching_;
@@ -162,7 +159,7 @@ public:
     std::size_t poly_degree_ = 0; // unchanged
     std::unique_ptr<PhantomGaloisTool> key_galois_tool_;
 
-    explicit PhantomContext(const phantom::EncryptionParameters &params, const cudaStream_t &stream = nullptr);
+    explicit PhantomContext(const phantom::EncryptionParameters &params);
 
     PhantomContext(const PhantomContext &) = delete;
 
@@ -255,8 +252,6 @@ public:
     [[nodiscard]] auto get_previous_index(const size_t index) const { return previous_parm_index(index); }
 
     [[nodiscard]] auto get_next_index(const size_t index) const { return next_parm_index(index); }
-
-    [[nodiscard]] auto &get_cuda_stream(size_t index) const { return cuda_streams_wrappers_.at(index)->get_stream(); }
 
     [[nodiscard]] const DNTTTable &gpu_plain_tables() const noexcept { return gpu_plain_tables_; }
 
