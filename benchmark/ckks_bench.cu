@@ -4,13 +4,14 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::arith;
+using namespace phantom::util;
 
 void ckks_performance_test(EncryptionParameters &parms, double scale) {
     PhantomContext context(parms);
     print_parameters(context);
     cout << endl;
 
-    const auto &stream = context.get_cuda_stream(0);
+    cuda_stream_wrapper stream;
 
     print_timer_banner();
 
@@ -19,45 +20,38 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     {
         CUDATimer timer("gen_secretkey", stream);
         for (auto i = 0; i < count; i++) {
-            PhantomSecretKey secret_key;
             timer.start();
-            secret_key.gen_secretkey(context, stream);
+            PhantomSecretKey secret_key(context, stream);
             timer.stop();
         }
     }
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context, stream);
+    PhantomSecretKey secret_key(context, stream);
 
     {
         CUDATimer timer("gen_publickey", stream);
         for (auto i = 0; i < count; i++) {
-            PhantomPublicKey public_key;
             timer.start();
-            secret_key.gen_publickey(context, public_key, stream);
+            PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
             timer.stop();
         }
     }
 
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key, stream);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
 
     // Generate relinearization keys
     {
         CUDATimer timer("gen_relinkey", stream);
         for (auto i = 0; i < count; i++) {
-            PhantomRelinKey relin_keys;
             timer.start();
-            secret_key.gen_relinkey(context, relin_keys, stream);
+            PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
             timer.stop();
         }
     }
 
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys, stream);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
 
-    PhantomGaloisKey gal_keys;
-    secret_key.create_galois_keys(context, gal_keys, stream);
+    PhantomGaloisKey gal_keys = secret_key.create_galois_keys(context, stream);
 
     PhantomCKKSEncoder ckks_encoder(context, stream);
 
@@ -205,7 +199,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
             multiply_inplace(context, tmp_ct, encrypted2, stream);
             relinearize_inplace(context, tmp_ct, relin_keys, stream);
             timer.start();
-            rescale_to_next_inplace(context, tmp_ct, stream);
+            mod_switch_to_next_inplace(context, tmp_ct, stream);
             timer.stop();
         }
     }

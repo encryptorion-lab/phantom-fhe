@@ -35,12 +35,9 @@ void modup_bench(nvbench::state &state) {
 
     PhantomContext context(parms);
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
     PhantomCKKSEncoder encoder(context);
     size_t slot_count = encoder.slot_count();
@@ -63,7 +60,7 @@ void modup_bench(nvbench::state &state) {
     for (int i = 0; i < dropped_levels; i++) {
         multiply_inplace(context, x_cipher, y_cipher);
         relinearize_inplace(context, x_cipher, relin_keys);
-        rescale_to_next_inplace(context, x_cipher);
+        mod_switch_to_next_inplace(context, x_cipher);
         x_cipher.set_scale(scale);
         mod_switch_to_next_inplace(context, y_cipher);
     }
@@ -95,14 +92,15 @@ void modup_bench(nvbench::state &state) {
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
-    const auto &stream = context.get_cuda_stream(0);
+    cuda_stream_wrapper stream;
+    const auto &s = stream.get_stream();
 
     // mod up
-    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
 
-    state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
-    state.exec([&rns_tool, &t_mod_up, cks, &context, &scheme, &stream](nvbench::launch &launch) {
-        rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
+    state.set_cuda_stream(nvbench::make_cuda_stream_view(s));
+    state.exec([&rns_tool, &t_mod_up, cks, &context, &scheme, &s](nvbench::launch &launch) {
+        rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, s);
     });
 }
 
@@ -138,12 +136,9 @@ void keyswitch_bench(nvbench::state &state) {
 
     PhantomContext context(parms);
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
     PhantomCKKSEncoder encoder(context);
     size_t slot_count = encoder.slot_count();
@@ -166,7 +161,7 @@ void keyswitch_bench(nvbench::state &state) {
     for (int i = 0; i < dropped_levels; i++) {
         multiply_inplace(context, x_cipher, y_cipher);
         relinearize_inplace(context, x_cipher, relin_keys);
-        rescale_to_next_inplace(context, x_cipher);
+        mod_switch_to_next_inplace(context, x_cipher);
         x_cipher.set_scale(scale);
         mod_switch_to_next_inplace(context, y_cipher);
     }
@@ -198,24 +193,25 @@ void keyswitch_bench(nvbench::state &state) {
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
-    const auto &stream = context.get_cuda_stream(0);
+    cuda_stream_wrapper stream;
+    const auto &s = stream.get_stream();
 
     // mod up
-    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
 
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
+    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, s);
 
     // key switch
-    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, stream);
+    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, s);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
 
-    state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
-    state.exec([&cx, &t_mod_up, &relin_keys, &rns_tool, &modulus_QP, &reduction_threshold, &stream](
+    state.set_cuda_stream(nvbench::make_cuda_stream_view(s));
+    state.exec([&cx, &t_mod_up, &relin_keys, &rns_tool, &modulus_QP, &reduction_threshold, &s](
             nvbench::launch &launch) {
         key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), rns_tool, modulus_QP,
-                              reduction_threshold, stream);
+                              reduction_threshold, s);
     });
 }
 
@@ -251,12 +247,9 @@ void moddown_bench(nvbench::state &state) {
 
     PhantomContext context(parms);
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context);
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key);
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys);
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
     PhantomCKKSEncoder encoder(context);
     size_t slot_count = encoder.slot_count();
@@ -279,7 +272,7 @@ void moddown_bench(nvbench::state &state) {
     for (int i = 0; i < dropped_levels; i++) {
         multiply_inplace(context, x_cipher, y_cipher);
         relinearize_inplace(context, x_cipher, relin_keys);
-        rescale_to_next_inplace(context, x_cipher);
+        mod_switch_to_next_inplace(context, x_cipher);
         x_cipher.set_scale(scale);
         mod_switch_to_next_inplace(context, y_cipher);
     }
@@ -311,27 +304,28 @@ void moddown_bench(nvbench::state &state) {
 
     size_t beta = rns_tool.v_base_part_Ql_to_compl_part_QlP_conv().size();
 
-    const auto &stream = context.get_cuda_stream(0);
+    cuda_stream_wrapper stream;
+    const auto &s = stream.get_stream();
 
     // mod up
-    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, stream);
-    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, stream);
+    auto t_mod_up = make_cuda_auto_ptr<uint64_t>(beta * size_QlP_n, s);
+    rns_tool.modup(t_mod_up.get(), cks, context.gpu_rns_tables(), scheme, s);
 
     // key switch
-    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, stream);
+    auto cx = make_cuda_auto_ptr<uint64_t>(2 * size_QlP_n, s);
 
     auto reduction_threshold =
             (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(key_modulus.front().value())) - 1)) - 1;
 
     key_switch_inner_prod(cx.get(), t_mod_up.get(), relin_keys.public_keys_ptr(), rns_tool, modulus_QP,
-                          reduction_threshold, stream);
+                          reduction_threshold, s);
 
     // mod down
     auto cx_i = cx.get() + 0 * size_QlP_n;
 
-    state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
-    state.exec([&rns_tool, cx_i, &context, &scheme, &stream](nvbench::launch &launch) {
-        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, stream);
+    state.set_cuda_stream(nvbench::make_cuda_stream_view(s));
+    state.exec([&rns_tool, cx_i, &context, &scheme, &s](nvbench::launch &launch) {
+        rns_tool.moddown_from_NTT(cx_i, cx_i, context.gpu_rns_tables(), scheme, s);
     });
 }
 

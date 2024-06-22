@@ -11,7 +11,7 @@ build:
   tags:
     - gpu, a100
   script:
-    - cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=80-real -DPHANTOM_ENABLE_BENCH=OFF
+    - cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=80-real
     - cmake --build build -j
   artifacts:
     paths:

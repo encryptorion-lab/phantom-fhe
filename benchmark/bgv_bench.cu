@@ -4,6 +4,7 @@
 using namespace std;
 using namespace phantom;
 using namespace phantom::arith;
+using namespace phantom::util;
 
 void bgv_performance_test(EncryptionParameters &parms) {
     PhantomContext context(parms);
@@ -14,7 +15,7 @@ void bgv_performance_test(EncryptionParameters &parms) {
     auto &first_parms = context_data.parms();
     auto &plain_modulus = first_parms.plain_modulus();
 
-    const auto &stream = context.get_cuda_stream(0);
+    cuda_stream_wrapper stream;
 
     print_timer_banner();
 
@@ -23,42 +24,36 @@ void bgv_performance_test(EncryptionParameters &parms) {
     {
         CUDATimer timer("gen_secretkey", stream);
         for (auto i = 0; i < count; i++) {
-            PhantomSecretKey secret_key;
             timer.start();
-            secret_key.gen_secretkey(context, stream);
+            PhantomSecretKey secret_key(context, stream);
             timer.stop();
         }
     }
 
-    PhantomSecretKey secret_key;
-    secret_key.gen_secretkey(context, stream);
+    PhantomSecretKey secret_key(context, stream);
 
     {
         CUDATimer timer("gen_publickey", stream);
         for (auto i = 0; i < count; i++) {
-            PhantomPublicKey public_key;
             timer.start();
-            secret_key.gen_publickey(context, public_key, stream);
+            PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
             timer.stop();
         }
     }
 
-    PhantomPublicKey public_key;
-    secret_key.gen_publickey(context, public_key, stream);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
 
     // Generate relinearization keys
     {
         CUDATimer timer("gen_relinkey", stream);
         for (auto i = 0; i < count; i++) {
-            PhantomRelinKey relin_keys;
             timer.start();
-            secret_key.gen_relinkey(context, relin_keys, stream);
+            PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
             timer.stop();
         }
     }
 
-    PhantomRelinKey relin_keys;
-    secret_key.gen_relinkey(context, relin_keys, stream);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
 
     /*
     Generate Galois keys. In larger examples the Galois keys can use a lot of
@@ -67,8 +62,7 @@ void bgv_performance_test(EncryptionParameters &parms) {
     memory pool allocation size. The key generation can also take a long time,
     as can be observed from the print-out.
     */
-    PhantomGaloisKey gal_keys;
-    secret_key.create_galois_keys(context, gal_keys, stream);
+    PhantomGaloisKey gal_keys = secret_key.create_galois_keys(context, stream);
 
     PhantomBatchEncoder batch_encoder(context, stream);
     size_t slot_count = batch_encoder.slot_count();
