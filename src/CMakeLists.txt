@@ -1,4 +1,6 @@
-ADD_LIBRARY(Phantom SHARED
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
+add_library(Phantom SHARED
         context.cu
         modulus.cu
         batchencoder.cu
@@ -36,49 +38,3 @@ ADD_LIBRARY(Phantom SHARED
 )
 
 target_compile_features(Phantom PUBLIC cxx_std_17 cuda_std_17)
-
-set(PHANTOM_HEADER_FILES
-        ../include/phantom.h
-
-        ../include/batchencoder.h
-        ../include/ciphertext.h
-        ../include/ckks.h
-        ../include/common.h
-        ../include/context.h
-        ../include/util/encryptionparams.h
-        ../include/evaluate.cuh
-        ../include/fft.h
-        ../include/galois.cuh
-        ../include/gpucontext.h
-        ../include/gputype.h
-        ../include/lock.cuh
-        ../include/util/modulus.h
-        ../include/ntt.cuh
-        ../include/plaintext.h
-        ../include/polymath.cuh
-        ../include/prng.cuh
-        ../include/rns.cuh
-        ../include/rns_base.cuh
-        ../include/rns_bconv.cuh
-        ../include/scalingvariant.cuh
-        ../include/secretkey.h
-        ../include/uintmath.cuh
-        ../include/uintmodmath.cuh
-        ../include/util.cuh
-
-        ../include/util/blake2b.h
-        ../include/util/blake2-impl.h
-        ../include/util/common.h
-        ../include/util/defines.h
-        ../include/util/galois.h
-        ../include/util/globals.h
-        ../include/util/hash.h
-        ../include/util/hestdparms.h
-        ../include/util/ntt.h
-        ../include/util/numth.h
-        ../include/util/rns.h
-        ../include/util/uintarith.h
-        ../include/util/uintarithmod.h
-        ../include/util/uintarithsmallmod.h
-        ../include/util/uintcore.h
-)

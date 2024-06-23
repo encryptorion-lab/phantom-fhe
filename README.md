@@ -2,25 +2,25 @@
 
 ## Prerequisites
 
-- CUDA >= 11.0
-- CMake >= 3.20
-- GCC >= 11.0
+* CUDA >= 11.0
+* CMake >= 3.20
+* GCC >= 11.0
 
 ## CMake Options
 
-- `CMAKE_CUDA_ARCHITECTURES`: Set the CUDA architectures to compile for. For example, A100 uses `80`, V100 uses `70`, and P100 uses `60`.
-- `PHANTOM_USE_CUDA_PTX`: Enable CUDA PTX optimizations (default: `ON`)
-- `PHANTOM_ENABLE_EXAMPLE`: Enable examples (default: `ON`)
-- `PHANTOM_ENABLE_BENCH`: Enable benchmarks (default: `ON`)
-- `PHANTOM_ENABLE_TEST`: Enable tests (default: `ON`)
-- `PHANTOM_ENABLE_PYTHON_BINDING`: Enable Python bindings (default: `ON`)
+* `CMAKE_CUDA_ARCHITECTURES`: Set the CUDA architectures to compile for. For example, A100 uses `80`, V100 uses `70`, and P100 uses `60`.
+* `PHANTOM_USE_CUDA_PTX`: Enable CUDA PTX optimizations (default: `ON`)
+* `PHANTOM_ENABLE_EXAMPLE`: Enable examples (default: `ON`)
+* `PHANTOM_ENABLE_BENCH`: Enable benchmarks (default: `ON`)
+* `PHANTOM_ENABLE_TEST`: Enable tests (default: `ON`)
+* `PHANTOM_ENABLE_PYTHON_BINDING`: Enable Python bindings (default: `ON`)
 
 ## Features
 
-- Native GPU acceleration (for NVIDIA GPUs)
-- Support word-wise schemes including BGV, BFV, and CKKS (without bootstrapping)
-- SOTA performance in most operations
-- Easy to integrate with applications (PPML, etc.)
+* Native GPU acceleration (for NVIDIA GPUs)
+* Support word-wise schemes including BGV, BFV, and CKKS (without bootstrapping)
+* SOTA performance in most operations
+* Easy to integrate with applications (PPML, etc.)
 
 ## Usage
 
@@ -89,6 +89,6 @@ If you are exploring BFV optimizations, please also cite the following paper:
 
 We are planning to support the following features in the future:
 
-- [ ] support bit-wise schemes TFHE/FHEW
-- [ ] support scheme switching between word-wise schemes and bit-wise schemes
-- [ ] support bootstrapping for BFV/BGV/CKKS
+* [ ] support bit-wise schemes TFHE/FHEW
+* [ ] support scheme switching between word-wise schemes and bit-wise schemes
+* [ ] support bootstrapping for BFV/BGV/CKKS

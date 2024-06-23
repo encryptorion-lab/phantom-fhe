@@ -12,6 +12,10 @@ inline bool operator==(const cuDoubleComplex &lhs, const cuDoubleComplex &rhs) {
     return fabs(lhs.x - rhs.x) < EPSINON;
 }
 
+inline bool compare_double(const double &lhs, const double &rhs) {
+    return fabs(lhs - rhs) < EPSINON;
+}
+
 /*
 Helper function: Prints the name of the example in a fancy banner.
 */

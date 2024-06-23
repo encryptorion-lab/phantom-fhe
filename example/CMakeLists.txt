@@ -8,3 +8,4 @@ add_executable(example_context
 )
 
 target_link_libraries(example_context PRIVATE Phantom)
+target_include_directories(example_context PUBLIC ${CMAKE_SOURCE_DIR}/include)

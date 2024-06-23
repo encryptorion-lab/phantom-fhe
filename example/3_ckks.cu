@@ -80,7 +80,7 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     cout << "We can immediately decode this plaintext to check the correctness." << endl;
     print_vector(result_double, 3, 7);
     for (size_t i = 0; i < slot_count; i++) {
-        correctness &= result_double[i] == input_double[i];
+        correctness &= compare_double(result_double[i], input_double[i]);
     }
     if (!correctness)
         throw std::logic_error("encode/decode double vector error");
