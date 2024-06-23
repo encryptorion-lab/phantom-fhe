@@ -202,9 +202,8 @@ private:
 
 public:
 
-    explicit PhantomSecretKey(const PhantomContext &context,
-                              const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
-        gen_secretkey(context, stream_wrapper.get_stream());
+    explicit inline PhantomSecretKey(const PhantomContext &context) {
+        gen_secretkey(context, phantom::util::global_variables::default_stream->get_stream());
     }
 
     PhantomSecretKey(const PhantomSecretKey &) = delete;
@@ -217,14 +216,11 @@ public:
 
     ~PhantomSecretKey() = default;
 
-    [[nodiscard]] PhantomPublicKey gen_publickey(const PhantomContext &context,
-                                                 const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const;
+    [[nodiscard]] PhantomPublicKey gen_publickey(const PhantomContext &context) const;
 
-    [[nodiscard]] PhantomRelinKey gen_relinkey(const PhantomContext &context,
-                                               const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+    [[nodiscard]] PhantomRelinKey gen_relinkey(const PhantomContext &context);
 
-    [[nodiscard]] PhantomGaloisKey create_galois_keys(const PhantomContext &context,
-                                                      const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const;
+    [[nodiscard]] PhantomGaloisKey create_galois_keys(const PhantomContext &context) const;
 
     /** Symmetric encryption, the plaintext and ciphertext are in NTT form
      * @param[in] context PhantomContext

@@ -18,42 +18,42 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     auto count = 100;
 
     {
-        CUDATimer timer("gen_secretkey", stream);
+        CUDATimer timer("gen_secretkey", *global_variables::default_stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            PhantomSecretKey secret_key(context, stream);
+            PhantomSecretKey secret_key(context);
             timer.stop();
         }
     }
 
-    PhantomSecretKey secret_key(context, stream);
+    PhantomSecretKey secret_key(context);
 
     {
-        CUDATimer timer("gen_publickey", stream);
+        CUDATimer timer("gen_publickey", *global_variables::default_stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
+            PhantomPublicKey public_key = secret_key.gen_publickey(context);
             timer.stop();
         }
     }
 
-    PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
 
     // Generate relinearization keys
     {
-        CUDATimer timer("gen_relinkey", stream);
+        CUDATimer timer("gen_relinkey", *global_variables::default_stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
+            PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
             timer.stop();
         }
     }
 
-    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
-    PhantomGaloisKey gal_keys = secret_key.create_galois_keys(context, stream);
+    PhantomGaloisKey gal_keys = secret_key.create_galois_keys(context);
 
-    PhantomCKKSEncoder ckks_encoder(context, stream);
+    PhantomCKKSEncoder ckks_encoder(context);
 
     /*
     Populate a vector of floating-point values to batch.

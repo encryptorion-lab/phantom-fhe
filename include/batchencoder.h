@@ -26,8 +26,7 @@ public:
     @throws std::invalid_argument if the encryption parameters are not valid for batching
     @throws std::invalid_argument if scheme is not scheme_type::bfv
     */
-    explicit PhantomBatchEncoder(const PhantomContext &context,
-                                 const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+    explicit PhantomBatchEncoder(const PhantomContext &context);
 
     void
     encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix, PhantomPlaintext &destination,

@@ -378,11 +378,10 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context, const cudaSt
     gen_flag_ = true;
 }
 
-PhantomPublicKey PhantomSecretKey::gen_publickey(const PhantomContext &context,
-                                                 const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
+PhantomPublicKey PhantomSecretKey::gen_publickey(const PhantomContext &context) const {
     PhantomPublicKey pk;
 
-    const auto &s = stream_wrapper.get_stream();
+    const auto &s = phantom::util::global_variables::default_stream->get_stream();
     pk.prng_seed_a_ = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(pk.prng_seed_a_.get(), phantom::util::global_variables::prng_seed_byte_count, s);
     encrypt_zero_symmetric(context, pk.pk_, pk.prng_seed_a_.get(), 0, true, s);
@@ -393,11 +392,10 @@ PhantomPublicKey PhantomSecretKey::gen_publickey(const PhantomContext &context,
     return pk;
 }
 
-PhantomRelinKey PhantomSecretKey::gen_relinkey(const PhantomContext &context,
-                                               const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+PhantomRelinKey PhantomSecretKey::gen_relinkey(const PhantomContext &context) {
     PhantomRelinKey relin_key;
 
-    const auto &s = stream_wrapper.get_stream();
+    const auto &s = phantom::util::global_variables::default_stream->get_stream();
 
     // Extract encryption parameters.
     auto &key_context_data = context.get_context_data(0);
@@ -419,8 +417,7 @@ PhantomRelinKey PhantomSecretKey::gen_relinkey(const PhantomContext &context,
     return relin_key;
 }
 
-PhantomGaloisKey PhantomSecretKey::create_galois_keys(const PhantomContext &context,
-                                                      const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
+PhantomGaloisKey PhantomSecretKey::create_galois_keys(const PhantomContext &context) const {
     PhantomGaloisKey galois_keys;
 
     // Extract encryption parameters.
@@ -431,7 +428,7 @@ PhantomGaloisKey PhantomSecretKey::create_galois_keys(const PhantomContext &cont
     auto poly_degree = key_parms.poly_modulus_degree();
     auto key_mod_size = key_modulus.size();
 
-    const auto &s = stream_wrapper.get_stream();
+    const auto &s = phantom::util::global_variables::default_stream->get_stream();
 
     // get galois_elts
     auto &galois_elts = key_galois_tool->galois_elts();

@@ -172,19 +172,6 @@ namespace phantom {
             compute_parms_id();
         }
 
-        /**
-        Sets the plaintext modulus parameter.
-        The input std::uint64_t will automatically create the Modulus object.
-        The plaintext modulus can be at most 60 bits long, but can otherwise be any integer.
-        Note, however, batching require plaintext modulus is congruent to 1 modulo 2N.
-
-        @param[in] plain_modulus The new plaintext modulus
-        @throws std::invalid_argument if plain_modulus is invalid
-        */
-        inline void set_plain_modulus(std::uint64_t plain_modulus) {
-            set_plain_modulus(arith::Modulus(plain_modulus));
-        }
-
         // Returns the encryption scheme type.
         [[nodiscard]] inline scheme_type scheme() const noexcept {
             return scheme_;

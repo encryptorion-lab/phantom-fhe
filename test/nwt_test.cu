@@ -59,7 +59,7 @@ void test_nwt_1d(size_t log_dim, size_t batch_size) {
 
     auto h_odata = std::make_unique<uint64_t[]>(batch_size * dim);
     cudaMemcpyAsync(h_odata.get(), d_data.get(), batch_size * dim * sizeof(uint64_t), cudaMemcpyDeviceToHost, s);
-    cudaDeviceSynchronize();
+    cudaStreamSynchronize(s);
     for (size_t i = 0; i < batch_size * dim; i++) {
         if (h_idata.get()[i] != h_odata.get()[i]) {
             std::cout << i << " " << h_idata.get()[i] << " != " << h_idata.get()[i] << std::endl;
@@ -112,7 +112,7 @@ void test_nwt_2d(size_t log_dim, size_t batch_size) {
     nwt_2d_radix8_backward_inplace(d_data.get(), d_ntt_tables, batch_size, 0, s);
 
     cudaMemcpyAsync(h_data.get(), d_data.get(), batch_size * dim * sizeof(uint64_t), cudaMemcpyDeviceToHost, s);
-    cudaDeviceSynchronize();
+    cudaStreamSynchronize(s);
     for (size_t i = 0; i < batch_size * dim; i++) {
         if (h_data.get()[i] != 2) {
             std::cout << i << " " << h_data.get()[i] << std::endl;

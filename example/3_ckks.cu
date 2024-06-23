@@ -16,7 +16,7 @@ using namespace phantom::arith;
 using namespace phantom::util;
 
 void example_ckks_enc(PhantomContext &context, const double &scale) {
-    std::cout << "Example: CKKS Encode&Encrypt" << std::endl;
+    std::cout << "Example: CKKS Encode/Decode complex vector" << std::endl;
 
     PhantomSecretKey secret_key(context);
     PhantomPublicKey public_key = secret_key.gen_publickey(context);
@@ -25,21 +25,18 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     size_t slot_count = encoder.slot_count();
     cout << "Number of slots: " << slot_count << endl;
 
-    vector<cuDoubleComplex> input;
-    size_t msg_size = slot_count;
-    input.reserve(msg_size);
+    vector<cuDoubleComplex> input(slot_count);
     double rand_real;
     double rand_imag;
     // srand(time(0));
-    for (size_t i = 0; i < msg_size; i++) {
+    for (size_t i = 0; i < slot_count; i++) {
         rand_real = (double) rand() / RAND_MAX;
         rand_imag = (double) rand() / RAND_MAX;
-        input.push_back(make_cuDoubleComplex(rand_real, rand_imag));
+        input[i] = make_cuDoubleComplex(rand_real, rand_imag);
     }
     cout << "Input vector: " << endl;
     print_vector(input, 3, 7);
 
-    //
     PhantomPlaintext x_plain;
     print_line(__LINE__);
     cout << "Encode input vectors." << endl;
@@ -52,11 +49,41 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     encoder.decode(context, x_plain, result);
     cout << "We can immediately decode this plaintext to check the correctness." << endl;
     print_vector(result, 3, 7);
-    for (size_t i = 0; i < msg_size; i++) {
+    for (size_t i = 0; i < slot_count; i++) {
         correctness &= result[i] == input[i];
     }
     if (!correctness)
-        throw std::logic_error("encode/decode error");
+        throw std::logic_error("encode/decode complex vector error");
+    result.clear();
+
+
+    // double vector test
+    std::cout << "Example: CKKS Encode/Decode double vector" << std::endl;
+    vector<double> input_double(slot_count);
+    // srand(time(0));
+    for (size_t i = 0; i < slot_count; i++) {
+        input_double[i] = (double) rand() / RAND_MAX;
+    }
+    cout << "Input vector: " << endl;
+    print_vector(input_double, 3, 7);
+
+    PhantomPlaintext pt;
+    print_line(__LINE__);
+    cout << "Encode input vectors." << endl;
+    encoder.encode(context, input_double, scale, pt, 1);
+
+    correctness = true;
+
+    // Decode check
+    vector<double> result_double;
+    encoder.decode(context, pt, result_double);
+    cout << "We can immediately decode this plaintext to check the correctness." << endl;
+    print_vector(result_double, 3, 7);
+    for (size_t i = 0; i < slot_count; i++) {
+        correctness &= result_double[i] == input_double[i];
+    }
+    if (!correctness)
+        throw std::logic_error("encode/decode double vector error");
     result.clear();
 
     // Symmetric encryption check
@@ -70,7 +97,7 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     encoder.decode(context, x_symmetric_plain, result);
     // print_vector(result, 3, 7);
     correctness = true;
-    for (size_t i = 0; i < msg_size; i++) {
+    for (size_t i = 0; i < slot_count; i++) {
         correctness &= result[i] == input[i];
     }
     if (!correctness)
@@ -91,7 +118,7 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     cout << "Decode the decrypted plaintext." << endl;
     print_vector(result, 3, 7);
     correctness = true;
-    for (size_t i = 0; i < msg_size; i++) {
+    for (size_t i = 0; i < slot_count; i++) {
         correctness &= result[i] == input[i];
     }
     if (!correctness)

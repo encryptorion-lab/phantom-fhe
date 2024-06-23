@@ -342,24 +342,5 @@ namespace phantom::arith {
         [[nodiscard]] static inline Modulus Batching(std::size_t poly_modulus_degree, int bit_size) {
             return CoeffModulus::Create(poly_modulus_degree, {bit_size})[0];
         }
-
-        /**
-        Creates several prime number Modulus elements that can be used as
-        plain_modulus encryption parameters, each supporting batching with a given
-        poly_modulus_degree.
-
-        @param[in] poly_modulus_degree The value of the poly_modulus_degree
-        encryption parameter
-        @param[in] bit_sizes The bit-lengths of the primes to be generated
-        @throws std::invalid_argument if poly_modulus_degree is not a power-of-two
-        or is too large
-        @throws std::invalid_argument if bit_sizes is too large or if its elements
-        are out of bounds
-        @throws std::logic_error if not enough suitable primes could be found
-        */
-        [[nodiscard]] static inline std::vector<Modulus> Batching(
-                std::size_t poly_modulus_degree, std::vector<int> bit_sizes) {
-            return CoeffModulus::Create(poly_modulus_degree, bit_sizes);
-        }
     };
 }

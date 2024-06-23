@@ -39,18 +39,28 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_subdirectory(src)
 
 # example
-add_subdirectory(example)
+# [option] PHANTOM_ENABLE_EXAMPLE (default: ON)
+option(PHANTOM_ENABLE_EXAMPLE "Enable examples" ON)
+message(STATUS "Enable examples: ${PHANTOM_ENABLE_EXAMPLE}")
+if (PHANTOM_ENABLE_EXAMPLE)
+    add_subdirectory(example)
+endif ()
 
 # benchmark
 # [option] PHANTOM_ENABLE_BENCH (default: ON)
-option(PHANTOM_ENABLE_BENCH "Enable benchmark" ON)
-message(STATUS "Enable benchmark: ${PHANTOM_ENABLE_BENCH}")
+option(PHANTOM_ENABLE_BENCH "Enable benchmarks" ON)
+message(STATUS "Enable benchmarks: ${PHANTOM_ENABLE_BENCH}")
 if (PHANTOM_ENABLE_BENCH)
     add_subdirectory(benchmark)
 endif ()
 
 # test
-add_subdirectory(test)
+# [option] PHANTOM_ENABLE_TEST (default: ON)
+option(PHANTOM_ENABLE_TEST "Enable tests" ON)
+message(STATUS "Enable tests: ${PHANTOM_ENABLE_TEST}")
+if (PHANTOM_ENABLE_TEST)
+    add_subdirectory(test)
+endif ()
 
 # python binding
 # [option] PHANTOM_ENABLE_PYTHON_BINDING (default: ON)

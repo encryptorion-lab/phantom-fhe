@@ -27,8 +27,8 @@ __global__ void bit_reverse(cuDoubleComplex *dst, cuDoubleComplex *src, uint32_t
     }
 }
 
-PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-    const auto &s = stream_wrapper.get_stream();
+PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
+    const auto &s = global_variables::default_stream->get_stream();
 
     auto &context_data = context.get_context_data(first_chain_index_);
     auto &parms = context_data.parms();
@@ -215,4 +215,7 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
     bit_reverse<<<gridDimGlb, blockDimGlb, 0, stream>>>(
             out.get(), gpu_ckks_msg_vec_->in(), sparse_slots_, log_sparse_n);
     cudaMemcpyAsync(destination, out.get(), sparse_slots_ * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost, stream);
+
+    // explicit synchronization in case user wants to use the result immediately
+    cudaStreamSynchronize(stream);
 }

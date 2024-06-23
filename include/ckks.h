@@ -33,7 +33,7 @@ private:
                                 const cudaStream_t &stream) {
         std::vector<cuDoubleComplex> input(values_size);
         for (size_t i = 0; i < values_size; i++) {
-            input.push_back(make_cuDoubleComplex(values[i], 0.0));
+            input[i] = make_cuDoubleComplex(values[i], 0.0);
         }
         encode_internal(context, input.data(), values_size, chain_index, scale, destination, stream);
     }
@@ -55,12 +55,7 @@ private:
 
 public:
 
-    /** Creates a CKKSEncoder instance initialized with the specified PhantomContext.
-     * @param[in] context The PhantomContext
-     * @throws std::invalid_argument if scheme is not scheme_type::CKKS
-     */
-    explicit PhantomCKKSEncoder(const PhantomContext &context,
-                                const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+    explicit PhantomCKKSEncoder(const PhantomContext &context);
 
     PhantomCKKSEncoder(const PhantomCKKSEncoder &copy) = delete;
 

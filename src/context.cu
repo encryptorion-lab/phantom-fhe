@@ -235,6 +235,4 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
     int log_n = phantom::arith::get_power_of_two(poly_degree_);
     bool is_bfv = (params.scheme() == phantom::scheme_type::bfv);
     key_galois_tool_ = std::make_unique<PhantomGaloisTool>(params.galois_elts(), log_n, s, is_bfv);
-
-    cudaStreamSynchronize(s);
 }

@@ -22,38 +22,38 @@ void bfv_performance_test(EncryptionParameters &parms) {
     auto count = 100;
 
     {
-        CUDATimer timer("gen_secretkey", stream);
+        CUDATimer timer("gen_secretkey", *global_variables::default_stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            PhantomSecretKey secret_key(context, stream);
+            PhantomSecretKey secret_key(context);
             timer.stop();
         }
     }
 
-    PhantomSecretKey secret_key(context, stream);
+    PhantomSecretKey secret_key(context);
 
     {
-        CUDATimer timer("gen_publickey", stream);
+        CUDATimer timer("gen_publickey", *global_variables::default_stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
+            PhantomPublicKey public_key = secret_key.gen_publickey(context);
             timer.stop();
         }
     }
 
-    PhantomPublicKey public_key = secret_key.gen_publickey(context, stream);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
 
     // Generate relinearization keys
     {
-        CUDATimer timer("gen_relinkey", stream);
+        CUDATimer timer("gen_relinkey", *global_variables::default_stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
+            PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
             timer.stop();
         }
     }
 
-    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context, stream);
+    PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
 
     /*
     Generate Galois keys. In larger examples the Galois keys can use a lot of
@@ -62,9 +62,9 @@ void bfv_performance_test(EncryptionParameters &parms) {
     memory pool allocation size. The key generation can also take a long time,
     as can be observed from the print-out.
     */
-    PhantomGaloisKey gal_keys = secret_key.create_galois_keys(context, stream);
+    PhantomGaloisKey gal_keys = secret_key.create_galois_keys(context);
 
-    PhantomBatchEncoder batch_encoder(context, stream);
+    PhantomBatchEncoder batch_encoder(context);
     size_t slot_count = batch_encoder.slot_count();
     random_device rd;
 

@@ -4,9 +4,8 @@ using namespace std;
 using namespace phantom;
 using namespace phantom::util;
 
-PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context,
-                                         const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-    const auto &s = stream_wrapper.get_stream();
+PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context) {
+    const auto &s = phantom::util::global_variables::default_stream->get_stream();
     auto &context_data = context.get_context_data(0);
     auto &parms = context_data.parms();
     if (parms.scheme() != scheme_type::bfv && parms.scheme() != scheme_type::bgv) {
