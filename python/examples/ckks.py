@@ -35,7 +35,7 @@ def ckks_test():
     ct = pk.encrypt_asymmetric(context, pt, stream=s)
 
     ct = phantom.multiply_and_relin(context, ct, ct, rlk, stream=s)
-    ct = phantom.mod_switch_to_next(context, ct, stream=s)
+    ct = phantom.rescale_to_next(context, ct, stream=s)
 
     ct2 = phantom.hoisting(context, ct, glk, [1, 2, 3, 4, 5, 6, 7], stream=s)
     ct = phantom.add(context, ct, ct2, stream=s)

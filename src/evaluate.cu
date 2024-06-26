@@ -74,6 +74,12 @@ Returns (f, e1, e2) such that
     return std::make_tuple(phantom::arith::multiply_uint_mod(e1, factor1, plain_modulus), e1, e2);
 }
 
+// https://github.com/microsoft/SEAL/blob/3a05febe18e8a096668cd82c75190255eda5ca7d/native/src/seal/evaluator.cpp#L24
+template<typename T, typename S>
+[[nodiscard]] inline bool are_same_scale(const T &value1, const S &value2) noexcept {
+    return are_close<double>(value1.scale(), value2.scale());
+}
+
 static void negate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, const cudaStream_t &stream) {
     // Extract encryption parameters.
     auto &context_data = context.get_context_data(encrypted.chain_index());
@@ -112,7 +118,7 @@ void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
     if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form()) {
         throw std::invalid_argument("NTT form mismatch");
     }
-    if (encrypted1.scale() != encrypted2.scale()) {
+    if (!are_same_scale(encrypted1, encrypted2)) {
         throw std::invalid_argument("scale mismatch");
     }
     if (encrypted1.size() != encrypted2.size()) {
@@ -143,20 +149,20 @@ void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
                                                   plain_modulus);
         for (size_t i = 0; i < encrypted1.size(); i++) {
             multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
-                    encrypted1.data() + i * rns_coeff_count, get < 1 > (factors), base_rns,
+                    encrypted1.data() + i * rns_coeff_count, get<1>(factors), base_rns,
                     encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
         PhantomCiphertext encrypted2_copy = encrypted2;
         for (size_t i = 0; i < encrypted2.size(); i++) {
             multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
-                    encrypted2_copy.data() + i * rns_coeff_count, get < 2 > (factors), base_rns,
+                    encrypted2_copy.data() + i * rns_coeff_count, get<2>(factors), base_rns,
                     encrypted2_copy.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
         // Set new correction factor
-        encrypted1.set_correction_factor(get < 0 > (factors));
-        encrypted2_copy.set_correction_factor(get < 0 > (factors));
+        encrypted1.set_correction_factor(get<0>(factors));
+        encrypted2_copy.set_correction_factor(get<0>(factors));
 
         // Prepare destination
         encrypted1.resize(context, context_data.chain_index(), max_size, s);
@@ -206,7 +212,7 @@ void add_many(const PhantomContext &context, const vector<PhantomCiphertext> &en
         if (encrypteds[0].is_ntt_form() != encrypteds[i].is_ntt_form()) {
             throw std::invalid_argument("NTT form mismatch");
         }
-        if (encrypteds[0].scale() != encrypteds[i].scale()) {
+        if (!are_same_scale(encrypteds[0], encrypteds[i])) {
             throw std::invalid_argument("scale mismatch");
         }
         if (encrypteds[0].size() != encrypteds[i].size()) {
@@ -266,7 +272,7 @@ void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
         throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
     if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form())
         throw std::invalid_argument("NTT form mismatch");
-    if (encrypted1.scale() != encrypted2.scale())
+    if (!are_same_scale(encrypted1, encrypted2))
         throw std::invalid_argument("scale mismatch");
     if (encrypted1.size() != encrypted2.size())
         throw std::invalid_argument("poly number mismatch");
@@ -295,20 +301,20 @@ void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, c
                                                   plain_modulus);
         for (size_t i = 0; i < encrypted1.size(); i++) {
             multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
-                    encrypted1.data() + i * rns_coeff_count, get < 1 > (factors), base_rns,
+                    encrypted1.data() + i * rns_coeff_count, get<1>(factors), base_rns,
                     encrypted1.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
         PhantomCiphertext encrypted2_copy = encrypted2;
         for (size_t i = 0; i < encrypted2.size(); i++) {
             multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
-                    encrypted2_copy.data() + i * rns_coeff_count, get < 2 > (factors), base_rns,
+                    encrypted2_copy.data() + i * rns_coeff_count, get<2>(factors), base_rns,
                     encrypted2_copy.data() + i * rns_coeff_count, poly_degree, coeff_modulus_size);
         }
 
         // Set new correction factor
-        encrypted1.set_correction_factor(get < 0 > (factors));
-        encrypted2_copy.set_correction_factor(get < 0 > (factors));
+        encrypted1.set_correction_factor(get<0>(factors));
+        encrypted2_copy.set_correction_factor(get<0>(factors));
 
         if (negate) {
             for (size_t i = 0; i < encrypted1.size(); i++) {
@@ -1031,7 +1037,7 @@ void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypte
         throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
     if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form())
         throw std::invalid_argument("NTT form mismatch");
-    if (encrypted1.scale() != encrypted2.scale())
+    if (!are_same_scale(encrypted1, encrypted2))
         throw std::invalid_argument("scale mismatch");
     if (encrypted1.size() != encrypted2.size())
         throw std::invalid_argument("poly number mismatch");
@@ -1066,7 +1072,7 @@ void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext
         throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
     if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form())
         throw std::invalid_argument("NTT form mismatch");
-    if (encrypted1.scale() != encrypted2.scale())
+    if (!are_same_scale(encrypted1, encrypted2))
         throw std::invalid_argument("scale mismatch");
     if (encrypted1.size() != encrypted2.size())
         throw std::invalid_argument("poly number mismatch");
@@ -1121,7 +1127,7 @@ void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
     if (parms.scheme() == scheme_type::bgv && !(encrypted.is_ntt_form())) {
         throw std::invalid_argument("BGV encrypted must be in NTT form");
     }
-    if (encrypted.scale() != plain.scale()) {
+    if (!are_same_scale(encrypted, plain)) {
         // TODO: be more precious
         throw std::invalid_argument("scale mismatch");
     }
@@ -1182,8 +1188,7 @@ void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypt
     if (parms.scheme() == scheme_type::bgv && !(encrypted.is_ntt_form())) {
         throw std::invalid_argument("BGV encrypted must be in NTT form");
     }
-    if (encrypted.scale() != plain.scale()) {
-        // TODO: be more precious
+    if (!are_same_scale(encrypted, plain)) {
         throw std::invalid_argument("scale mismatch");
     }
 
@@ -1433,6 +1438,51 @@ static void mod_switch_scale_to_next(const PhantomContext &context, const Phanto
     }
 }
 
+static void mod_switch_drop_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                                    PhantomCiphertext &destination, const cudaStream_t &stream) {
+    // Assuming at this point encrypted is already validated.
+    auto &context_data = context.get_context_data(encrypted.chain_index());
+    auto &parms = context_data.parms();
+    auto coeff_modulus_size = parms.coeff_modulus().size();
+    size_t N = parms.poly_modulus_degree();
+
+    // Extract encryption parameters.
+    auto next_chain_index = encrypted.chain_index() + 1;
+    auto &next_context_data = context.get_context_data(next_chain_index);
+    auto &next_parms = next_context_data.parms();
+
+    // q_1,...,q_{k-1}
+    size_t encrypted_size = encrypted.size();
+    size_t next_coeff_modulus_size = next_parms.coeff_modulus().size();
+
+    if (&encrypted == &destination) {
+        auto temp = std::move(destination.data_ptr());
+        destination.data_ptr() = make_cuda_auto_ptr<uint64_t>(encrypted_size * next_coeff_modulus_size * N, stream);
+        for (size_t i{0}; i < encrypted_size; i++) {
+            auto temp_iter = temp.get() + i * coeff_modulus_size * N;
+            auto encrypted_iter = encrypted.data() + i * next_coeff_modulus_size * N;
+            cudaMemcpyAsync(encrypted_iter, temp_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, stream);
+        }
+        // Set other attributes
+        destination.set_chain_index(next_chain_index);
+        destination.set_coeff_modulus_size(next_coeff_modulus_size);
+    } else {
+        // Resize destination before writing
+        destination.resize(context, next_chain_index, encrypted_size, stream);
+        // Copy data over to destination; only copy the RNS components relevant after modulus drop
+        for (size_t i = 0; i < encrypted_size; i++) {
+            auto destination_iter = destination.data() + i * next_coeff_modulus_size * N;
+            auto encrypted_iter = encrypted.data() + i * coeff_modulus_size * N;
+            cudaMemcpyAsync(destination_iter, encrypted_iter, next_coeff_modulus_size * N * sizeof(uint64_t),
+                            cudaMemcpyDeviceToDevice, stream);
+        }
+        // Set other attributes
+        destination.set_scale(encrypted.scale());
+        destination.set_ntt_form(encrypted.is_ntt_form());
+    }
+}
+
 void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain,
                                 const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     const auto &s = stream_wrapper.get_stream();
@@ -1488,15 +1538,50 @@ PhantomCiphertext mod_switch_to_next(const PhantomContext &context, const Phanto
         throw std::invalid_argument("CKKS encrypted must be in NTT form");
     }
 
+    // Modulus switching with scaling
     PhantomCiphertext destination;
+    switch (scheme) {
+        case scheme_type::bfv:
+        case scheme_type::bgv:
+            // Modulus switching with scaling
+            mod_switch_scale_to_next(context, encrypted, destination, s);
+            break;
+        case scheme_type::ckks:
+            // Modulus switching without scaling
+            mod_switch_drop_to_next(context, encrypted, destination, s);
+            break;
+        default:
+            throw invalid_argument("unsupported scheme");
+    }
+    return destination;
+}
+
+PhantomCiphertext rescale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                                  const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    const auto &s = stream_wrapper.get_stream();
+
+    auto &context_data = context.get_context_data(context.get_first_index());
+    auto &parms = context_data.parms();
+    auto max_chain_index = parms.coeff_modulus().size();
+    auto scheme = parms.scheme();
+
+    if (scheme != scheme_type::ckks)
+        throw invalid_argument("unsupported scheme");
+
+    // Verify parameters.
+    if (encrypted.chain_index() == max_chain_index) {
+        throw invalid_argument("end of modulus switching chain reached");
+    }
 
     // Modulus switching with scaling
+    PhantomCiphertext destination;
     mod_switch_scale_to_next(context, encrypted, destination, s);
     return destination;
 }
 
 void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt_index,
-                          const PhantomGaloisKey &galois_keys, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                          const PhantomGaloisKey &galois_keys,
+                          const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     auto &context_data = context.get_context_data(encrypted.chain_index());
     auto &parms = context_data.parms();
     auto &coeff_modulus = parms.coeff_modulus();
@@ -1551,7 +1636,8 @@ void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encr
 
 // TODO: remove recursive chain
 static void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
-                            const PhantomGaloisKey &galois_key, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                            const PhantomGaloisKey &galois_key,
+                            const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     auto &context_data = context.get_context_data(encrypted.chain_index());
 
     // Is there anything to do?
@@ -1597,7 +1683,8 @@ void rotate_rows_inplace(const PhantomContext &context, PhantomCiphertext &encry
 }
 
 void rotate_columns_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                            const PhantomGaloisKey &galois_key, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                            const PhantomGaloisKey &galois_key,
+                            const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::bfv &&
         context.key_context_data().parms().scheme() != phantom::scheme_type::bgv) {
         throw std::logic_error("unsupported scheme");
@@ -1606,7 +1693,8 @@ void rotate_columns_inplace(const PhantomContext &context, PhantomCiphertext &en
 }
 
 void rotate_vector_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
-                           const PhantomGaloisKey &galois_key, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                           const PhantomGaloisKey &galois_key,
+                           const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::ckks) {
         throw std::logic_error("unsupported scheme");
     }
@@ -1614,7 +1702,8 @@ void rotate_vector_inplace(const PhantomContext &context, PhantomCiphertext &enc
 }
 
 void complex_conjugate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                               const PhantomGaloisKey &galois_key, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                               const PhantomGaloisKey &galois_key,
+                               const phantom::util::cuda_stream_wrapper &stream_wrapper) {
     if (context.key_context_data().parms().scheme() != phantom::scheme_type::ckks) {
         throw std::logic_error("unsupported scheme");
     }

@@ -337,6 +337,7 @@ namespace phantom::arith {
     template<typename T>
     constexpr double epsilon = std::numeric_limits<T>::epsilon();
 
+    // https://github.com/microsoft/SEAL/blob/3a05febe18e8a096668cd82c75190255eda5ca7d/native/src/seal/util/common.h#L569
     template<typename T, typename = std::enable_if_t<std::is_floating_point<T>::value>>
     [[nodiscard]] inline bool are_close(T value1, T value2) noexcept {
         double scale_factor = std::max<T>({std::fabs(value1), std::fabs(value2), T{1.0}});

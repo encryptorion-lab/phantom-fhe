@@ -199,7 +199,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
             multiply_inplace(context, tmp_ct, encrypted2, stream);
             relinearize_inplace(context, tmp_ct, relin_keys, stream);
             timer.start();
-            mod_switch_to_next_inplace(context, tmp_ct, stream);
+            rescale_to_next_inplace(context, tmp_ct, stream);
             timer.stop();
         }
     }

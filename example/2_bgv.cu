@@ -325,8 +325,6 @@ void example_bgv_mul(EncryptionParameters &parms, PhantomContext &context) {
     print_vector(input1, 3, 7);
     print_vector(input2, 3, 7);
 
-    PhantomPlaintext xy_plain;
-
     PhantomPlaintext x_plain = batch_encoder.encode(context, input1);
     PhantomPlaintext y_plain = batch_encoder.encode(context, input2);
 
@@ -336,21 +334,22 @@ void example_bgv_mul(EncryptionParameters &parms, PhantomContext &context) {
     public_key.encrypt_asymmetric(context, x_plain, x_cipher);
     public_key.encrypt_asymmetric(context, y_plain, y_cipher);
 
-    cout << "Compute and relinearize x*y." << endl;
-    multiply_inplace(context, x_cipher, y_cipher);
-    relinearize_inplace(context, x_cipher, relin_keys);
+    cout << "Compute x*y*x." << endl;
+    PhantomCiphertext xy_cipher = multiply(context, x_cipher, y_cipher);
+    relinearize_inplace(context, xy_cipher, relin_keys);
+    mod_switch_to_next_inplace(context, xy_cipher);
     mod_switch_to_next_inplace(context, x_cipher);
-
-    secret_key.decrypt(context, x_cipher, xy_plain);
-
-    vector<uint64_t> result;
-    result = batch_encoder.decode(context, xy_plain);
+    PhantomCiphertext x2y_cipher = multiply(context, xy_cipher, x_cipher);
+    relinearize_inplace(context, x2y_cipher, relin_keys);
+    mod_switch_to_next_inplace(context, x2y_cipher);
+    PhantomPlaintext x2y_plain = secret_key.decrypt(context, x2y_cipher);
+    vector<uint64_t> result = batch_encoder.decode(context, x2y_plain);
     cout << "Result vector: " << endl;
     print_vector(result, 3, 7);
 
     bool correctness = true;
     for (size_t i = 0; i < slot_count; i++) {
-        correctness &= result[i] == (input1[i] * input2[i] % parms.plain_modulus().value());
+        correctness &= result[i] == (input1[i] * input1[i] * input2[i] % parms.plain_modulus().value());
     }
     if (!correctness)
         throw std::logic_error("Error in Homomorphic multiplication");

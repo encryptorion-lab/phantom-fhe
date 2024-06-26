@@ -108,8 +108,9 @@ inline auto multiply_plain(const PhantomContext &context, const PhantomCiphertex
 void multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
                       const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
 
-inline auto multiply(const PhantomContext &context, const PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
-                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+inline auto
+multiply(const PhantomContext &context, const PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
+         const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
     PhantomCiphertext destination = encrypted1;
     multiply_inplace(context, destination, encrypted2, stream_wrapper);
     return destination;
@@ -141,8 +142,20 @@ inline auto relinearize(const PhantomContext &context, const PhantomCiphertext &
 }
 
 // ciphertext
+[[nodiscard]]
+PhantomCiphertext rescale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
+                                  const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+
+// ciphertext
+inline void rescale_to_next_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                                    const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+    encrypted = rescale_to_next(context, encrypted, stream_wrapper);
+}
+
+// ciphertext
+[[nodiscard]]
 PhantomCiphertext mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                        const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+                                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
 
 // ciphertext
 inline void mod_switch_to_next_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
@@ -152,7 +165,7 @@ inline void mod_switch_to_next_inplace(const PhantomContext &context, PhantomCip
 
 // ciphertext
 inline auto mod_switch_to(const PhantomContext &context, const PhantomCiphertext &encrypted, size_t chain_index,
-                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+                          const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
     if (encrypted.chain_index() > chain_index) {
         throw std::invalid_argument("cannot switch to higher level modulus");
     }

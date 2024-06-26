@@ -164,6 +164,9 @@ PYBIND11_MODULE(pyPhantom, m) {
     m.def("relinearize", &relinearize, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
+    m.def("rescale_to_next", &rescale_to_next, py::arg(), py::arg(),
+          py::arg("stream") = *phantom::util::global_variables::default_stream);
+
     m.def("mod_switch_to_next",
           py::overload_cast<const PhantomContext &, const PhantomPlaintext &,
                   const phantom::util::cuda_stream_wrapper &>(&mod_switch_to_next), py::arg(), py::arg(),

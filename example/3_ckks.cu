@@ -315,7 +315,7 @@ void example_ckks_add(PhantomContext &context, const double &scale) {
 /** sym test ckks cipher mul a full sloted plaintext
  *  asym test ckks cipher mul only one non-zero slot
  */
-void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
+void example_ckks_mul_plain(PhantomContext &context, const double &scale) {
     std::cout << "Example: CKKS cipher multiply plain vector" << std::endl;
 
     // KeyGen
@@ -440,7 +440,7 @@ void example_ckks_mul_plain(EncryptionParameters &parms, PhantomContext &context
     const_vec.clear();
 }
 
-void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
+void example_ckks_mul(PhantomContext &context, const double &scale) {
     std::cout << "Example: CKKS HomMul test" << std::endl;
 
     // KeyGen
@@ -453,7 +453,7 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
     size_t slot_count = encoder.slot_count();
     cout << "Number of slots: " << slot_count << endl;
 
-    vector<cuDoubleComplex> x_msg, y_msg, result;
+    vector<cuDoubleComplex> x_msg, y_msg;
     double rand_real, rand_imag;
 
     size_t x_size = slot_count;
@@ -488,21 +488,25 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
 
     public_key.encrypt_asymmetric(context, x_plain, x_cipher);
     public_key.encrypt_asymmetric(context, y_plain, y_cipher);
-    cout << "Compute, relinearize, and rescale x*y." << endl;
-    multiply_inplace(context, x_cipher, y_cipher);
-    relinearize_inplace(context, x_cipher, relin_keys);
+    cout << "Compute x*y*x." << endl;
+    PhantomCiphertext xy_cipher = multiply(context, x_cipher, y_cipher);
+    relinearize_inplace(context, xy_cipher, relin_keys);
+    rescale_to_next_inplace(context, xy_cipher);
+    cout << "    + Scale of x*y after rescale: " << log2(xy_cipher.scale()) << " bits" << endl;
+    xy_cipher.set_scale(scale);
     mod_switch_to_next_inplace(context, x_cipher);
-    cout << "    + Scale of x*y after rescale: " << log2(x_cipher.scale()) << " bits" << endl;
-
-    secret_key.decrypt(context, x_cipher, xy_plain);
-
-    encoder.decode(context, xy_plain, result);
+    cout << "    + Scale of x: " << log2(x_cipher.scale()) << " bits" << endl;
+    PhantomCiphertext x2y_cipher = multiply(context, xy_cipher, x_cipher);
+    relinearize_inplace(context, x2y_cipher, relin_keys);
+    rescale_to_next_inplace(context, x2y_cipher);
+    PhantomPlaintext x2y_plain = secret_key.decrypt(context, x2y_cipher);
+    auto result = encoder.decode<cuDoubleComplex>(context, x2y_plain);
     cout << "Result vector: " << endl;
     print_vector(result, 3, 7);
 
     bool correctness = true;
     for (size_t i = 0; i < x_size; i++) {
-        correctness &= result[i] == cuCmul(x_msg[i], y_msg[i]);
+        correctness &= result[i] == cuCmul(x_msg[i], cuCmul(x_msg[i], y_msg[i]));
     }
     if (!correctness)
         throw std::logic_error("Homomorphic multiplication error");
@@ -511,7 +515,7 @@ void example_ckks_mul(EncryptionParameters &parms, PhantomContext &context, cons
     y_msg.clear();
 }
 
-void example_ckks_rotation(EncryptionParameters &parms, PhantomContext &context, const double &scale) {
+void example_ckks_rotation(PhantomContext &context, const double &scale) {
     std::cout << "Example: CKKS HomRot test" << std::endl;
 
     // KeyGen
@@ -649,7 +653,7 @@ void examples_ckks() {
     that our coeff_modulus is 200 bits total, which is below the bound for our
     poly_modulus_degree: CoeffModulus::MaxBitCount(8192) returns 218.
     */
-    std::vector v_alpha = {15};
+    std::vector v_alpha = {1, 2, 3, 4, 15};
     for (auto alpha: v_alpha) {
         EncryptionParameters parms(scheme_type::ckks);
 
@@ -694,7 +698,6 @@ void examples_ckks() {
                 break;
             default:
                 throw std::invalid_argument("unsupported alpha params");
-                return;
         }
 
         /*
@@ -711,9 +714,9 @@ void examples_ckks() {
 
         example_ckks_enc(context, scale);
         example_ckks_add(context, scale);
-        example_ckks_mul_plain(parms, context, scale);
-        example_ckks_mul(parms, context, scale);
-        example_ckks_rotation(parms, context, scale);
+        example_ckks_mul_plain(context, scale);
+        example_ckks_mul(context, scale);
+        example_ckks_rotation(context, scale);
     }
     cout << endl;
 }
