@@ -99,7 +99,6 @@ namespace phantom::arith {
         }
         for (const auto &table_elt: count_table) {
             prime_table[table_elt.first] = get_primes(poly_modulus_degree, table_elt.first, table_elt.second);
-            std::reverse(prime_table[table_elt.first].begin(), prime_table[table_elt.first].end());
         }
 
         vector<Modulus> result;

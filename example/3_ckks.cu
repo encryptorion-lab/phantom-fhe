@@ -357,7 +357,7 @@ void example_ckks_mul_plain(PhantomContext &context, const double &scale) {
     // CKKS encoder can zero-pad messages to the [encoding length]
     // the [encoding length] is determined by the first encoded message
     // the encoder will round up its length to the nearest pow-of-2.
-    // if this pow-of-2 is less then slot_count, then sparse
+    // if this pow-of-2 is less than slot_count, then sparse
     //    message encoding applied automatically.
     // So, always make sure the longest message is encoded first.
     encoder.encode(context, msg_vec, scale, plain);
