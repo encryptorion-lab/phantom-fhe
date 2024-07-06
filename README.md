@@ -1,10 +1,17 @@
 # Phantom: A CUDA-Accelerated Fully Homomorphic Encryption Library
 
+> [!IMPORTANT]  
+> This is a research project and is not intended for production use. We are actively working on improving the performance and usability of this library. If you have any questions or suggestions, please feel free to open an issue or contact us.
+
+> [!WARNING]  
+> This project has been tested on Tesla A100 40G/80G, GTX 3080Ti/3090Ti/4090, AGX Xavier. Other GPUs may have compatibility issues and may not give correct results.
+
 ## Prerequisites
 
+* NVIDIA GPU (Volta or newer)
 * CUDA >= 11.0
 * CMake >= 3.20
-* GCC >= 11.0
+* GCC >= 9.0
 
 ## CMake Options
 

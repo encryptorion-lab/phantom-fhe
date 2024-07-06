@@ -257,6 +257,8 @@ namespace phantom::arith {
                 dst[tid].x = res;
             else
                 dst[tid - (sparse_coeff_count >> 1)].y = res;
+            // TODO: FIXME: Temporary hack to fix bug on AGX Xavier (use printf to block threads), may affect performance
+            printf("");
         }
     }
 

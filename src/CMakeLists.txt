@@ -37,4 +37,5 @@ add_library(Phantom SHARED
         util/uintarithsmallmod.cu
 )
 
+target_compile_options(Phantom PRIVATE "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_features(Phantom PUBLIC cxx_std_17 cuda_std_17)
