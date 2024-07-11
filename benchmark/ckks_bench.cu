@@ -58,16 +58,13 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     /*
     Populate a vector of floating-point values to batch.
     */
-    std::vector<cuDoubleComplex> pod_vector;
-    random_device rd;
-    pod_vector.reserve(ckks_encoder.slot_count());
-    for (size_t i = 0; i < ckks_encoder.slot_count(); i++)
-        pod_vector.push_back(make_cuDoubleComplex(double(1.01), double(1.01)));
-    std::vector<cuDoubleComplex> pod_vector2;
-    std::vector<cuDoubleComplex> pod_vector3;
-    pod_vector3.resize(ckks_encoder.slot_count());
-    std::vector<cuDoubleComplex> pod_vector4;
-    pod_vector4.resize(ckks_encoder.slot_count());
+    std::vector<cuDoubleComplex> x;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    for (size_t i = 0; i < ckks_encoder.slot_count(); i++) {
+        x.push_back(make_cuDoubleComplex(dis(gen), dis(gen)));
+    }
 
     /*
     [Encoding]
@@ -79,7 +76,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("encode", stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            ckks_encoder.encode(context, pod_vector, scale, plain, 1, stream);
+            ckks_encoder.encode(context, x, scale, plain, 1, stream);
             timer.stop();
         }
     }
@@ -91,7 +88,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         CUDATimer timer("decode", stream);
         for (auto i = 0; i < count; i++) {
             timer.start();
-            ckks_encoder.decode(context, plain, pod_vector2, stream);
+            auto pod_vector2 = ckks_encoder.decode<cuDoubleComplex>(context, plain, stream);
             timer.stop();
         }
     }
@@ -123,6 +120,8 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
     }
 
     // homomorphic operations
+    std::vector<cuDoubleComplex> pod_vector3(ckks_encoder.slot_count());
+    std::vector<cuDoubleComplex> pod_vector4(ckks_encoder.slot_count());
 
     PhantomCiphertext encrypted1;
     for (size_t j = 0; j < ckks_encoder.slot_count(); j++)
