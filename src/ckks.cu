@@ -130,26 +130,28 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const cu
 
     special_fft_backward(*gpu_ckks_msg_vec_, fix, stream);
 
-    // TODO to opt this
-    vector<cuDoubleComplex> temp2(sparse_slots_);
-    PHANTOM_CHECK_CUDA(cudaMemcpyAsync(temp2.data(), gpu_ckks_msg_vec_->in(), sparse_slots_ * sizeof(cuDoubleComplex),
-                                       cudaMemcpyDeviceToHost, stream));
-
-    double max_coeff = 0;
-    for (std::size_t i = 0; i < sparse_slots_; i++) {
-        max_coeff = std::max(max_coeff, std::fabs(temp2[i].x));
-    }
-    for (std::size_t i = 0; i < sparse_slots_; i++) {
-        max_coeff = std::max(max_coeff, std::fabs(temp2[i].y));
-    }
-    // Verify that the values are not too large to fit in coeff_modulus
-    // Note that we have an extra + 1 for the sign bit
-    // Don't compute logarithmis of numbers less than 1
-    int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max(max_coeff, 1.0)))) + 1;
-
-    if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count()) {
-        throw std::invalid_argument("encoded values are too large");
-    }
+    // TODO: boundary check on GPU
+//    vector<cuDoubleComplex> temp2(sparse_slots_);
+//    PHANTOM_CHECK_CUDA(cudaMemcpyAsync(temp2.data(), gpu_ckks_msg_vec_->in(), sparse_slots_ * sizeof(cuDoubleComplex),
+//                                       cudaMemcpyDeviceToHost, stream));
+//    // explicit stream synchronize to avoid error
+//    cudaStreamSynchronize(stream);
+//
+//    double max_coeff = 0;
+//    for (std::size_t i = 0; i < sparse_slots_; i++) {
+//        max_coeff = std::max(max_coeff, std::fabs(temp2[i].x));
+//    }
+//    for (std::size_t i = 0; i < sparse_slots_; i++) {
+//        max_coeff = std::max(max_coeff, std::fabs(temp2[i].y));
+//    }
+//    // Verify that the values are not too large to fit in coeff_modulus
+//    // Note that we have an extra + 1 for the sign bit
+//    // Don't compute logarithmis of numbers less than 1
+//    int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max(max_coeff, 1.0)))) + 1;
+//
+//    if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count()) {
+//        throw std::invalid_argument("encoded values are too large");
+//    }
 
     // we can in fact find all coeff_modulus in DNTTTable structure....
     rns_tool.base_Ql().decompose_array(destination.data(), gpu_ckks_msg_vec_->in(), sparse_slots_ << 1,
