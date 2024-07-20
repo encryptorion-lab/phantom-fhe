@@ -600,6 +600,37 @@ void example_ckks_rotation(PhantomContext &context, const double &scale) {
     x_msg.clear();
 }
 
+void example_ckks_small_param() {
+    EncryptionParameters parms(scheme_type::ckks);
+
+    parms.set_poly_modulus_degree(1 << 13);
+    parms.set_coeff_modulus(CoeffModulus::Create(1 << 13, {60, 40, 60}));
+
+    PhantomContext context(parms);
+    PhantomCKKSEncoder encoder(context);
+
+    PhantomSecretKey secret_key(context);
+    PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomGaloisKey galois_keys = secret_key.create_galois_keys(context);
+
+    vector<double> output;
+    vector<double> input(encoder.slot_count(), 1.0);
+    PhantomPlaintext plain;
+    PhantomCiphertext cipher;
+    encoder.encode(context, input, pow(2.0, 40), plain);
+    public_key.encrypt_asymmetric(context, plain, cipher);
+
+    apply_galois_inplace(context, cipher, 0, galois_keys);
+
+    secret_key.decrypt(context, cipher, plain);
+    encoder.decode(context, plain, output);
+
+    for (auto i = 0; i < encoder.slot_count(); i++) {
+        if (!compare_double(input[i], output[i]))
+            throw std::logic_error("error in example_ckks_small_param");
+    }
+}
+
 void examples_ckks() {
     srand(time(NULL));
     /*
@@ -713,5 +744,6 @@ void examples_ckks() {
         example_ckks_mul(context, scale);
         example_ckks_rotation(context, scale);
     }
-    cout << endl;
+
+    example_ckks_small_param();
 }
