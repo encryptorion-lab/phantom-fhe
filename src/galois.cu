@@ -103,17 +103,36 @@ apply_galois_permutation(uint64_t *dst, const uint64_t *src, const DModulus *mod
 void PhantomGaloisTool::apply_galois(uint64_t *operand, const DNTTTable &rns_table, size_t coeff_mod_size,
                                      size_t galois_elt_idx, uint64_t *result, const cudaStream_t &stream) {
     auto &index_raws = index_raw_tables_[galois_elt_idx];
-
     uint64_t gridDimGlb = coeff_count_ * coeff_mod_size / blockDimGlb.x;
-    apply_galois_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
-            result, operand, rns_table.modulus(), index_raws.get(), coeff_count_, coeff_mod_size);
+
+    if (result == operand) {
+        // use temporary memory to store the result to avoid permutation bug
+        auto tmp_result = make_cuda_auto_ptr<uint64_t>(coeff_count_ * coeff_mod_size, stream);
+        apply_galois_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                tmp_result.get(), operand, rns_table.modulus(), index_raws.get(), coeff_count_, coeff_mod_size);
+        cudaMemcpyAsync(result, tmp_result.get(), coeff_count_ * coeff_mod_size * sizeof(uint64_t),
+                        cudaMemcpyDeviceToDevice, stream);
+    } else {
+        apply_galois_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                result, operand, rns_table.modulus(), index_raws.get(), coeff_count_, coeff_mod_size);
+    }
+
 }
 
 void PhantomGaloisTool::apply_galois_ntt(uint64_t *operand, size_t coeff_mod_size, size_t galois_elt_idx,
                                          uint64_t *result, const cudaStream_t &stream) {
     auto table = permutation_tables_[galois_elt_idx].get();
-
     uint64_t gridDimGlb = coeff_count_ * coeff_mod_size / blockDimGlb.x;
-    apply_galois_ntt_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
-            result, operand, table, coeff_count_, coeff_mod_size);
+
+    if (result == operand) {
+        // use temporary memory to store the result to avoid permutation bug
+        auto tmp_result = make_cuda_auto_ptr<uint64_t>(coeff_count_ * coeff_mod_size, stream);
+        apply_galois_ntt_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                tmp_result.get(), operand, table, coeff_count_, coeff_mod_size);
+        cudaMemcpyAsync(result, tmp_result.get(), coeff_count_ * coeff_mod_size * sizeof(uint64_t),
+                        cudaMemcpyDeviceToDevice, stream);
+    } else {
+        apply_galois_ntt_permutation<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+                result, operand, table, coeff_count_, coeff_mod_size);
+    }
 }
