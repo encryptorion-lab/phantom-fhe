@@ -41,11 +41,10 @@ namespace phantom::arith {
 
         [[nodiscard]] inline auto qiInv() const { return qiInv_.get(); }
 
-        void decompose_array(uint64_t *dst, const cuDoubleComplex *src, uint32_t sparse_coeff_count,
-                             uint32_t sparse_ratio, uint32_t max_coeff_bit_count, const cudaStream_t &stream) const;
+        void decompose_array(uint64_t *dst, const cuDoubleComplex *src, uint32_t coeff_count,
+                             uint32_t max_coeff_bit_count, const cudaStream_t &stream) const;
 
         void compose_array(cuDoubleComplex *dst, const uint64_t *src, const uint64_t *upper_half_threshold,
-                           double inv_scale, uint32_t coeff_count, uint32_t sparse_coeff_count,
-                           uint32_t sparse_ratio, const cudaStream_t &stream) const;
+                           double inv_scale, uint32_t coeff_count, const cudaStream_t &stream) const;
     };
 }

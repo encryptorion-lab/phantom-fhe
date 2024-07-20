@@ -109,11 +109,7 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     PhantomCiphertext x_asymmetric_cipher;
     public_key.encrypt_asymmetric(context, x_plain, x_asymmetric_cipher);
     PhantomPlaintext x_asymmetric_plain;
-    // BECAREFUL FOR THE MULTIPLICATIVE LEVEL!!!
-    // cout << "We drop the ciphertext for some level, and Decrypting ......" << endl;
-    // mod_switch_to_inplace(context, x_asymmetric_cipher, 3);
     secret_key.decrypt(context, x_asymmetric_cipher, x_asymmetric_plain);
-
     encoder.decode(context, x_asymmetric_plain, result);
     cout << "Decode the decrypted plaintext." << endl;
     print_vector(result, 3, 7);
@@ -413,7 +409,6 @@ void example_ckks_mul_plain(PhantomContext &context, const double &scale) {
     print_vector(const_vec, 3, 7);
 
     // reset the length of encoder
-    encoder.reset_sparse_slots();
     encoder.encode(context, msg_vec, scale, plain);
     encoder.encode(context, const_vec, scale, const_plain);
 

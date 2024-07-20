@@ -25,9 +25,7 @@ namespace phantom::util {
 class DCKKSEncoderInfo {
 
 private:
-
     uint32_t m_{}; // order of the multiplicative group
-    uint32_t sparse_slots_ = 0;
     phantom::util::cuda_auto_ptr<cuDoubleComplex> in_; // input buffer, length must be n
     phantom::util::cuda_auto_ptr<cuDoubleComplex> twiddle_; // forward FFT table
     phantom::util::cuda_auto_ptr<uint32_t> mul_group_;
@@ -56,8 +54,6 @@ public:
 
     [[nodiscard]] uint32_t m() const { return m_; }
 
-    [[nodiscard]] uint32_t sparse_slots() const { return sparse_slots_; }
-
     cuDoubleComplex *in() { return in_.get(); }
 
     cuDoubleComplex *twiddle() { return twiddle_.get(); }
@@ -69,10 +65,8 @@ public:
     [[nodiscard]] cuDoubleComplex *twiddle() const { return twiddle_.get(); }
 
     [[nodiscard]] uint32_t *mul_group() const { return mul_group_.get(); }
-
-    void set_sparse_slots(const uint32_t sparse_slots) { sparse_slots_ = sparse_slots; }
 };
 
-void special_fft_forward(DCKKSEncoderInfo &gp, const cudaStream_t &stream);
+void special_fft_forward(DCKKSEncoderInfo &gp, size_t log_n, const cudaStream_t &stream);
 
-void special_fft_backward(DCKKSEncoderInfo &gp, double scalar, const cudaStream_t &stream);
+void special_fft_backward(DCKKSEncoderInfo &gp, size_t log_n, double scalar, const cudaStream_t &stream);

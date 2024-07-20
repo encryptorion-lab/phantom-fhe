@@ -80,7 +80,7 @@ void PhantomBatchEncoder::encode(const PhantomContext &context, const std::vecto
     cudaMemcpyAsync(data_.get(), values_matrix.data(), values_matrix.size() * sizeof(uint64_t),
                     cudaMemcpyHostToDevice, s);
 
-    uint64_t gridDimGlb = ceil(slots_ / blockDimGlb.x);
+    uint64_t gridDimGlb = std::ceil((float) slots_ / (float) blockDimGlb.x);;
     encode_gpu<<<gridDimGlb, blockDimGlb, 0, s>>>(
             destination.data(), data_.get(), values_matrix_size,
             matrix_reps_index_map_.get(), plain_modulus.value(), slots_);
@@ -107,7 +107,7 @@ void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPla
     nwt_2d_radix8_forward_inplace(plain_data_copy.get(), context.gpu_plain_tables(), 1, 0, s);
 
     auto out = make_cuda_auto_ptr<uint64_t>(slots_, s);
-    uint64_t gridDimGlb = ceil(slots_ / blockDimGlb.x);
+    uint64_t gridDimGlb = std::ceil((float) slots_ / (float) blockDimGlb.x);;
     decode_gpu<<<gridDimGlb, blockDimGlb, 0, s>>>(
             out.get(), plain_data_copy.get(), matrix_reps_index_map_.get(), slots_);
 

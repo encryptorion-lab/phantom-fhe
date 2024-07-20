@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include "fft.h"
 #include "context.cuh"
 
@@ -90,7 +92,7 @@ __global__ void inplace_special_ffft_base_kernel(cuDoubleComplex *inout,
                                                  const uint32_t *group,
                                                  const uint32_t n, const uint32_t logn,
                                                  const uint32_t numOfGroups, const uint32_t iter,
-                                                 const uint32_t M, const uint32_t logRatio) {
+                                                 const uint32_t M) {
     extern __shared__ cuDoubleComplex buffer[];
 
     for (int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -117,7 +119,7 @@ __global__ void inplace_special_ffft_base_kernel(cuDoubleComplex *inout,
             //============================
             // bit-reverse width = logn - 1 - sparseRatio
             psiIdx = group[__brev(k << logPairs) >> (33 - logn)];
-            psiIdx <<= logPairs + logRatio;
+            psiIdx <<= logPairs;
             psiIdx &= M - 1; // %M
             // printf("blk = %d, thr = %d, %d, %d, %d\n", blockIdx.x, tid, _numOfGroups, pairsInGroup, psiIdx);
             one_twiddle = twiddles[psiIdx];
@@ -169,7 +171,7 @@ __global__ void inplace_special_ffft_iter_kernel(cuDoubleComplex *inout,
                                                  const uint32_t *group,
                                                  const uint32_t n, const uint32_t logn,
                                                  const uint32_t numOfGroups, const uint32_t iter,
-                                                 const uint32_t M, const uint32_t logRatio) {
+                                                 const uint32_t M) {
     for (int tid = blockIdx.x * blockDim.x + threadIdx.x;
          tid < (n >> 1);
          tid += blockDim.x * gridDim.x) {
@@ -188,7 +190,7 @@ __global__ void inplace_special_ffft_iter_kernel(cuDoubleComplex *inout,
         //============================
         uint32_t psiIdx;
         psiIdx = group[__brev(k << logPairs) >> (33 - logn)];
-        psiIdx <<= logPairs + logRatio;
+        psiIdx <<= logPairs;
         psiIdx &= M - 1; // %M
         one_twiddle = twiddles[psiIdx];
         //============================
@@ -219,7 +221,7 @@ __global__ void inplace_special_ifft_base_kernel(cuDoubleComplex *inout,
                                                  const uint32_t *group,
                                                  const uint32_t n, const uint32_t logn,
                                                  const uint32_t numOfGroups, const int32_t iter,
-                                                 const uint32_t M, const uint32_t logRatio,
+                                                 const uint32_t M,
                                                  double scalar) {
     extern __shared__ cuDoubleComplex buffer[];
 
@@ -245,7 +247,7 @@ __global__ void inplace_special_ifft_base_kernel(cuDoubleComplex *inout,
 
             //============================
             psiIdx = group[__brev(k << logPairs) >> (33 - logn)];
-            psiIdx <<= logPairs + logRatio;
+            psiIdx <<= logPairs;
             psiIdx &= M - 1; // %M
             // printf("blk = %d, thr = %d, %d, %d, %d\n", blockIdx.x, tid, _numOfGroups, pairsInGroup, (n << 2) - psiIdx);
             one_twiddle = twiddles[M - psiIdx];
@@ -299,7 +301,7 @@ __global__ void inplace_special_ifft_iter_kernel(cuDoubleComplex *inout,
                                                  const uint32_t *group,
                                                  const uint32_t n, const uint32_t logn,
                                                  const uint32_t numOfGroups, const int32_t iter,
-                                                 const uint32_t M, const uint32_t logRatio,
+                                                 const uint32_t M,
                                                  double scalar) {
     for (uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
          tid < (n >> 1);
@@ -319,21 +321,9 @@ __global__ void inplace_special_ifft_iter_kernel(cuDoubleComplex *inout,
         //============================
         uint32_t psiIdx;
         psiIdx = group[__brev(k << logPairs) >> (33 - logn)];
-        psiIdx <<= logPairs + logRatio;
+        psiIdx <<= logPairs;
         psiIdx &= M - 1; // %M
         one_twiddle = twiddles[M - psiIdx];
-        //============================
-
-        /* if (numOfGroups == n >> 1)
-        {
-            samples[0] = inout[__brev(glbIdx) >> (32 - logn)];
-            samples[1] = inout[__brev(glbIdx + pairsInGroup) >> (32 - logn)];
-        }
-        else
-        {
-            samples[0] = inout[glbIdx];
-            samples[1] = inout[glbIdx + pairsInGroup];
-        } */
 
         samples[0] = inout[glbIdx];
         samples[1] = inout[glbIdx + pairsInGroup];
@@ -355,42 +345,36 @@ __global__ void inplace_special_ifft_iter_kernel(cuDoubleComplex *inout,
  * @param[inout] gpu_rns_vec_ The DRNSInfo stored in PhantomContext.
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_forward(DCKKSEncoderInfo &gp, const cudaStream_t &stream) {
+void special_fft_forward(DCKKSEncoderInfo &gp, size_t log_n, const cudaStream_t &stream) {
     uint32_t threadsPerBlock, blocksPerGrid;
 
-    if (gp.sparse_slots() == 00) {
-        throw std::invalid_argument("the poly degree has not been set");
-    }
-    uint32_t logn = log2(gp.sparse_slots());
-    uint32_t logRatio = log2(gp.m()) - logn - 2;
+    size_t n = 1 << log_n;
 
-    if (gp.sparse_slots() <= SWITCH_POINT) {
+    if (n <= SWITCH_POINT) {
         // max 1024 threads, max n = 2048
-        threadsPerBlock = gp.sparse_slots() >> 1;
+        threadsPerBlock = n >> 1;
         blocksPerGrid = 1;
         uint32_t iter = 0;
         uint32_t numOfGroups = 1;
         inplace_special_ffft_base_kernel<<<blocksPerGrid, threadsPerBlock,
-        gp.sparse_slots() * sizeof(cuDoubleComplex), stream>>>(
-                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
-                logRatio);
+        n * sizeof(cuDoubleComplex), stream>>>(
+                gp.in(), gp.twiddle(), gp.mul_group(), n, log_n, numOfGroups, iter, gp.m());
     } else {
         uint32_t iter = 0;
         uint32_t numOfGroups = 1;
         threadsPerBlock = NTT_THREAD_PER_BLOCK;
-        blocksPerGrid = ceil((float) gp.sparse_slots() / threadsPerBlock / 2);
-        for (; numOfGroups < (gp.sparse_slots() / SWITCH_POINT); numOfGroups <<= 1) {
+        blocksPerGrid = std::ceil((float) n / (float) threadsPerBlock / (float) 2);
+        for (; numOfGroups < (n / SWITCH_POINT); numOfGroups <<= 1) {
             inplace_special_ffft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-                    gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
-                    logRatio);
+                    gp.in(), gp.twiddle(), gp.mul_group(), n, log_n, numOfGroups, iter, gp.m());
 
             iter++;
         }
 
         inplace_special_ffft_base_kernel<<<
         blocksPerGrid, threadsPerBlock, SWITCH_POINT * sizeof(cuDoubleComplex), stream>>>(
-                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter,
-                gp.m(), logRatio);
+                gp.in(), gp.twiddle(), gp.mul_group(), n, log_n, numOfGroups, iter,
+                gp.m());
     }
 }
 
@@ -398,42 +382,41 @@ void special_fft_forward(DCKKSEncoderInfo &gp, const cudaStream_t &stream) {
  * @param[inout] gp DCKKSEncoderInfo
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-void special_fft_backward(DCKKSEncoderInfo &gp, double scalar, const cudaStream_t &stream) {
+void special_fft_backward(DCKKSEncoderInfo &gp, size_t log_n, double scalar, const cudaStream_t &stream) {
     uint32_t threadsPerBlock, blocksPerGrid;
-    uint32_t logn = log2(gp.sparse_slots());
-    uint32_t logRatio = log2(gp.m()) - logn - 2;
-    if (gp.sparse_slots() <= SWITCH_POINT) {
+    size_t n = 1 << log_n;
+    if (n <= SWITCH_POINT) {
         //  max 1024 threads, max n = 2048
         uint32_t iter = 0;
         uint32_t numOfGroups = 1;
-        threadsPerBlock = gp.sparse_slots() >> 1;
+        threadsPerBlock = n >> 1;
         blocksPerGrid = 1;
         inplace_special_ifft_base_kernel<<<
-        blocksPerGrid, threadsPerBlock, gp.sparse_slots() * sizeof(cuDoubleComplex), stream>>>(
-                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
-                logRatio, scalar);
+        blocksPerGrid, threadsPerBlock, n * sizeof(cuDoubleComplex), stream>>>(
+                gp.in(), gp.twiddle(), gp.mul_group(), n, log_n, numOfGroups, iter, gp.m(),
+                scalar);
     } else {
-        int32_t iter = logn - log2(SWITCH_POINT);
-        uint32_t numOfGroups = gp.sparse_slots() / SWITCH_POINT;
+        int32_t iter = log_n - log2(SWITCH_POINT);
+        uint32_t numOfGroups = n / SWITCH_POINT;
         if (iter < 0)
             iter = 0;
         if (numOfGroups < 1)
             numOfGroups = 1;
 
         threadsPerBlock = NTT_THREAD_PER_BLOCK;
-        blocksPerGrid = ceil((float) gp.sparse_slots() / threadsPerBlock / 2);
+        blocksPerGrid = std::ceil((float) n / (float) threadsPerBlock / (float) 2);
 
         inplace_special_ifft_base_kernel<<<
         blocksPerGrid, threadsPerBlock, SWITCH_POINT * sizeof(cuDoubleComplex), stream>>>(
-                gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter,
-                gp.m(), logRatio, scalar);
+                gp.in(), gp.twiddle(), gp.mul_group(), n, log_n, numOfGroups, iter,
+                gp.m(), scalar);
         numOfGroups >>= 1;
         for (; numOfGroups >= 1; numOfGroups >>= 1) {
             iter--;
 
             inplace_special_ifft_iter_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-                    gp.in(), gp.twiddle(), gp.mul_group(), gp.sparse_slots(), logn, numOfGroups, iter, gp.m(),
-                    logRatio, scalar);
+                    gp.in(), gp.twiddle(), gp.mul_group(), n, log_n, numOfGroups, iter, gp.m(),
+                    scalar);
         }
     }
 }

@@ -146,7 +146,7 @@ namespace phantom {
                 std::vector<uint64_t> partQlHatInv_mod_Ql_concat(size_Ql);
                 std::vector<uint64_t> partQlHatInv_mod_Ql_concat_shoup(size_Ql);
 
-                auto beta = static_cast<uint32_t>(ceil(static_cast<double>(size_Ql) / static_cast<double>(alpha)));
+                auto beta = static_cast<uint32_t>(std::ceil(static_cast<double>(size_Ql) / static_cast<double>(alpha)));
                 std::vector<std::shared_ptr<BaseConverter>> v_base_part_Ql_to_compl_part_QlP_conv;
                 for (size_t beta_idx = 0; beta_idx < beta; beta_idx++) {
                     size_t startPartIdx = alpha * beta_idx;
