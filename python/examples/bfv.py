@@ -40,7 +40,7 @@ def bfv_test():
 
     ct = phantom.multiply_and_relin(context, ct, ct, rlk, stream=s)
 
-    ct = phantom.rotate_rows(context, ct, 1, glk, stream=s)
+    ct = phantom.rotate(context, ct, 1, glk, stream=s)
 
     pt_dec = sk.decrypt(context, ct, stream=s)
     result = encoder.decode(context, pt_dec, stream=s)

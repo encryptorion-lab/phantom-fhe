@@ -548,7 +548,7 @@ void example_ckks_rotation(PhantomContext &context, const double &scale) {
     public_key.encrypt_asymmetric(context, x_plain, x_cipher);
 
     cout << "Compute, rot vector x." << endl;
-    rotate_vector_inplace(context, x_cipher, step, galois_keys);
+    rotate_inplace(context, x_cipher, step, galois_keys);
 
     secret_key.decrypt(context, x_cipher, x_rot_plain);
 
@@ -582,7 +582,7 @@ void example_ckks_rotation(PhantomContext &context, const double &scale) {
     public_key.encrypt_asymmetric(context, x_plain, x_cipher);
 
     cout << "Compute, conjugate vector x." << endl;
-    complex_conjugate_inplace(context, x_cipher, galois_keys);
+    rotate_inplace(context, x_cipher, 0, galois_keys);
 
     secret_key.decrypt(context, x_cipher, x_conj_plain);
 

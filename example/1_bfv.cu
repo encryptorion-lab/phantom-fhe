@@ -1068,7 +1068,7 @@ void example_bfv_rotate_column() {
         PhantomGaloisKey galois_key = secret_key.create_galois_keys(context);
         batchEncoder.encode(context, pod_matrix, plain_matrix);
         secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher);
-        rotate_columns_inplace(context, sym_cipher, galois_key);
+        rotate_inplace(context, sym_cipher, 0, galois_key);
         secret_key.decrypt(context, sym_cipher, dec_plain);
         batchEncoder.decode(context, dec_plain, dec_res);
 
@@ -1082,7 +1082,7 @@ void example_bfv_rotate_column() {
 
         PhantomPublicKey public_key = secret_key.gen_publickey(context);
         public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher);
-        rotate_columns_inplace(context, asym_cipher, galois_key);
+        rotate_inplace(context, asym_cipher, 0, galois_key);
         secret_key.decrypt(context, asym_cipher, dec_asym_plain);
 
         batchEncoder.decode(context, dec_asym_plain, dec_res);
@@ -1127,7 +1127,7 @@ void example_bfv_rotate_row() {
         PhantomGaloisKey galois_key = secret_key.create_galois_keys(context);
         batchEncoder.encode(context, pod_matrix, plain_matrix);
         secret_key.encrypt_symmetric(context, plain_matrix, sym_cipher);
-        rotate_rows_inplace(context, sym_cipher, step, galois_key);
+        rotate_inplace(context, sym_cipher, step, galois_key);
         secret_key.decrypt(context, sym_cipher, dec_plain);
         batchEncoder.decode(context, dec_plain, dec_res);
 
@@ -1143,7 +1143,7 @@ void example_bfv_rotate_row() {
 
         PhantomPublicKey public_key = secret_key.gen_publickey(context);
         public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher);
-        rotate_rows_inplace(context, asym_cipher, step, galois_key);
+        rotate_inplace(context, asym_cipher, step, galois_key);
         secret_key.decrypt(context, asym_cipher, dec_asym_plain);
         batchEncoder.decode(context, dec_asym_plain, dec_res);
 

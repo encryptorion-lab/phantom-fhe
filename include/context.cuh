@@ -156,7 +156,7 @@ public:
 
     std::size_t coeff_mod_size_ = 0; // corresponding to the key param index, i.e., all coeff prime exists.
     std::size_t poly_degree_ = 0; // unchanged
-    std::unique_ptr<PhantomGaloisTool> key_galois_tool_;
+    std::unique_ptr<phantom::util::PhantomGaloisTool> key_galois_tool_;
 
     explicit PhantomContext(const phantom::EncryptionParameters &params);
 

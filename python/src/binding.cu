@@ -84,7 +84,9 @@ PYBIND11_MODULE(pyPhantom, m) {
     py::class_<PhantomGaloisKey>(m, "galois_key")
             .def(py::init<>());
 
-    m.def("get_elts_from_steps", &get_elts_from_steps);
+    m.def("get_elt_from_step", &phantom::util::get_elt_from_step);
+
+    m.def("get_elts_from_steps", &phantom::util::get_elts_from_steps);
 
     py::class_<PhantomBatchEncoder>(m, "batch_encoder")
             .def(py::init<const PhantomContext &>())
@@ -133,73 +135,64 @@ PYBIND11_MODULE(pyPhantom, m) {
             .def(py::init<>())
             .def("set_scale", &PhantomCiphertext::set_scale);
 
-    m.def("negate", &negate, py::arg(), py::arg(),
+    m.def("negate", &phantom::negate, py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("add", &add, py::arg(), py::arg(), py::arg(),
+    m.def("add", &phantom::add, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("add_plain", &add_plain, py::arg(), py::arg(), py::arg(),
+    m.def("add_plain", &phantom::add_plain, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("add_many", &add_many, py::arg(), py::arg(), py::arg(),
+    m.def("add_many", &phantom::add_many, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("sub", &sub, py::arg(), py::arg(), py::arg(),
+    m.def("sub", &phantom::sub, py::arg(), py::arg(), py::arg(),
           py::arg("negate") = false,
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("sub_plain", &sub_plain, py::arg(), py::arg(), py::arg(),
+    m.def("sub_plain", &phantom::sub_plain, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("multiply", &multiply, py::arg(), py::arg(), py::arg(),
+    m.def("multiply", &phantom::multiply, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("multiply_and_relin", &multiply_and_relin, py::arg(), py::arg(), py::arg(), py::arg(),
+    m.def("multiply_and_relin", &phantom::multiply_and_relin, py::arg(), py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("multiply_plain", &multiply_plain, py::arg(), py::arg(), py::arg(),
+    m.def("multiply_plain", &phantom::multiply_plain, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("relinearize", &relinearize, py::arg(), py::arg(), py::arg(),
+    m.def("relinearize", &phantom::relinearize, py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("rescale_to_next", &rescale_to_next, py::arg(), py::arg(),
+    m.def("rescale_to_next", &phantom::rescale_to_next, py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
     m.def("mod_switch_to_next",
           py::overload_cast<const PhantomContext &, const PhantomPlaintext &,
-                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to_next), py::arg(), py::arg(),
+                  const phantom::util::cuda_stream_wrapper &>(&phantom::mod_switch_to_next), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
     m.def("mod_switch_to_next",
           py::overload_cast<const PhantomContext &, const PhantomCiphertext &,
-                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to_next), py::arg(), py::arg(),
+                  const phantom::util::cuda_stream_wrapper &>(&phantom::mod_switch_to_next), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
     m.def("mod_switch_to", py::overload_cast<const PhantomContext &, const PhantomPlaintext &, size_t,
-                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to), py::arg(), py::arg(), py::arg(),
+                  const phantom::util::cuda_stream_wrapper &>(&phantom::mod_switch_to), py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
     m.def("mod_switch_to", py::overload_cast<const PhantomContext &, const PhantomCiphertext &, size_t,
-                  const phantom::util::cuda_stream_wrapper &>(&mod_switch_to), py::arg(), py::arg(), py::arg(),
+                  const phantom::util::cuda_stream_wrapper &>(&phantom::mod_switch_to), py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("apply_galois", &apply_galois, py::arg(), py::arg(), py::arg(), py::arg(),
+    m.def("apply_galois", &phantom::apply_galois, py::arg(), py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("rotate_rows", &rotate_rows, py::arg(), py::arg(), py::arg(), py::arg(),
+    m.def("rotate", &phantom::rotate, py::arg(), py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 
-    m.def("rotate_columns", &rotate_columns, py::arg(), py::arg(), py::arg(),
-          py::arg("stream") = *phantom::util::global_variables::default_stream);
-
-    m.def("rotate_vector", &rotate_vector, py::arg(), py::arg(), py::arg(), py::arg(),
-          py::arg("stream") = *phantom::util::global_variables::default_stream);
-
-    m.def("complex_conjugate", &complex_conjugate, py::arg(), py::arg(), py::arg(),
-          py::arg("stream") = *phantom::util::global_variables::default_stream);
-
-    m.def("hoisting", &hoisting, py::arg(), py::arg(), py::arg(), py::arg(),
+    m.def("hoisting", &phantom::hoisting, py::arg(), py::arg(), py::arg(), py::arg(),
           py::arg("stream") = *phantom::util::global_variables::default_stream);
 }

@@ -211,7 +211,7 @@ void ckks_performance_test(EncryptionParameters &parms, double scale) {
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
             timer.start();
-            rotate_vector_inplace(context, tmp_ct, 1, gal_keys, stream);
+            rotate_inplace(context, tmp_ct, 1, gal_keys, stream);
             timer.stop();
         }
     }
