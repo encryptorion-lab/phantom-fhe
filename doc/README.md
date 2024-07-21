@@ -1,23 +1,20 @@
 ---
-description: A CUDA-Accelerated Fully Homomorphic Encryption Library
+coverY: 0
 ---
 
-# PhantomFHE
+# Getting Started
 
-## Prerequisites
+## Disclaimer
 
-* CUDA >= 11.0
-* CMake >= 3.20
-* GCC >= 11.0
+This library (PhantomFHE) is developed and maintained for the research purpose, and the authors are not responsible for any potential issue in production.
 
-## CMake Options
+## What is PhantomFHE?
 
-* `CMAKE_CUDA_ARCHITECTURES`: Set the CUDA architectures to compile for. For example, A100 uses `80`, V100 uses `70`, and P100 uses `60`.
-* `PHANTOM_USE_CUDA_PTX`: Enable CUDA PTX optimizations (default: `ON`)
-* `PHANTOM_ENABLE_EXAMPLE`: Enable examples (default: `ON`)
-* `PHANTOM_ENABLE_BENCH`: Enable benchmarks (default: `ON`)
-* `PHANTOM_ENABLE_TEST`: Enable tests (default: `ON`)
-* `PHANTOM_ENABLE_PYTHON_BINDING`: Enable Python bindings (default: `ON`)
+PhantomFHE is a CUDA-Accelerated Fully Homomorphic Encryption library. It is written in CUDA/C++ and provides Python bindings. It implements all operations of BFV, BGV, and CKKS on GPU (excluding bootstrapping by far).
+
+## Why PhantomFHE?
+
+Nowadays there are a variety of applications based on homomorphic encryption to ensure privacy, especially privacy-preserving machine learning (PPML). But the main limitation of these applications is always the performance. PhantomFHE aims to acclerate FHE schemes using GPUs and improve practicality of HE-based applications.
 
 ## Features
 
@@ -26,12 +23,44 @@ description: A CUDA-Accelerated Fully Homomorphic Encryption Library
 * SOTA performance in most operations
 * Easy to integrate with applications (PPML, etc.)
 
-## Usage
+## Quick Start
 
-1. Use git to clone this repository recursively (including submodules)
-2. Use CMake to configure and build this library
-3. Look into build/bin and execute binaries
-4. (Optional) Use python bindings (See `python/` directory for details)
+### Prerequisites
+
+#### Hardwares
+
+* NVIDIA GPU
+  * Server: V100, A100, etc.
+  * Desktop: RTX 30/40 series, etc.
+  * Embedded: AGX Xavier/Orin, etc.
+* AMD64/AARCH64 CPU
+* stable network for git operations
+
+#### Softwares
+
+* Operating system: Linux only (Debian-based, Arch-based, etc.)
+* CUDA >= 11.0 (recommended)
+* CMake >= 3.20
+* GCC >= 9.0 (recommended)
+
+### Get PhantomFHE
+
+```bash
+git clone --recurse-submodules https://github.com/encryptorion-lab/phantom-fhe.git
+```
+
+Notice that you should also clone submodules. If you choose to download source zip, please make sure any cmake configuration related to submodules (nvbench, pybind11) must be turned off.
+
+### Build PhantomFHE
+
+Minimal just-work commands are listed below:
+
+```sh
+cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=native
+cmake --build build -j
+```
+
+If the above commands don't work for you, or you want to build specific targets, please read [configuration.md](configuration.md "mention") for more details.
 
 ## License
 
