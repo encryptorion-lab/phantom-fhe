@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(Phantom LANGUAGES CXX CUDA VERSION 2.0 DESCRIPTION "CUDA-Accelerated Homomorphic Encryption Library")
+project(Phantom LANGUAGES CXX CUDA VERSION 2.1 DESCRIPTION "CUDA-Accelerated Homomorphic Encryption Library")
 
 # [option] PHANTOM_USE_CUDA_PTX (default: ON)
 option(PHANTOM_USE_CUDA_PTX "Use CUDA PTX Assembly" ON)

@@ -1158,22 +1158,6 @@ void example_bfv_rotate_row() {
     }
 }
 
-#include <algorithm>
-#include <chrono>
-#include <cstddef>
-#include <iostream>
-#include <mutex>
-#include <random>
-#include <vector>
-
-#include "example.h"
-#include "phantom.h"
-#include "util.cuh"
-
-using namespace std;
-using namespace phantom;
-using namespace phantom::arith;
-
 void example_bfv_encrypt_decrypt_hps() {
     std::cout << std::endl
               << "---------------Testing BFV sym Enc & Dec-----------------------" << std::endl;
