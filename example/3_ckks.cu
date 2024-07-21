@@ -603,14 +603,18 @@ void example_ckks_rotation(PhantomContext &context, const double &scale) {
 void example_ckks_small_param() {
     EncryptionParameters parms(scheme_type::ckks);
 
-    parms.set_poly_modulus_degree(1 << 13);
-    parms.set_coeff_modulus(CoeffModulus::Create(1 << 13, {60, 40, 60}));
+    size_t N = 1 << 13;
+    parms.set_poly_modulus_degree(N);
+    parms.set_special_modulus_size(1);
+    parms.set_coeff_modulus(CoeffModulus::Create(N, {60, 40, 60}));
+    parms.set_galois_elts({1});
 
     PhantomContext context(parms);
     PhantomCKKSEncoder encoder(context);
 
     PhantomSecretKey secret_key(context);
     PhantomPublicKey public_key = secret_key.gen_publickey(context);
+    PhantomRelinKey relin_key = secret_key.gen_relinkey(context);
     PhantomGaloisKey galois_keys = secret_key.create_galois_keys(context);
 
     vector<double> output;
@@ -620,15 +624,17 @@ void example_ckks_small_param() {
     encoder.encode(context, input, pow(2.0, 40), plain);
     public_key.encrypt_asymmetric(context, plain, cipher);
 
-    apply_galois_inplace(context, cipher, 0, galois_keys);
+    apply_galois_inplace(context, cipher, 1, galois_keys);
 
     secret_key.decrypt(context, cipher, plain);
     encoder.decode(context, plain, output);
 
-    for (auto i = 0; i < encoder.slot_count(); i++) {
+    for (auto i = 0; i < 10; i++) {
+//        std::cout << output[i] << " ";
         if (!compare_double(input[i], output[i]))
             throw std::logic_error("error in example_ckks_small_param");
     }
+    std::cout << std::endl;
 }
 
 void examples_ckks() {

@@ -27,7 +27,6 @@ add_library(Phantom SHARED
         util/blake2b.cu
         util/blake2xb.cu
         util/globals.cu
-        util/galois.cu
         util/hash.cu
         util/ntt.cu
         util/numth.cu

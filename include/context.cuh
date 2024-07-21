@@ -10,7 +10,6 @@
 #include "galois.cuh"
 #include "gputype.h"
 #include "rns.cuh"
-#include "util/galois.h"
 #include "util.cuh"
 #include "cuda_wrapper.cuh"
 

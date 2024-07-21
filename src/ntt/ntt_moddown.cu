@@ -205,11 +205,10 @@ inplace_fnwt_radix8_phase2_fuse_moddown(uint64_t *ct, const uint64_t *cx,
             csub_q(samples[j], modulus2);
             csub_q(samples[j], modulus);
         }
-        uint64_t *ct_ptr = ct + twr_idx * n;
 #pragma unroll
         for (size_t j = 0; j < 8; j++) {
             // ct += (cx - NTT(delta)) * PInv_mod_q mod qi
-            ct_ptr[n_init + t / 4 * j] = sub_negate_const_mult(
+            ct[twr_idx * n + n_init + t / 4 * j] = sub_negate_const_mult(
                     samples[j], cx[twr_idx * n + n_init + t / 4 * j],
                     bigPInv_mod_q[twr_idx], bigPInv_mod_q_shoup[twr_idx], modulus);
         }
