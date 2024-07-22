@@ -2,6 +2,7 @@
 
 * [Getting Started](README.md)
 * [Configuration](configuration.md)
+* [Installation](installation.md)
 
 ## Usages
 

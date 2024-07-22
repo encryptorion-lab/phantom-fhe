@@ -1,7 +1,3 @@
----
-coverY: 0
----
-
 # Getting Started
 
 ## Disclaimer
@@ -39,9 +35,10 @@ Nowadays there are a variety of applications based on homomorphic encryption to 
 #### Softwares
 
 * Operating system: Linux only (Debian-based, Arch-based, etc.)
-* CUDA >= 11.0 (recommended)
-* CMake >= 3.20
-* GCC >= 9.0 (recommended)
+* CUDA $$\geq$$ 11.0 (recommended)
+* CMake $$\geq$$ 3.20
+* GCC  9.0 (recommended)
+* Python $$\geq$$ 3.7 (required by pybind11)
 
 ### Get PhantomFHE
 
@@ -49,7 +46,7 @@ Nowadays there are a variety of applications based on homomorphic encryption to 
 git clone --recurse-submodules https://github.com/encryptorion-lab/phantom-fhe.git
 ```
 
-Notice that you should also clone submodules. If you choose to download source zip, please make sure any cmake configuration related to submodules (nvbench, pybind11) must be turned off.
+Notice that you should also clone submodules. If you choose to download source zip, please make sure any CMake configuration related to submodules (nvbench, pybind11) must be turned off.
 
 ### Build PhantomFHE
 
@@ -61,6 +58,14 @@ cmake --build build -j
 ```
 
 If the above commands don't work for you, or you want to build specific targets, please read [configuration.md](configuration.md "mention") for more details.
+
+### Run PhantomFHE
+
+Try examples by running:
+
+```bash
+./build/bin/example_context
+```
 
 ## License
 
@@ -74,7 +79,7 @@ If you use Phantom in your research, please cite the following paper:
 
 Early access TDSC version ([IEEE Xplore](https://ieeexplore.ieee.org/document/10428046)):
 
-```
+```tex
 @article{10428046,
          author={Yang, Hao and Shen, Shiyu and Dai, Wangchen and Zhou, Lu and Liu, Zhe and Zhao, Yunlei},
          journal={IEEE Transactions on Dependable and Secure Computing}, 
@@ -89,7 +94,7 @@ Early access TDSC version ([IEEE Xplore](https://ieeexplore.ieee.org/document/10
 
 IACR ePrint version ([Cryptology ePrint Archive](https://ia.cr/2023/049)):
 
-```
+```latex
 @misc{cryptoeprint:2023/049,
       author = {Hao Yang and Shiyu Shen and Wangchen Dai and Lu Zhou and Zhe Liu and Yunlei Zhao},
       title = {Phantom: A CUDA-Accelerated Word-Wise Homomorphic Encryption Library},
@@ -103,7 +108,7 @@ IACR ePrint version ([Cryptology ePrint Archive](https://ia.cr/2023/049)):
 
 If you are exploring BFV optimizations, please also cite the following paper:
 
-```
+```latex
 @misc{cryptoeprint:2023/1429,
       author = {Shiyu Shen and Hao Yang and Wangchen Dai and Lu Zhou and Zhe Liu and Yunlei Zhao},
       title = {Leveraging GPU in Homomorphic Encryption: Framework Design and Analysis of BFV Variants},
