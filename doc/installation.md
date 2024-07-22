@@ -1,4 +1,4 @@
-# Installation
+# 🧐 Installation
 
 You can install PhantomFHE to system to allow other CMake-based project find it.
 
@@ -9,6 +9,7 @@ sudo cmake --install build
 
 The default path for installation is `/usr/local` defined by CMake. You can change it by CMake command line arguments.
 
-<pre class="language-bash"><code class="lang-bash"><strong># after building core library
-</strong>sudo cmake --install build --prefix "/home/myuser/installdir"
-</code></pre>
+```bash
+# after building core library
+cmake --install build --prefix "/home/myuser/installdir"
+```

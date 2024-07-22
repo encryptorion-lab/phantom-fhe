@@ -1,4 +1,4 @@
-# Python Applications
+# 🥳 Python Applications
 
 ## Setting up Environment
 
