@@ -1,10 +1,25 @@
+---
+cover: .gitbook/assets/phantom-cover.png
+coverY: 0
+layout:
+  cover:
+    visible: true
+    size: hero
+  title:
+    visible: true
+  description:
+    visible: true
+  tableOfContents:
+    visible: true
+  outline:
+    visible: true
+  pagination:
+    visible: true
+---
+
 # Getting Started
 
-## Disclaimer
-
-This library (PhantomFHE) is developed and maintained for the research purpose, and the authors are not responsible for any potential issue in production.
-
-## What is PhantomFHE?
+## Welcome to PhantomFHE! :clap:
 
 PhantomFHE is a CUDA-Accelerated Fully Homomorphic Encryption library. It is written in CUDA/C++ and provides Python bindings. It implements all operations of BFV, BGV, and CKKS on GPU (excluding bootstrapping by far).
 
@@ -18,6 +33,10 @@ Nowadays there are a variety of applications based on homomorphic encryption to 
 * Support word-wise schemes including BGV, BFV, and CKKS (without bootstrapping)
 * SOTA performance in most operations
 * Easy to integrate with applications (PPML, etc.)
+
+## Disclaimer
+
+This library (PhantomFHE) is developed and maintained for the research purpose, and the authors are not responsible for any potential issue in production.
 
 ## Quick Start
 
