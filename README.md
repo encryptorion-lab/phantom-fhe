@@ -1,26 +1,18 @@
-# Phantom: A CUDA-Accelerated Fully Homomorphic Encryption Library
+# PhantomFHE: A CUDA-Accelerated Fully Homomorphic Encryption Library
 
 > [!IMPORTANT]  
-> This is a research project and is not intended for production use. We are actively working on improving the performance and usability of this library. If you have any questions or suggestions, please feel free to open an issue or contact us.
+> This is a research project and is not intended for production use. We are actively working on improving the
+> performance and usability of this library. If you have any questions or suggestions, please feel free to open an issue
+> or contact us.
 
 > [!WARNING]  
-> This project has been tested on Tesla A100 40G/80G, GTX 3080Ti/3090Ti/4090, AGX Xavier. Other GPUs may have compatibility issues and may not give correct results.
+> This project has been tested on Tesla A100 40G/80G, GTX 3080Ti/3090Ti/4090, AGX Xavier. Other GPUs may have
+> compatibility issues and may not give correct results.
 
-## Prerequisites
+## Documentation
 
-* NVIDIA GPU (Volta or newer)
-* CUDA >= 11.0
-* CMake >= 3.20
-* GCC >= 9.0
-
-## CMake Options
-
-* `CMAKE_CUDA_ARCHITECTURES`: Set the CUDA architectures to compile for. For example, A100 uses `80`, V100 uses `70`, and P100 uses `60`.
-* `PHANTOM_USE_CUDA_PTX`: Enable CUDA PTX optimizations (default: `ON`)
-* `PHANTOM_ENABLE_EXAMPLE`: Enable examples (default: `ON`)
-* `PHANTOM_ENABLE_BENCH`: Enable benchmarks (default: `ON`)
-* `PHANTOM_ENABLE_TEST`: Enable tests (default: `ON`)
-* `PHANTOM_ENABLE_PYTHON_BINDING`: Enable Python bindings (default: `ON`)
+Please read [https://encryptorion-lab.gitbook.io/phantom-fhe/](https://encryptorion-lab.gitbook.io/phantom-fhe/) for
+detailed instructions and explanations.
 
 ## Features
 
@@ -29,22 +21,16 @@
 * SOTA performance in most operations
 * Easy to integrate with applications (PPML, etc.)
 
-## Usage
-
-1. Use git to clone this repository recursively (including submodules)
-2. Use CMake to configure and build this library
-3. Look into build/bin and execute binaries
-4. (Optional) Use python bindings (See `python/` directory for details)
-
-## Documentation
-
-Work-in-progress, host at [https://encryptorion-lab.gitbook.io/phantom-fhe/](https://encryptorion-lab.gitbook.io/phantom-fhe/) using GitBook.
-
 ## License
 
-This project (Phantom) is released under GPLv3 license. See [COPYING](COPYING) for more information.
+This project (PhantomFHE) is released under GPLv3 license. See [LICENSE](LICENSE) for more information.
 
-Some files contain the modified code from [Microsoft SEAL](https://github.com/microsoft/SEAL). These codes are released under MIT License. See [MIT License](MIT_LICENSE) for more information.
+Some files contain the modified code from [Microsoft SEAL](https://github.com/microsoft/SEAL). These codes are released
+under MIT License. See [MIT License](https://github.com/microsoft/SEAL/blob/main/LICENSE) for more information.
+
+Some files contain the modified code from [OpenFHE](https://github.com/openfheorg/openfhe-development). These codes are
+released under BSD 2-Clause License.
+See [BSD 2-Clause License](https://github.com/openfheorg/openfhe-development/blob/main/LICENSE) for more information.
 
 ## Citation
 
