@@ -69,9 +69,11 @@ Try examples by running:
 
 ## License
 
-This project (Phantom) is released under GPLv3 license. See COPYING for more information.
+This project (PhantomFHE) is released under GPLv3 license. See [LICENSE](../LICENSE) for more information.
 
-Some files contain the modified code from [Microsoft SEAL](https://github.com/microsoft/SEAL). These codes are released under MIT License. See MIT License for more information.
+Some files contain the modified code from [Microsoft SEAL](https://github.com/microsoft/SEAL). These codes are released under MIT License. See [MIT License](https://github.com/microsoft/SEAL/blob/main/LICENSE) for more information.
+
+Some files contain the modified code from [OpenFHE](https://github.com/openfheorg/openfhe-development). These codes are released under BSD 2-Clause License. See [BSD 2-Clause License](https://github.com/openfheorg/openfhe-development/blob/main/LICENSE) for more information.
 
 ## Citation
 
