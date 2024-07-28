@@ -1,12 +1,12 @@
 #pragma once
 
+#include <cuComplex.h>
+
 #include "context.cuh"
 #include "fft.h"
 #include "ntt.cuh"
 #include "plaintext.h"
 #include "rns.cuh"
-
-#include <cuComplex.h>
 
 class PhantomCKKSEncoder {
 

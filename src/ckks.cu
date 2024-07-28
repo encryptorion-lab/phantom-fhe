@@ -19,16 +19,16 @@ PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
 
     auto &context_data = context.get_context_data(first_chain_index_);
     auto &parms = context_data.parms();
-    auto &coeff_modulus = parms.coeff_modulus();
-    std::size_t coeff_modulus_size = coeff_modulus.size();
     std::size_t coeff_count = parms.poly_modulus_degree();
 
     if (parms.scheme() != scheme_type::ckks) {
         throw std::invalid_argument("unsupported scheme");
     }
-    slots_ = coeff_count >> 1; // n/2
+
+    slots_ = coeff_count >> 1;
     uint32_t m = coeff_count << 1;
     uint32_t slots_half = slots_ >> 1;
+
     gpu_ckks_msg_vec_ = std::make_unique<DCKKSEncoderInfo>(coeff_count, s);
 
     // We need m powers of the primitive 2n-th root, m = 2n
@@ -92,10 +92,9 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const st
     cudaMemcpyAsync(temp.get(), values.data(), values_size * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice,
                     stream);
 
-    // zero padding
     cudaMemsetAsync(gpu_ckks_msg_vec_->in(), 0, slots_ * sizeof(cuDoubleComplex), stream);
 
-    uint64_t gridDimGlb = std::ceil((float) values_size / (float) blockDimGlb.x);
+    size_t gridDimGlb = std::ceil((float) values_size / (float) blockDimGlb.x);
     bit_reverse_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
             gpu_ckks_msg_vec_->in(), temp.get(), values_size, log_slot_count);
 
@@ -126,9 +125,8 @@ void PhantomCKKSEncoder::encode_internal(const PhantomContext &context, const st
         throw std::invalid_argument("encoded values are too large");
     }
 
-    // we can in fact find all coeff_modulus in DNTTTable structure....
-    rns_tool.base_Ql().decompose_array(destination.data(), gpu_ckks_msg_vec_->in(), coeff_count,
-                                       max_coeff_bit_count, stream);
+    rns_tool.base_Ql().decompose_array(destination.data(), gpu_ckks_msg_vec_->in(), coeff_count, max_coeff_bit_count,
+                                       stream);
 
     nwt_2d_radix8_forward_inplace(destination.data(), context.gpu_rns_tables(), coeff_modulus_size, 0, stream);
 
@@ -179,9 +177,8 @@ void PhantomCKKSEncoder::decode_internal(const PhantomContext &context, const Ph
 
     special_fft_forward(*gpu_ckks_msg_vec_, log_slot_count, stream);
 
-    // finally, bit-reverse and output
     auto out = make_cuda_auto_ptr<cuDoubleComplex>(slots_, stream);
-    uint32_t gridDimGlb = std::ceil((float) slots_ / (float) blockDimGlb.x);
+    size_t gridDimGlb = std::ceil((float) slots_ / (float) blockDimGlb.x);
     bit_reverse_kernel<<<gridDimGlb, blockDimGlb, 0, stream>>>(
             out.get(), gpu_ckks_msg_vec_->in(), slots_, log_slot_count);
 

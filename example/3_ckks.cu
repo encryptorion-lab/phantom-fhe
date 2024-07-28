@@ -15,6 +15,16 @@ using namespace phantom;
 using namespace phantom::arith;
 using namespace phantom::util;
 
+#define EPSINON 0.001
+
+inline bool operator==(const cuDoubleComplex &lhs, const cuDoubleComplex &rhs) {
+    return fabs(lhs.x - rhs.x) < EPSINON;
+}
+
+inline bool compare_double(const double &lhs, const double &rhs) {
+    return fabs(lhs - rhs) < EPSINON;
+}
+
 void example_ckks_enc(PhantomContext &context, const double &scale) {
     std::cout << "Example: CKKS Encode/Decode complex vector" << std::endl;
 

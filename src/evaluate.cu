@@ -1315,9 +1315,9 @@ Returns (f, e1, e2) such that
         encrypted.set_scale(new_scale);
     }
 
-    void
-    multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
-                           const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
+                                const PhantomPlaintext &plain,
+                                const phantom::util::cuda_stream_wrapper &stream_wrapper) {
         const auto &s = stream_wrapper.get_stream();
 
         // Extract encryption parameters.

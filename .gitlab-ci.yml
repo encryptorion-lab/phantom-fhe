@@ -11,7 +11,7 @@ build:
   tags:
     - gpu, a100
   script:
-    - cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=80-real
+    - cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=80-real -DPHANTOM_ENABLE_TEST=ON -DPHANTOM_ENABLE_BENCH=ON -DPHANTOM_ENABLE_PYTHON_BINDING=ON
     - cmake --build build -j
   artifacts:
     paths:
@@ -72,12 +72,12 @@ bench CKKS:
   dependencies:
     - build
 
-bench NWT:
+bench NTT:
   stage: bench
   tags:
     - gpu, a100
   script:
-    - ./build/bin/nwt_bench
+    - ./build/bin/ntt_bench
   dependencies:
     - build
 

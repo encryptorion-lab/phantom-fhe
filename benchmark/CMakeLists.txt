@@ -4,9 +4,9 @@ add_subdirectory(nvbench)
 add_executable(example_bench example_bench.cu)
 target_link_libraries(example_bench nvbench::main)
 
-add_executable(nwt_bench nwt_bench.cu)
-target_link_libraries(nwt_bench PRIVATE nvbench::main Phantom)
-target_include_directories(nwt_bench PUBLIC ${CMAKE_SOURCE_DIR}/include)
+add_executable(ntt_bench ntt_bench.cu)
+target_link_libraries(ntt_bench PRIVATE nvbench::main Phantom)
+target_include_directories(ntt_bench PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 add_executable(keyswitch_bench keyswitch_bench.cu)
 target_link_libraries(keyswitch_bench PRIVATE nvbench::main Phantom)

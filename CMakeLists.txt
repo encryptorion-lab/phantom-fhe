@@ -41,24 +41,24 @@ if (PHANTOM_ENABLE_EXAMPLE)
 endif ()
 
 # benchmark
-# [option] PHANTOM_ENABLE_BENCH (default: ON)
-option(PHANTOM_ENABLE_BENCH "Enable benchmarks" ON)
+# [option] PHANTOM_ENABLE_BENCH (default: OFF)
+option(PHANTOM_ENABLE_BENCH "Enable benchmarks" OFF)
 message(STATUS "Enable benchmarks: ${PHANTOM_ENABLE_BENCH}")
 if (PHANTOM_ENABLE_BENCH)
     add_subdirectory(benchmark)
 endif ()
 
 # test
-# [option] PHANTOM_ENABLE_TEST (default: ON)
-option(PHANTOM_ENABLE_TEST "Enable tests" ON)
+# [option] PHANTOM_ENABLE_TEST (default: OFF)
+option(PHANTOM_ENABLE_TEST "Enable tests" OFF)
 message(STATUS "Enable tests: ${PHANTOM_ENABLE_TEST}")
 if (PHANTOM_ENABLE_TEST)
     add_subdirectory(test)
 endif ()
 
 # python binding
-# [option] PHANTOM_ENABLE_PYTHON_BINDING (default: ON)
-option(PHANTOM_ENABLE_PYTHON_BINDING "Enable python binding" ON)
+# [option] PHANTOM_ENABLE_PYTHON_BINDING (default: OFF)
+option(PHANTOM_ENABLE_PYTHON_BINDING "Enable python binding" OFF)
 message(STATUS "Enable python binding: ${PHANTOM_ENABLE_PYTHON_BINDING}")
 if (PHANTOM_ENABLE_PYTHON_BINDING)
     add_subdirectory(python)
