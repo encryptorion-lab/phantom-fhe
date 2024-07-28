@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
 #pragma once
 
 #include "uintarith.h"
@@ -8,23 +5,6 @@
 #include <cstdint>
 
 namespace phantom::arith {
-    inline void increment_uint_mod(
-            const std::uint64_t *operand, const std::uint64_t *modulus, std::size_t uint64_count,
-            std::uint64_t *result) {
-        unsigned char carry = increment_uint(operand, uint64_count, result);
-        if (carry || is_greater_than_or_equal_uint(result, modulus, uint64_count)) {
-            sub_uint(result, modulus, uint64_count, result);
-        }
-    }
-
-    inline void decrement_uint_mod(
-            const std::uint64_t *operand, const std::uint64_t *modulus, std::size_t uint64_count,
-            std::uint64_t *result) {
-        if (decrement_uint(operand, uint64_count, result)) {
-            add_uint(result, modulus, uint64_count, result);
-        }
-    }
-
     inline void negate_uint_mod(
             const std::uint64_t *operand, const std::uint64_t *modulus, std::size_t uint64_count,
             std::uint64_t *result) {

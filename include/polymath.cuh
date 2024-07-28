@@ -1,7 +1,7 @@
 #pragma once
 
 #include "uintmodmath.cuh"
-#include "gputype.h"
+#include "ntt.cuh"
 
 __global__ void negate_rns_poly(const uint64_t* operand,
                                 const DModulus* modulus,

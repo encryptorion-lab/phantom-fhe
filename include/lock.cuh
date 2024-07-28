@@ -1,11 +1,9 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
 #pragma once
 
-#include "util/defines.h"
 #include <atomic>
 #include <utility>
+
+#include "host/defines.h"
 
 namespace phantom::util {
     struct try_to_lock_t {

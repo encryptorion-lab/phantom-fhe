@@ -2,7 +2,6 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 
 add_library(Phantom SHARED
         context.cu
-        modulus.cu
         batchencoder.cu
         prng.cu
         polymath.cu
@@ -24,16 +23,17 @@ add_library(Phantom SHARED
         ntt/ntt_modup.cu
         ntt/ntt_moddown.cu
 
-        util/blake2b.cu
-        util/blake2xb.cu
-        util/globals.cu
-        util/hash.cu
-        util/ntt.cu
-        util/numth.cu
-        util/rns.cu
-        util/uintarith.cu
-        util/uintarithmod.cu
-        util/uintarithsmallmod.cu
+        host/blake2b.cu
+        host/blake2xb.cu
+        host/globals.cu
+        host/hash.cu
+        host/modulus.cu
+        host/ntt.cu
+        host/numth.cu
+        host/rns.cu
+        host/uintarith.cu
+        host/uintarithmod.cu
+        host/uintarithsmallmod.cu
 )
 
 target_compile_options(Phantom PRIVATE "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")

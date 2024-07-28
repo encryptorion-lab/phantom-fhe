@@ -1,13 +1,11 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
 #include <algorithm>
 #include <cstdio>
-#include "util/common.h"
-#include "util/numth.h"
-#include "util/rns.h"
-#include "util/uintarithmod.h"
-#include "util/uintarithsmallmod.h"
+
+#include "host/common.h"
+#include "host/numth.h"
+#include "host/rns.h"
+#include "host/uintarithmod.h"
+#include "host/uintarithsmallmod.h"
 
 using namespace std;
 

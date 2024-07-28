@@ -3,7 +3,7 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include "uintmath.cuh"
-#include "gputype.h"
+#include "ntt.cuh"
 #include "common.h"
 
 namespace phantom::arith {

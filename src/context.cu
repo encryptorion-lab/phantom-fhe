@@ -1,11 +1,11 @@
 #include <algorithm>
 #include <stdexcept>
-#include <utility>
+
 #include "context.cuh"
 
-#include "util/common.h"
-#include "util/uintarith.h"
-#include "util/uintarithsmallmod.h"
+#include "host/common.h"
+#include "host/uintarith.h"
+#include "host/uintarithsmallmod.h"
 
 using namespace std;
 using namespace phantom;

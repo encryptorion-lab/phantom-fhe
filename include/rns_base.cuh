@@ -1,7 +1,8 @@
 #pragma once
 
-#include "util/rns.h"
 #include "cuda_wrapper.cuh"
+
+#include "host/rns.h"
 
 namespace phantom::arith {
 

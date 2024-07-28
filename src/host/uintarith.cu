@@ -1,11 +1,9 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
-#include "util/common.h"
-#include "util/uintarith.h"
-#include "util/uintcore.h"
 #include <algorithm>
 #include <array>
+
+#include "host/common.h"
+#include "host/uintarith.h"
+#include "host/uintcore.h"
 
 using namespace std;
 

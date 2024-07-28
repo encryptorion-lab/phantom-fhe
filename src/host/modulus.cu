@@ -1,12 +1,13 @@
-#include "util/modulus.h"
-#include "util/common.h"
-#include "util/uintarith.h"
-#include "util/numth.h"
-#include "util/uintarithsmallmod.h"
-#include "util/globals.h"
 #include <numeric>
 #include <stdexcept>
 #include <unordered_map>
+
+#include "host/modulus.h"
+#include "host/common.h"
+#include "host/uintarith.h"
+#include "host/numth.h"
+#include "host/uintarithsmallmod.h"
+#include "host/globals.h"
 
 using namespace std;
 
@@ -107,45 +108,5 @@ namespace phantom::arith {
             prime_table[size].pop_back();
         }
         return result;
-    }
-
-    void Modulus::save_members(std::ostream &stream) const {
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(ios_base::badbit | ios_base::failbit);
-
-            stream.write(reinterpret_cast<const char *>(&value_), sizeof(uint64_t));
-        }
-        catch (const ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
-    }
-
-    void Modulus::load_members(istream &stream) {
-        auto old_except_mask = stream.exceptions();
-        try {
-            // Throw exceptions on std::ios_base::badbit and std::ios_base::failbit
-            stream.exceptions(ios_base::badbit | ios_base::failbit);
-
-            uint64_t value;
-            stream.read(reinterpret_cast<char *>(&value), sizeof(uint64_t));
-            set_value(value);
-        }
-        catch (const ios_base::failure &) {
-            stream.exceptions(old_except_mask);
-            throw runtime_error("I/O error");
-        }
-        catch (...) {
-            stream.exceptions(old_except_mask);
-            throw;
-        }
-        stream.exceptions(old_except_mask);
     }
 }

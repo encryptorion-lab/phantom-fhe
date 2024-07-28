@@ -2,7 +2,7 @@
 #include <cstring>
 #include "prng.cuh"
 #include "uintmodmath.cuh"
-#include "util/globals.h"
+#include "host/globals.h"
 
 using namespace phantom::arith;
 

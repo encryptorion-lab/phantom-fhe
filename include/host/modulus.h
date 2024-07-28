@@ -10,19 +10,24 @@
 #include <limits>
 
 namespace phantom::arith {
-    /** Store pre-computation for Barrett reduction.
-    Represent a non-negative integer modulus of up to 61 bits.
-    */
+//    template<typename T>
     class Modulus {
-    public:
-        /**
-        Creates a Modulus instance. The value of the Modulus is set to
-        the given value, or to zero by default.
+    private:
+        void set_value(uint64_t value);
 
-        @param[in] value The integer modulus
-        @throws std::invalid_argument if value is 1 or more than 61 bits
-        */
-        Modulus(std::uint64_t value = 0) {
+        uint64_t value_ = 0;
+
+        std::array<uint64_t, 3> const_ratio_{0, 0, 0};
+
+        std::size_t uint64_count_ = 0;
+
+        int bit_count_ = 0;
+
+        bool is_prime_ = false;
+
+    public:
+
+        Modulus(uint64_t value = 0) {
             set_value(value);
         }
 
@@ -203,36 +208,6 @@ namespace phantom::arith {
         @throws std::logic_error if the Modulus is zero
         */
         [[nodiscard]] std::uint64_t reduce(std::uint64_t value) const;
-
-        /**
-        Enables access to private members of phantom::Modulus for C
-        */
-        struct ModulusPrivateHelper;
-
-        void save(std::ostream &stream) const {
-            save_members(stream);
-        }
-
-        void load(std::istream &stream) {
-            load_members(stream);
-        }
-
-    private:
-        void set_value(std::uint64_t value);
-
-        void save_members(std::ostream &stream) const;
-
-        void load_members(std::istream &stream);
-
-        std::uint64_t value_ = 0;
-
-        std::array<std::uint64_t, 3> const_ratio_{{0, 0, 0}};
-
-        std::size_t uint64_count_ = 0;
-
-        int bit_count_ = 0;
-
-        bool is_prime_ = false;
     };
 
     /**

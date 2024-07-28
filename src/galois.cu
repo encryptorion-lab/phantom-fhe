@@ -1,5 +1,6 @@
 #include "galois.cuh"
-#include "util/numth.h"
+
+#include "host/numth.h"
 
 using namespace std;
 using namespace phantom;

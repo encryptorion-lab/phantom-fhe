@@ -1,10 +1,8 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
-#include "util/numth.h"
-#include "util/uintarithsmallmod.h"
-#include "util/uintcore.h"
 #include <random>
+
+#include "host/numth.h"
+#include "host/uintarithsmallmod.h"
+#include "host/uintcore.h"
 
 using namespace std;
 

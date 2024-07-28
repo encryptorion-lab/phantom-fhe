@@ -22,12 +22,11 @@ as `Microsoft SEAL edit: ...`. The sole purpose of these edits is to silence
 misleading warnings in Visual Studio.
 */
 
-#include <stdint.h>
-#include <string.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstring>
 
-#include "util/blake2.h"
-#include "util/blake2-impl.h"
+#include "host/blake2.h"
+#include "host/blake2-impl.h"
 
 int blake2xb_init(blake2xb_state *S, const size_t outlen) {
     return blake2xb_init_key(S, outlen, NULL, 0);

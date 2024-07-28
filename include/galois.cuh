@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <vector>
 
-#include "util/modulus.h"
-#include "gputype.h"
-#include "util/defines.h"
-#include "util/uintcore.h"
+#include "host/modulus.h"
+#include "host/defines.h"
+#include "host/uintcore.h"
 #include "cuda_wrapper.cuh"
+#include "ntt.cuh"
 
 namespace phantom::util {
 

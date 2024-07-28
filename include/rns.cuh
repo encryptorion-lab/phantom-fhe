@@ -1,13 +1,13 @@
 #pragma once
 
-#include "gputype.h"
+#include "ntt.cuh"
 #include "rns_base.cuh"
 #include "rns_bconv.cuh"
 #include "cuda_wrapper.cuh"
 
-#include "util/encryptionparams.h"
-#include "util/rns.h"
-#include "util/modulus.h"
+#include "host/encryptionparams.h"
+#include "host/rns.h"
+#include "host/modulus.h"
 
 namespace phantom {
 

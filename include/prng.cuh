@@ -1,8 +1,9 @@
 #pragma once
 
 #include <cstring>
-#include <gputype.h>
 #include <random>
+
+#include "ntt.cuh"
 
 /** Obtain the random from device
  * @param[out] buf The obtained random number, will be used as seed

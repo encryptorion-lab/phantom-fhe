@@ -1,16 +1,14 @@
 #pragma once
 
-//#include "util/defines.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <tuple>
-//#include <type_traits>
 #include <utility>
 #include <vector>
-#include <stdio.h>
+#include <cstdio>
 
 #define SWITCH_POINT 2048
 #define MAX_THREAD_PER_BLOCK 1024

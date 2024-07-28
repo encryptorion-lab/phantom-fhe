@@ -2,13 +2,13 @@
 
 #include <memory>
 
-#include "util/encryptionparams.h"
-#include "util/modulus.h"
-#include "util/ntt.h"
-#include "util/rns.h"
+#include "host/encryptionparams.h"
+#include "host/modulus.h"
+#include "host/ntt.h"
+#include "host/rns.h"
 
 #include "galois.cuh"
-#include "gputype.h"
+#include "ntt.cuh"
 #include "rns.cuh"
 #include "util.cuh"
 #include "cuda_wrapper.cuh"

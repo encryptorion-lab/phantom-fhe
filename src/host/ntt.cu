@@ -1,6 +1,6 @@
-#include "util/ntt.h"
-#include "util/uintarith.h"
-#include "util/uintarithsmallmod.h"
+#include "host/ntt.h"
+#include "host/uintarith.h"
+#include "host/uintarithsmallmod.h"
 
 using namespace std;
 using namespace phantom;

@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
 #pragma once
 
 #include "modulus.h"
@@ -11,25 +8,6 @@
 #include <type_traits>
 
 namespace phantom::arith {
-    /**
-    Returns (operand++) mod modulus.
-    Correctness: operand must be at most (2 * modulus -2) for correctness.
-    */
-    [[nodiscard]] inline std::uint64_t increment_uint_mod(std::uint64_t operand, const Modulus &modulus) {
-        operand++;
-        return operand - (modulus.value() &
-                          static_cast<std::uint64_t>(-static_cast<std::int64_t>(operand >= modulus.value())));
-    }
-
-    /**
-    Returns (operand--) mod modulus.
-    @param[in] operand Must be at most (modulus - 1).
-    */
-    [[nodiscard]] inline std::uint64_t decrement_uint_mod(std::uint64_t operand, const Modulus &modulus) {
-        std::int64_t carry = static_cast<std::int64_t>(operand == 0);
-        return operand - 1 + (modulus.value() & static_cast<std::uint64_t>(-carry));
-    }
-
     /**
     Returns (-operand) mod modulus.
     Correctness: operand must be at most modulus for correctness.

@@ -1,9 +1,7 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
-#include "util/modulus.h"
-#include "util/globals.h"
 #include <memory>
+
+#include "host/modulus.h"
+#include "host/globals.h"
 
 using namespace std;
 
