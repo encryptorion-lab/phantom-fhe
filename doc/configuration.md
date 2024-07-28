@@ -10,6 +10,6 @@ Phantom has some optional CMake options. If you want to explicitly disable some 
 
 * `PHANTOM_USE_CUDA_PTX`: Enable CUDA PTX optimizations (default: `ON`)
 * `PHANTOM_ENABLE_EXAMPLE`: Enable examples (default: `ON`)
-* `PHANTOM_ENABLE_BENCH`: Enable benchmarks (default: `ON`)
-* `PHANTOM_ENABLE_TEST`: Enable tests (default: `ON`)
-* `PHANTOM_ENABLE_PYTHON_BINDING`: Enable Python bindings (default: `ON`)
+* `PHANTOM_ENABLE_BENCH`: Enable benchmarks (default: `OFF`)
+* `PHANTOM_ENABLE_TEST`: Enable tests (default: `OFF`)
+* `PHANTOM_ENABLE_PYTHON_BINDING`: Enable Python bindings (default: `OFF`)

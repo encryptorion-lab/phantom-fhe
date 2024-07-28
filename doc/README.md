@@ -54,7 +54,7 @@ Nowadays there are a variety of applications based on homomorphic encryption to 
 #### Softwares
 
 * Operating system: Linux only (Debian-based, Arch-based, etc.)
-* CUDA $$\geq$$ 11.0 (recommended)
+* CUDA Toolkit $$\geq$$ 11.0 (recommended)
 * CMake $$\geq$$ 3.20
 * GCC  9.0 (recommended)
 * Python $$\geq$$ 3.7 (required by pybind11)
@@ -76,7 +76,7 @@ cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=native
 cmake --build build -j
 ```
 
-If the above commands don't work for you, or you want to build specific targets, please read [configuration.md](configuration.md "mention") for more details.
+If the above commands don't work for you, or you want to build specific targets, please read [configuration.md](configuration.md "mention") for more details. For a fast check-in, we disabled test, bench, and Python binding options by default.
 
 ### Run PhantomFHE
 

@@ -2,7 +2,7 @@
 
 ## Setting up Environment
 
-To build Python applications based on PhantomFHE, please install phantomFHE to system first. See [installation.md](../installation.md "mention"). Also make sure CMake option `PHANTOM_ENABLE_PYTHON_BINDING` is set to `ON` (by default).
+To build Python applications based on PhantomFHE, please install phantomFHE to system first. See [installation.md](../installation.md "mention"). Also make sure CMake option `PHANTOM_ENABLE_PYTHON_BINDING` is set to `ON`.
 
 Anaconda as python environment is recommended because conda can use a simple command to find the PyPhantom library.
 
