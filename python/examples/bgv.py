@@ -25,25 +25,18 @@ encoder = phantom.batch_encoder(context)
 slot_count = encoder.slot_count()
 print("slot_count", slot_count)
 
-s = phantom.cuda_stream()
+msg = [1, 2, 3, 4, 5, 6, 7, 8]
+msg += [0] * (slot_count - len(msg))
 
+print('input:', msg[:8])
 
-def bgv_test():
-    msg = [1, 2, 3, 4, 5, 6, 7, 8]
-    msg += [0] * (slot_count - len(msg))
+pt = encoder.encode(context, msg)
+ct = pk.encrypt_asymmetric(context, pt)
 
-    print('input:', msg[:8])
+ct = phantom.multiply_and_relin(context, ct, ct, rlk)
+ct = phantom.mod_switch_to_next(context, ct)
 
-    pt = encoder.encode(context, msg, stream=s)
-    ct = pk.encrypt_asymmetric(context, pt, stream=s)
+pt_dec = sk.decrypt(context, ct)
+result = encoder.decode(context, pt_dec)
 
-    ct = phantom.multiply_and_relin(context, ct, ct, rlk, stream=s)
-    ct = phantom.mod_switch_to_next(context, ct, stream=s)
-
-    pt_dec = sk.decrypt(context, ct, stream=s)
-    result = encoder.decode(context, pt_dec, stream=s)
-
-    print('output:', result[:8])
-
-
-bgv_test()
+print('output:', result[:8])

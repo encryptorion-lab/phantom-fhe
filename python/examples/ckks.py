@@ -24,27 +24,20 @@ encoder = phantom.ckks_encoder(context)
 slot_count = encoder.slot_count()
 print("slot_count", slot_count)
 
-s = phantom.cuda_stream()
+msg = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+msg += [0.0] * (slot_count - len(msg))
 
+pt = encoder.encode_double_vector(context, msg, scale, chain_index=1)
+ct = pk.encrypt_asymmetric(context, pt)
 
-def ckks_test():
-    msg = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
-    msg += [0.0] * (slot_count - len(msg))
+ct = phantom.multiply_and_relin(context, ct, ct, rlk)
+ct = phantom.rescale_to_next(context, ct)
 
-    pt = encoder.encode_double_vector(context, msg, scale, chain_index=1, stream=s)
-    ct = pk.encrypt_asymmetric(context, pt, stream=s)
+ct2 = phantom.hoisting(context, ct, glk, [1, 2, 3, 4, 5, 6, 7])
+ct = phantom.add(context, ct, ct2)
 
-    ct = phantom.multiply_and_relin(context, ct, ct, rlk, stream=s)
-    ct = phantom.rescale_to_next(context, ct, stream=s)
+pt_dec = sk.decrypt(context, ct)
+result = encoder.decode_double_vector(context, pt_dec)
 
-    ct2 = phantom.hoisting(context, ct, glk, [1, 2, 3, 4, 5, 6, 7], stream=s)
-    ct = phantom.add(context, ct, ct2, stream=s)
-
-    pt_dec = sk.decrypt(context, ct, stream=s)
-    result = encoder.decode_double_vector(context, pt_dec, stream=s)
-
-    formatted_result = ['%.3f' % ele for ele in result]
-    print(formatted_result[:8])
-
-
-ckks_test()
+formatted_result = ['%.3f' % ele for ele in result]
+print(formatted_result[:8])
