@@ -15,7 +15,7 @@ __global__ void bit_reverse_kernel(cuDoubleComplex *dst, cuDoubleComplex *src, u
 }
 
 PhantomCKKSEncoder::PhantomCKKSEncoder(const PhantomContext &context) {
-    const auto &s = global_variables::default_stream->get_stream();
+    const auto &s = cudaStreamPerThread;
 
     auto &context_data = context.get_context_data(first_chain_index_);
     auto &parms = context_data.parms();

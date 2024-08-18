@@ -28,25 +28,22 @@ public:
     */
     explicit PhantomBatchEncoder(const PhantomContext &context);
 
-    void
-    encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix, PhantomPlaintext &destination,
-           const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const;
+    void encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix,
+                PhantomPlaintext &destination) const;
 
-    void decode(const PhantomContext &context, const PhantomPlaintext &plain, std::vector<uint64_t> &destination,
-                const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const;
+    void decode(const PhantomContext &context, const PhantomPlaintext &plain, std::vector<uint64_t> &destination) const;
 
     [[nodiscard]] inline PhantomPlaintext
-    encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix,
-           const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const {
+    encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix) const {
         PhantomPlaintext destination;
-        encode(context, values_matrix, destination, stream_wrapper);
+        encode(context, values_matrix, destination);
         return destination;
     }
 
-    [[nodiscard]] inline std::vector<uint64_t> decode(const PhantomContext &context, const PhantomPlaintext &plain,
-                                                      const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const {
+    [[nodiscard]] inline std::vector<uint64_t>
+    decode(const PhantomContext &context, const PhantomPlaintext &plain) const {
         std::vector<uint64_t> destination;
-        decode(context, plain, destination, stream_wrapper);
+        decode(context, plain, destination);
         return destination;
     }
 

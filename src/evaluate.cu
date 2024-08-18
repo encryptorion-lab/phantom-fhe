@@ -103,9 +103,8 @@ Returns (f, e1, e2) such that
         }
     }
 
-    void negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                        const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        negate_internal(context, encrypted, stream_wrapper.get_stream());
+    void negate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted) {
+        negate_internal(context, encrypted, cudaStreamPerThread);
     }
 
 /**
@@ -113,8 +112,8 @@ Returns (f, e1, e2) such that
  * @param[in] encrypted1 The first ciphertext to add
  * @param[in] encrypted2 The second ciphertext to add
  */
-    void add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
-                     const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    void
+    add_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2) {
         if (encrypted1.chain_index() != encrypted2.chain_index()) {
             throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
         }
@@ -128,7 +127,7 @@ Returns (f, e1, e2) such that
             throw std::invalid_argument("poly number mismatch");
         }
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
 
         // Extract encryption parameters.
         auto &context_data = context.get_context_data(encrypted1.chain_index());
@@ -199,8 +198,8 @@ Returns (f, e1, e2) such that
 
 // TODO: fixme
     void add_many(const PhantomContext &context, const vector <PhantomCiphertext> &encrypteds,
-                  PhantomCiphertext &destination, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+                  PhantomCiphertext &destination) {
+        const auto &s = cudaStreamPerThread;
 
         if (encrypteds.empty()) {
             throw std::invalid_argument("encrypteds cannot be empty");
@@ -245,7 +244,7 @@ Returns (f, e1, e2) such that
                             poly_degree * coeff_mod_size * encrypteds[0].size() * sizeof(uint64_t),
                             cudaMemcpyDeviceToDevice, s);
             for (size_t i = 1; i < encrypteds.size(); i++) {
-                add_inplace(context, destination, encrypteds[i], stream_wrapper);
+                add_inplace(context, destination, encrypteds[i]);
             }
         } else {
             auto enc_device_ptr = make_cuda_auto_ptr<uint64_t *>(encrypteds.size(), s);
@@ -267,7 +266,7 @@ Returns (f, e1, e2) such that
     }
 
     void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
-                     const bool &negate, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                     const bool &negate) {
         if (encrypted1.parms_id() != encrypted2.parms_id()) {
             throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
         }
@@ -280,7 +279,7 @@ Returns (f, e1, e2) such that
         if (encrypted1.size() != encrypted2.size())
             throw std::invalid_argument("poly number mismatch");
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
 
         // Extract encryption parameters.
         auto &context_data = context.get_context_data(encrypted1.chain_index());
@@ -1036,8 +1035,8 @@ Returns (f, e1, e2) such that
 
 // encrypted1 = encrypted1 * encrypted2
     void
-    multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
-                     const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
+                     const PhantomCiphertext &encrypted2) {
         // Verify parameters.
         if (encrypted1.parms_id() != encrypted2.parms_id()) {
             throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
@@ -1051,7 +1050,7 @@ Returns (f, e1, e2) such that
         if (encrypted1.size() != encrypted2.size())
             throw std::invalid_argument("poly number mismatch");
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
         auto &context_data = context.get_context_data(encrypted1.chain_index());
 
         switch (context_data.parms().scheme()) {
@@ -1071,8 +1070,7 @@ Returns (f, e1, e2) such that
 // encrypted1 = encrypted1 * encrypted2
 // relin(encrypted1)
     void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
-                                    const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys,
-                                    const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                                    const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys) {
         // Verify parameters.
         if (encrypted1.parms_id() != encrypted2.parms_id()) {
             throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
@@ -1092,7 +1090,7 @@ Returns (f, e1, e2) such that
         auto scheme = params.scheme();
         auto mul_tech = params.mul_tech();
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
 
         switch (scheme) {
             case scheme_type::bfv:
@@ -1102,7 +1100,7 @@ Returns (f, e1, e2) such that
                     bfv_mul_relin_hps(context, encrypted1, encrypted2, relin_keys, s);
                 } else if (mul_tech == mul_tech_type::behz) {
                     bfv_multiply_behz(context, encrypted1, encrypted2, s);
-                    relinearize_inplace(context, encrypted1, relin_keys, stream_wrapper);
+                    relinearize_inplace(context, encrypted1, relin_keys);
                 } else {
                     throw invalid_argument("unsupported mul tech in BFV mul&relin");
                 }
@@ -1111,7 +1109,7 @@ Returns (f, e1, e2) such that
             case scheme_type::ckks:
             case scheme_type::bgv:
                 bgv_ckks_multiply(context, encrypted1, encrypted2, s);
-                relinearize_inplace(context, encrypted1, relin_keys, stream_wrapper);
+                relinearize_inplace(context, encrypted1, relin_keys);
                 break;
 
             default:
@@ -1119,9 +1117,8 @@ Returns (f, e1, e2) such that
         }
     }
 
-    void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
-                           const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+    void add_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain) {
+        const auto &s = cudaStreamPerThread;
 
         // Extract encryption parameters.
         auto &context_data = context.get_context_data(encrypted.chain_index());
@@ -1180,10 +1177,9 @@ Returns (f, e1, e2) such that
         }
     }
 
-    void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain,
-                           const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+    void sub_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, const PhantomPlaintext &plain) {
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
         // Extract encryption parameters.
         auto &context_data = context.get_context_data(encrypted.chain_index());
         auto &parms = context_data.parms();
@@ -1316,9 +1312,8 @@ Returns (f, e1, e2) such that
     }
 
     void multiply_plain_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                                const PhantomPlaintext &plain,
-                                const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+                                const PhantomPlaintext &plain) {
+        const auto &s = cudaStreamPerThread;
 
         // Extract encryption parameters.
         auto &context_data = context.get_context_data(encrypted.chain_index());
@@ -1362,8 +1357,7 @@ Returns (f, e1, e2) such that
     }
 
     void relinearize_inplace(const PhantomContext &context, PhantomCiphertext &encrypted,
-                             const PhantomRelinKey &relin_keys,
-                             const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                             const PhantomRelinKey &relin_keys) {
         // Extract encryption parameters.
         auto &context_data = context.get_context_data(encrypted.chain_index());
         auto &parms = context_data.parms();
@@ -1388,7 +1382,7 @@ Returns (f, e1, e2) such that
 
         uint64_t *c2 = encrypted.data() + 2 * decomp_modulus_size * n;
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
 
         keyswitch_inplace(context, encrypted, c2, relin_keys, true, s);
 
@@ -1494,9 +1488,8 @@ Returns (f, e1, e2) such that
         }
     }
 
-    void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain,
-                                    const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+    void mod_switch_to_next_inplace(const PhantomContext &context, PhantomPlaintext &plain) {
+        const auto &s = cudaStreamPerThread;
 
         auto &context_data = context.get_context_data(context.get_first_index());
         auto &parms = context_data.parms();
@@ -1526,9 +1519,8 @@ Returns (f, e1, e2) such that
         plain.set_chain_index(next_chain_index);
     }
 
-    PhantomCiphertext mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                                         const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+    PhantomCiphertext mod_switch_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted) {
+        const auto &s = cudaStreamPerThread;
 
         auto &context_data = context.get_context_data(context.get_first_index());
         auto &parms = context_data.parms();
@@ -1567,9 +1559,8 @@ Returns (f, e1, e2) such that
         return destination;
     }
 
-    PhantomCiphertext rescale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted,
-                                      const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+    PhantomCiphertext rescale_to_next(const PhantomContext &context, const PhantomCiphertext &encrypted) {
+        const auto &s = cudaStreamPerThread;
 
         auto &context_data = context.get_context_data(context.get_first_index());
         auto &parms = context_data.parms();
@@ -1591,8 +1582,7 @@ Returns (f, e1, e2) such that
     }
 
     void apply_galois_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, size_t galois_elt,
-                              const PhantomGaloisKey &galois_keys,
-                              const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                              const PhantomGaloisKey &galois_keys) {
         auto &context_data = context.get_context_data(encrypted.chain_index());
         auto &parms = context_data.parms();
         auto &coeff_modulus = parms.coeff_modulus();
@@ -1613,7 +1603,7 @@ Returns (f, e1, e2) such that
         }
         auto galois_elt_index = std::distance(galois_elts.begin(), iter);
 
-        const auto &s = stream_wrapper.get_stream();
+        const auto &s = cudaStreamPerThread;
 
         auto temp = make_cuda_auto_ptr<uint64_t>(coeff_modulus_size * N, s);
 
@@ -1658,8 +1648,7 @@ Returns (f, e1, e2) such that
 
 // TODO: remove recursive chain
     static void rotate_internal(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
-                                const PhantomGaloisKey &galois_key,
-                                const phantom::util::cuda_stream_wrapper &stream_wrapper) {
+                                const PhantomGaloisKey &galois_key) {
         auto &context_data = context.get_context_data(encrypted.chain_index());
 
         size_t coeff_count = context_data.parms().poly_modulus_degree();
@@ -1671,7 +1660,7 @@ Returns (f, e1, e2) such that
         if (iter != galois_elts.end()) {
             auto galois_elt_index = iter - galois_elts.begin();
             // Perform rotation and key switching
-            apply_galois_inplace(context, encrypted, galois_elts[galois_elt_index], galois_key, stream_wrapper);
+            apply_galois_inplace(context, encrypted, galois_elts[galois_elt_index], galois_key);
         } else {
             // Convert the steps to NAF: guarantees using smallest HW
             vector<int> naf_step = naf(step);
@@ -1684,21 +1673,20 @@ Returns (f, e1, e2) such that
             }
             for (auto temp_step: naf_step) {
                 if (static_cast<size_t>(abs(temp_step)) != (coeff_count >> 1)) {
-                    rotate_internal(context, encrypted, temp_step, galois_key, stream_wrapper);
+                    rotate_internal(context, encrypted, temp_step, galois_key);
                 }
             }
         }
     }
 
     void rotate_inplace(const PhantomContext &context, PhantomCiphertext &encrypted, int step,
-                        const PhantomGaloisKey &galois_key,
-                        const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        rotate_internal(context, encrypted, step, galois_key, stream_wrapper);
+                        const PhantomGaloisKey &galois_key) {
+        rotate_internal(context, encrypted, step, galois_key);
     }
 
     void hoisting_inplace(const PhantomContext &context, PhantomCiphertext &ct, const PhantomGaloisKey &glk,
-                          const std::vector<int> &steps, const phantom::util::cuda_stream_wrapper &stream_wrapper) {
-        const auto &s = stream_wrapper.get_stream();
+                          const std::vector<int> &steps) {
+        const auto &s = cudaStreamPerThread;
 
         if (ct.size() > 2)
             throw invalid_argument("ciphertext size must be 2");

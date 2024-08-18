@@ -13,10 +13,6 @@ using namespace phantom::util;
 using namespace phantom::arith;
 
 namespace phantom {
-    namespace util::global_variables {
-        std::unique_ptr<util::cuda_stream_wrapper> default_stream;
-    }
-
     ContextData::ContextData(const EncryptionParameters &params, const cudaStream_t &stream) {
         parms_ = params;
         const auto &key_modulus = params.key_modulus();
@@ -134,9 +130,7 @@ PhantomContext::PhantomContext(const phantom::EncryptionParameters &params) {
     uint64_t threshold = UINT64_MAX;
     cudaMemPoolSetAttribute(mempool, cudaMemPoolAttrReleaseThreshold, &threshold);
 
-    phantom::util::global_variables::default_stream = std::make_unique<phantom::util::cuda_stream_wrapper>();
-
-    const auto &s = phantom::util::global_variables::default_stream->get_stream();
+    const auto &s = cudaStreamPerThread;
 
     using_keyswitching_ = false;
     mul_tech_ = params.mul_tech();

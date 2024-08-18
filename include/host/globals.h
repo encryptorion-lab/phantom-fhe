@@ -52,9 +52,4 @@ namespace phantom::util::global_variables {
     it easy for non-expert users to select secure parameters.
     */
     const std::map<std::size_t, std::vector<arith::Modulus>> &GetDefaultCoeffModulus256();
-
-    // Global default CUDA stream, implement and init at context.cu
-    extern std::unique_ptr<phantom::util::cuda_stream_wrapper> default_stream;
 }
-
-

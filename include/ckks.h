@@ -73,9 +73,9 @@ public:
                        const std::vector<T> &values,
                        double scale,
                        PhantomPlaintext &destination,
-                       size_t chain_index = 1, // first chain index
-                       const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
-        const auto &s = stream_wrapper.get_stream();
+                       size_t chain_index = 1) { // first chain index
+
+        const auto &s = cudaStreamPerThread;
         destination.chain_index_ = 0;
         destination.resize(context.coeff_mod_size_, context.poly_degree_, s);
         encode_internal(context, values, chain_index, scale, destination, s);
@@ -84,26 +84,24 @@ public:
     template<class T>
     [[nodiscard]] inline auto encode(const PhantomContext &context, const std::vector<T> &values,
                                      double scale,
-                                     size_t chain_index = 1, // first chain index
-                                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+                                     size_t chain_index = 1) { // first chain index
+
         PhantomPlaintext destination;
-        encode(context, values, scale, destination, chain_index, stream_wrapper);
+        encode(context, values, scale, destination, chain_index);
         return destination;
     }
 
     template<class T>
     inline void decode(const PhantomContext &context,
                        const PhantomPlaintext &plain,
-                       std::vector<T> &destination,
-                       const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
-        decode_internal(context, plain, destination, stream_wrapper.get_stream());
+                       std::vector<T> &destination) {
+        decode_internal(context, plain, destination, cudaStreamPerThread);
     }
 
     template<class T>
-    [[nodiscard]] inline auto decode(const PhantomContext &context, const PhantomPlaintext &plain,
-                                     const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+    [[nodiscard]] inline auto decode(const PhantomContext &context, const PhantomPlaintext &plain) {
         std::vector<T> destination;
-        decode(context, plain, destination, stream_wrapper);
+        decode(context, plain, destination);
         return destination;
     }
 

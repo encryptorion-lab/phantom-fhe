@@ -28,7 +28,7 @@ inline void check(T err, const char *const func, const char *const file,
                   << std::endl;
         std::cerr << cudaGetErrorString(err) << " " << func
                   << std::endl;
-//        std::exit(EXIT_FAILURE);
+        throw std::runtime_error("CUDA Runtime Error");
     }
 }
 
@@ -38,7 +38,7 @@ inline void checkLast(const char *const file, const int line) {
         std::cerr << "CUDA Runtime Error at: " << file << ":" << line
                   << std::endl;
         std::cerr << cudaGetErrorString(err) << std::endl;
-        std::exit(EXIT_FAILURE);
+        throw std::runtime_error("CUDA Runtime Error");
     }
 }
 
@@ -47,19 +47,19 @@ namespace phantom::util {
     class cuda_stream_wrapper {
     public:
         cuda_stream_wrapper() {
-            cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+            cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
         }
 
         ~cuda_stream_wrapper() {
-            cudaStreamDestroy(stream);
+            cudaStreamDestroy(stream_);
         }
 
         [[nodiscard]] auto &get_stream() const {
-            return stream;
+            return stream_;
         }
 
     private:
-        cudaStream_t stream{};
+        cudaStream_t stream_{};
     };
 
     template<class T>
@@ -166,6 +166,10 @@ namespace phantom::util {
             if (ptr_ == nullptr) {
                 return;
             }
+            if (cudaStream_ == nullptr) {
+                std::cerr << "Warning: stream is null when freeing, use default per-thread stream" << std::endl;
+                cudaStream_ = cudaStreamPerThread;
+            }
             auto err = cudaFreeAsync(ptr_, cudaStream_);
             if (err != cudaSuccess) {
                 std::cerr << "Error freeing " << n_ << " * " << sizeof(T) << " bytes at " << ptr_
@@ -186,8 +190,9 @@ namespace phantom::util {
 
     class CUDATimer {
     public:
-        explicit CUDATimer(std::string func_name, const phantom::util::cuda_stream_wrapper &stream_wrapper) : func_name_(std::move(func_name)) {
-            stream_ = stream_wrapper.get_stream();
+        explicit CUDATimer(std::string func_name)
+                : func_name_(std::move(func_name)) {
+            stream_ = cudaStreamPerThread;
             cudaEventCreate(&start_event_);
             cudaEventCreate(&stop_event_);
         }

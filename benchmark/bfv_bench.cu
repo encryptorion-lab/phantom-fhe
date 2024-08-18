@@ -22,7 +22,7 @@ void bfv_performance_test(EncryptionParameters &parms) {
     auto count = 100;
 
     {
-        CUDATimer timer("gen_secretkey", *global_variables::default_stream);
+        CUDATimer timer("gen_secretkey");
         for (auto i = 0; i < count; i++) {
             timer.start();
             PhantomSecretKey secret_key(context);
@@ -33,7 +33,7 @@ void bfv_performance_test(EncryptionParameters &parms) {
     PhantomSecretKey secret_key(context);
 
     {
-        CUDATimer timer("gen_publickey", *global_variables::default_stream);
+        CUDATimer timer("gen_publickey");
         for (auto i = 0; i < count; i++) {
             timer.start();
             PhantomPublicKey public_key = secret_key.gen_publickey(context);
@@ -45,7 +45,7 @@ void bfv_performance_test(EncryptionParameters &parms) {
 
     // Generate relinearization keys
     {
-        CUDATimer timer("gen_relinkey", *global_variables::default_stream);
+        CUDATimer timer("gen_relinkey");
         for (auto i = 0; i < count; i++) {
             timer.start();
             PhantomRelinKey relin_keys = secret_key.gen_relinkey(context);
@@ -85,10 +85,10 @@ void bfv_performance_test(EncryptionParameters &parms) {
     right size so unnecessary reallocations are avoided.
     */
     {
-        CUDATimer timer("encode", stream);
+        CUDATimer timer("encode");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            batch_encoder.encode(context, pod_vector, plain, stream);
+            batch_encoder.encode(context, pod_vector, plain);
             timer.stop();
         }
     }
@@ -99,10 +99,10 @@ void bfv_performance_test(EncryptionParameters &parms) {
     */
     vector<uint64_t> pod_vector2(slot_count);
     {
-        CUDATimer timer("decode", stream);
+        CUDATimer timer("decode");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            batch_encoder.decode(context, plain, pod_vector2, stream);
+            batch_encoder.decode(context, plain, pod_vector2);
             timer.stop();
         }
     }
@@ -119,10 +119,10 @@ void bfv_performance_test(EncryptionParameters &parms) {
     */
     PhantomCiphertext encrypted;
     {
-        CUDATimer timer("encrypt_asymmetric", stream);
+        CUDATimer timer("encrypt_asymmetric");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            public_key.encrypt_asymmetric(context, plain, encrypted, stream);
+            public_key.encrypt_asymmetric(context, plain, encrypted);
             timer.stop();
         }
     }
@@ -132,10 +132,10 @@ void bfv_performance_test(EncryptionParameters &parms) {
     We decrypt what we just encrypted.
     */
     {
-        CUDATimer timer("decrypt", stream);
+        CUDATimer timer("decrypt");
         for (auto i = 0; i < count; i++) {
             timer.start();
-            secret_key.decrypt(context, encrypted, plain, stream);
+            secret_key.decrypt(context, encrypted, plain);
             timer.stop();
         }
     }
@@ -145,22 +145,22 @@ void bfv_performance_test(EncryptionParameters &parms) {
     PhantomPlaintext plain1;
     PhantomPlaintext plain2;
     PhantomCiphertext encrypted1;
-    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain1, stream);
-    public_key.encrypt_asymmetric(context, plain1, encrypted1, stream);
+    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain1);
+    public_key.encrypt_asymmetric(context, plain1, encrypted1);
     PhantomCiphertext encrypted2;
-    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain2, stream);
-    public_key.encrypt_asymmetric(context, plain2, encrypted2, stream);
+    batch_encoder.encode(context, vector<uint64_t>(slot_count, 1), plain2);
+    public_key.encrypt_asymmetric(context, plain2, encrypted2);
 
     /*
     [Add]
     We create two ciphertexts and perform a few additions with them.
     */
     {
-        CUDATimer timer("add_inplace", stream);
+        CUDATimer timer("add_inplace");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
             timer.start();
-            add_inplace(context, tmp_ct, encrypted2, stream);
+            add_inplace(context, tmp_ct, encrypted2);
             timer.stop();
         }
     }
@@ -169,11 +169,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     [Add Plain]
     */
     {
-        CUDATimer timer("add_plain", stream);
+        CUDATimer timer("add_plain");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
             timer.start();
-            add_plain_inplace(context, tmp_ct, plain, stream);
+            add_plain_inplace(context, tmp_ct, plain);
             timer.stop();
         }
     }
@@ -185,12 +185,12 @@ void bfv_performance_test(EncryptionParameters &parms) {
     to avoid reallocating during multiplication.
     */
     {
-        CUDATimer timer("multiply", stream);
+        CUDATimer timer("multiply");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
             timer.start();
-            multiply_inplace(context, tmp_ct, encrypted2, stream);
-            relinearize_inplace(context, tmp_ct, relin_keys, stream);
+            multiply_inplace(context, tmp_ct, encrypted2);
+            relinearize_inplace(context, tmp_ct, relin_keys);
             timer.stop();
         }
     }
@@ -202,11 +202,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     encrypted2 here.
     */
     {
-        CUDATimer timer("multiply_plain", stream);
+        CUDATimer timer("multiply_plain");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
             timer.start();
-            multiply_plain_inplace(context, tmp_ct, plain, stream);
+            multiply_plain_inplace(context, tmp_ct, plain);
             timer.stop();
         }
     }
@@ -216,11 +216,11 @@ void bfv_performance_test(EncryptionParameters &parms) {
     We rotate matrix rows by one step left and measure the time.
     */
     {
-        CUDATimer timer("rotate_rows_inplace_one_step", stream);
+        CUDATimer timer("rotate_rows_inplace_one_step");
         for (auto i = 0; i < count; i++) {
             PhantomCiphertext tmp_ct(encrypted1);
             timer.start();
-            rotate_inplace(context, tmp_ct, 1, gal_keys, stream);
+            rotate_inplace(context, tmp_ct, 1, gal_keys);
             timer.stop();
         }
     }

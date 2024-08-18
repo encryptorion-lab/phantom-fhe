@@ -63,15 +63,13 @@ public:
      * @param[in] plain The data to be encrypted
      * @param[out] cipher The generated ciphertext
      */
-    void encrypt_asymmetric(const PhantomContext &context, const PhantomPlaintext &plain, PhantomCiphertext &cipher,
-                            const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+    void encrypt_asymmetric(const PhantomContext &context, const PhantomPlaintext &plain, PhantomCiphertext &cipher);
 
     // for python wrapper
 
-    inline PhantomCiphertext encrypt_asymmetric(const PhantomContext &context, const PhantomPlaintext &plain,
-                                                const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+    inline PhantomCiphertext encrypt_asymmetric(const PhantomContext &context, const PhantomPlaintext &plain) {
         PhantomCiphertext cipher;
-        encrypt_asymmetric(context, plain, cipher, stream_wrapper);
+        encrypt_asymmetric(context, plain, cipher);
         return cipher;
     }
 };
@@ -168,7 +166,7 @@ private:
         return secret_key_array_.get();
     }
 
-    void gen_secretkey(const PhantomContext &context, const cudaStream_t &stream);
+    void gen_secretkey(const PhantomContext &context);
 
     /** Encrypt zero using the secret key, the ciphertext is in NTT form
      * @param[in] context PhantomContext
@@ -203,7 +201,7 @@ private:
 public:
 
     explicit inline PhantomSecretKey(const PhantomContext &context) {
-        gen_secretkey(context, phantom::util::global_variables::default_stream->get_stream());
+        gen_secretkey(context);
     }
 
     PhantomSecretKey(const PhantomSecretKey &) = delete;
@@ -228,32 +226,28 @@ public:
      * @param[out] cipher The generated ciphertext
      */
     void
-    encrypt_symmetric(const PhantomContext &context, const PhantomPlaintext &plain, PhantomCiphertext &cipher,
-                      const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const;
+    encrypt_symmetric(const PhantomContext &context, const PhantomPlaintext &plain, PhantomCiphertext &cipher) const;
 
     /** decryption
      * @param[in] context PhantomContext
      * @param[in] cipher The ciphertext to be decrypted
      * @param[out] plain The plaintext
      */
-    void decrypt(const PhantomContext &context, const PhantomCiphertext &cipher, PhantomPlaintext &plain,
-                 const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+    void decrypt(const PhantomContext &context, const PhantomCiphertext &cipher, PhantomPlaintext &plain);
 
     // for python wrapper
 
     [[nodiscard]] inline PhantomCiphertext
-    encrypt_symmetric(const PhantomContext &context, const PhantomPlaintext &plain,
-                      const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) const {
+    encrypt_symmetric(const PhantomContext &context, const PhantomPlaintext &plain) const {
         PhantomCiphertext cipher;
-        encrypt_symmetric(context, plain, cipher, stream_wrapper);
+        encrypt_symmetric(context, plain, cipher);
         return cipher;
     }
 
     [[nodiscard]] inline PhantomPlaintext
-    decrypt(const PhantomContext &context, const PhantomCiphertext &cipher,
-            const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream) {
+    decrypt(const PhantomContext &context, const PhantomCiphertext &cipher) {
         PhantomPlaintext plain;
-        decrypt(context, cipher, plain, stream_wrapper);
+        decrypt(context, cipher, plain);
         return plain;
     }
 
@@ -265,6 +259,5 @@ public:
     * @param[in] context PhantomContext
     * @param[in] cipher The ciphertext to be decrypted
     */
-    [[nodiscard]] int invariant_noise_budget(const PhantomContext &context, const PhantomCiphertext &cipher,
-                                             const phantom::util::cuda_stream_wrapper &stream_wrapper = *phantom::util::global_variables::default_stream);
+    [[nodiscard]] int invariant_noise_budget(const PhantomContext &context, const PhantomCiphertext &cipher);
 };

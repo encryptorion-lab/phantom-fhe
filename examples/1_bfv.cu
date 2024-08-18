@@ -1482,7 +1482,7 @@ bfv_multiply_bench(mul_tech_type mul_tech, size_t poly_modulus_degree, const std
     PhantomCiphertext sym_cipher_copy(sym_cipher);
 
     for (size_t mult_depth = 0; mult_depth < max_mult_depth; mult_depth++) {
-        CUDATimer timer("mult&relin", *global_variables::default_stream);
+        CUDATimer timer("mult&relin");
         for (size_t idx = 0; idx < n_tests; idx++) {
             PhantomCiphertext sym_cipher_copy2(sym_cipher_copy);
             timer.start();
@@ -1492,7 +1492,7 @@ bfv_multiply_bench(mul_tech_type mul_tech, size_t poly_modulus_degree, const std
         multiply_and_relin_inplace(context, sym_cipher_copy, sym_cipher, relin_keys);
     }
 
-    CUDATimer timer_dec("decrypt", *global_variables::default_stream);
+    CUDATimer timer_dec("decrypt");
     for (size_t idx = 0; idx < n_tests; idx++) {
         timer_dec.start();
         secret_key.decrypt(context, sym_cipher_copy, dec_plain);

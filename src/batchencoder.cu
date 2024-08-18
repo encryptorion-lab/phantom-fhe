@@ -5,15 +5,15 @@ using namespace phantom;
 using namespace phantom::util;
 
 PhantomBatchEncoder::PhantomBatchEncoder(const PhantomContext &context) {
-    const auto &s = phantom::util::global_variables::default_stream->get_stream();
+    const auto &s = cudaStreamPerThread;
     auto &context_data = context.get_context_data(0);
-    auto &parms = context_data.parms();
-    if (parms.scheme() != scheme_type::bfv && parms.scheme() != scheme_type::bgv) {
+    auto &params = context_data.parms();
+    if (params.scheme() != scheme_type::bfv && params.scheme() != scheme_type::bgv) {
         throw std::invalid_argument("PhantomBatchEncoder only supports BFV/BGV scheme");
     }
 
     // Set the slot count
-    auto poly_degree = parms.poly_modulus_degree();
+    auto poly_degree = params.poly_modulus_degree();
     slots_ = poly_degree;
 
     // Populate matrix representation index map
@@ -60,8 +60,8 @@ __global__ void encode_gpu(uint64_t *out, uint64_t *in, size_t in_size, uint64_t
 }
 
 void PhantomBatchEncoder::encode(const PhantomContext &context, const std::vector<uint64_t> &values_matrix,
-                                 PhantomPlaintext &destination, const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
-    const auto &s = stream_wrapper.get_stream();
+                                 PhantomPlaintext &destination) const {
+    const auto &s = cudaStreamPerThread;
 
     auto &context_data = context.get_context_data(0);
     auto &parms = context_data.parms();
@@ -95,8 +95,8 @@ __global__ void decode_gpu(uint64_t *out, uint64_t *in, uint64_t *index_map, uin
 }
 
 void PhantomBatchEncoder::decode(const PhantomContext &context, const PhantomPlaintext &plain,
-                                 std::vector<uint64_t> &destination, const phantom::util::cuda_stream_wrapper &stream_wrapper) const {
-    const auto &s = stream_wrapper.get_stream();
+                                 std::vector<uint64_t> &destination) const {
+    const auto &s = cudaStreamPerThread;
 
     destination.resize(plain.poly_modulus_degree_);
 

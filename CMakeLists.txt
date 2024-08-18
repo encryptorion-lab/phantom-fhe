@@ -37,7 +37,7 @@ add_subdirectory(src)
 option(PHANTOM_ENABLE_EXAMPLE "Enable examples" ON)
 message(STATUS "Enable examples: ${PHANTOM_ENABLE_EXAMPLE}")
 if (PHANTOM_ENABLE_EXAMPLE)
-    add_subdirectory(example)
+    add_subdirectory(examples)
 endif ()
 
 # benchmark
