@@ -96,6 +96,27 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
         throw std::logic_error("encode/decode double vector error");
     result.clear();
 
+    /******************************* test ciphertext save/load **************************************************/
+    cout << "Save plaintext to file." << endl;
+    ofstream outfile_pt("/tmp/pt.txt", ofstream::binary);
+    pt.save(outfile_pt);
+    outfile_pt.close();
+
+    cout << "Load plaintext from file." << endl;
+    ifstream infile_pt("/tmp/pt.txt", ifstream::binary);
+    PhantomPlaintext pt_load;
+    pt_load.load(infile_pt);
+    infile_pt.close();
+
+    encoder.decode(context, pt, result_double);
+    cout << "Decode the decrypted plaintext." << endl;
+    print_vector(result_double, 3, 7);
+    for (size_t i = 0; i < slot_count; i++) {
+        correctness &= compare_double(result_double[i], input_double[i]);
+    }
+    if (!correctness)
+        throw std::logic_error("save/load plaintext error");
+
     // Symmetric encryption check
     PhantomCiphertext x_symmetric_cipher;
     cout << "CKKS symmetric test begin, encrypting ......" << endl;
@@ -129,7 +150,29 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
     }
     if (!correctness)
         throw std::logic_error("Asymmetric encryption error");
-    result.clear();
+
+    /******************************* test asymmetric ciphertext save/load *********************************************/
+    cout << "Save asymmetric ciphertext to file." << endl;
+    ofstream outfile("/tmp/x_asymmetric_cipher.txt", ofstream::binary);
+    x_asymmetric_cipher.save(outfile);
+    outfile.close();
+
+    cout << "Load asymmetric ciphertext from file." << endl;
+    ifstream infile("/tmp/x_asymmetric_cipher.txt", ifstream::binary);
+    PhantomCiphertext x_asymmetric_cipher_load;
+    x_asymmetric_cipher_load.load(infile);
+    infile.close();
+
+    secret_key.decrypt(context, x_asymmetric_cipher_load, x_asymmetric_plain);
+    encoder.decode(context, x_asymmetric_plain, result);
+    cout << "Decode the decrypted plaintext." << endl;
+    print_vector(result, 3, 7);
+    correctness = true;
+    for (size_t i = 0; i < slot_count; i++) {
+        correctness &= result[i] == input[i];
+    }
+    if (!correctness)
+        throw std::logic_error("save/load asymmetric ciphertext error");
 }
 
 void example_ckks_add(PhantomContext &context, const double &scale) {

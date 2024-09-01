@@ -84,7 +84,6 @@ class PhantomRelinKey {
 private:
 
     bool gen_flag_ = false;
-    phantom::parms_id_type parms_id_ = phantom::parms_id_zero;
     std::vector<phantom::util::cuda_auto_ptr<uint64_t>> public_keys_;
     phantom::util::cuda_auto_ptr<uint64_t *> public_keys_ptr_;
 
@@ -117,7 +116,6 @@ class PhantomGaloisKey {
 private:
 
     bool gen_flag_ = false;
-    phantom::parms_id_type parms_id_ = phantom::parms_id_zero;
     std::vector<PhantomRelinKey> relin_keys_;
 
 public:

@@ -267,9 +267,6 @@ Returns (f, e1, e2) such that
 
     void sub_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1, const PhantomCiphertext &encrypted2,
                      const bool &negate) {
-        if (encrypted1.parms_id() != encrypted2.parms_id()) {
-            throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
-        }
         if (encrypted1.chain_index() != encrypted2.chain_index())
             throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
         if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form())
@@ -1038,9 +1035,6 @@ Returns (f, e1, e2) such that
     multiply_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
                      const PhantomCiphertext &encrypted2) {
         // Verify parameters.
-        if (encrypted1.parms_id() != encrypted2.parms_id()) {
-            throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
-        }
         if (encrypted1.chain_index() != encrypted2.chain_index())
             throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
         if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form())
@@ -1072,9 +1066,6 @@ Returns (f, e1, e2) such that
     void multiply_and_relin_inplace(const PhantomContext &context, PhantomCiphertext &encrypted1,
                                     const PhantomCiphertext &encrypted2, const PhantomRelinKey &relin_keys) {
         // Verify parameters.
-        if (encrypted1.parms_id() != encrypted2.parms_id()) {
-            throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
-        }
         if (encrypted1.chain_index() != encrypted2.chain_index())
             throw std::invalid_argument("encrypted1 and encrypted2 parameter mismatch");
         if (encrypted1.is_ntt_form() != encrypted2.is_ntt_form())
@@ -1239,9 +1230,6 @@ Returns (f, e1, e2) such that
                                    const PhantomPlaintext &plain, const cudaStream_t &stream) {
         if (encrypted.chain_index() != plain.chain_index()) {
             throw std::invalid_argument("encrypted and plain parameter mismatch");
-        }
-        if (encrypted.parms_id() != plain.parms_id()) {
-            throw invalid_argument("encrypted_ntt and plain_ntt parameter mismatch");
         }
 
         // Extract encryption parameters.

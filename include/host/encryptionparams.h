@@ -34,16 +34,6 @@ namespace phantom {
         hps_overq_leveled = 4 // HPS over Q leveled
     };
 
-    /**
-    The data type to store unique identifiers of encryption parameters.
-    */
-    using parms_id_type = util::HashFunction::hash_block_type;
-
-    /**
-    A parms_id_type value consisting of zeros.
-    */
-    constexpr parms_id_type parms_id_zero = util::HashFunction::hash_zero_block;
-
     class EncryptionParameters {
 
     public:
@@ -54,7 +44,6 @@ namespace phantom {
                 mul_tech_ = mul_tech_type::hps;
             else
                 mul_tech_ = mul_tech_type::none;
-            compute_parms_id();
         }
 
         EncryptionParameters(const EncryptionParameters &copy) = default;
@@ -93,9 +82,6 @@ namespace phantom {
 
             // Set the degree
             poly_modulus_degree_ = poly_modulus_degree;
-
-            // Re-compute the parms_id
-            compute_parms_id();
         }
 
         /**
@@ -109,9 +95,6 @@ namespace phantom {
             }
 
             special_modulus_size_ = special_modulus_size;
-
-            // Re-compute the parms_id
-            compute_parms_id();
         }
 
         inline void set_galois_elts(const std::vector<uint32_t> &galois_elts) {
@@ -145,9 +128,6 @@ namespace phantom {
                 key_modulus_ = coeff_modulus;
 
             coeff_modulus_ = coeff_modulus;
-
-            // Re-compute the parms_id
-            compute_parms_id();
         }
 
         /**
@@ -167,9 +147,6 @@ namespace phantom {
             }
 
             plain_modulus_ = plain_modulus;
-
-            // Re-compute the parms_id
-            compute_parms_id();
         }
 
         // Returns the encryption scheme type.
@@ -220,37 +197,6 @@ namespace phantom {
             return plain_modulus_;
         }
 
-        /**
-        @parms[in] other The EncryptionParameters to compare against
-        */
-        [[nodiscard]] inline bool operator==(const EncryptionParameters &other) const noexcept {
-            return (parms_id_ == other.parms_id_);
-        }
-
-        /**
-        Compares a given set of encryption parameters to the current set of
-        encryption parameters. The comparison is performed by comparing
-        parms_ids of the parameter sets rather than comparing the parameters
-        individually.
-
-        @parms[in] other The EncryptionParameters to compare against
-        */
-        [[nodiscard]] inline bool operator!=(const EncryptionParameters &other) const noexcept {
-            return (parms_id_ != other.parms_id_);
-        }
-
-        /**
-        Returns the parms_id of the current parameters. This function is intended
-        for internal use.
-        */
-        [[nodiscard]] inline auto &parms_id() const noexcept {
-            return parms_id_;
-        }
-
-        inline void update_parms_id() {
-            compute_parms_id();
-        }
-
     private:
         [[nodiscard]] static bool is_valid_scheme(std::uint8_t scheme) noexcept {
             switch (scheme) {
@@ -278,50 +224,6 @@ namespace phantom {
             }
         }
 
-        inline void compute_parms_id() {
-            size_t coeff_modulus_size = coeff_modulus_.size();
-            size_t key_modulus_size = key_modulus_.size();
-
-            size_t total_uint64_count = size_t(1) + // scheme
-                                        size_t(1) + // poly_modulus_degree
-                                        size_t(1) + // special_modulus_size
-                                        key_modulus_size + // key_modulus
-                                        coeff_modulus_size + plain_modulus_.uint64_count();
-
-            std::vector<uint64_t> param_data;
-            param_data.resize(total_uint64_count);
-            uint64_t *param_data_ptr = param_data.data();
-
-            // Write the scheme identifier
-            *param_data_ptr++ = static_cast<uint64_t>(scheme_);
-
-            // Write the poly_modulus_degree. Note that it will always be positive.
-            *param_data_ptr++ = static_cast<uint64_t>(poly_modulus_degree_);
-
-            // Write the special_modulus_size
-            *param_data_ptr++ = static_cast<uint64_t>(special_modulus_size_);
-
-            for (const auto &mod: key_modulus_) {
-                *param_data_ptr++ = mod.value();
-            }
-
-            for (const auto &mod: coeff_modulus_) {
-                *param_data_ptr++ = mod.value();
-            }
-
-            if (plain_modulus_.uint64_count() == 1) {
-                *param_data_ptr++ = plain_modulus_.value();
-            }
-
-            phantom::util::HashFunction::hash(param_data.data(), total_uint64_count, parms_id_);
-
-            // Did we somehow manage to get a zero block as result? This is reserved for
-            // plaintexts to indicate non-NTT-transformed form.
-            if (parms_id_ == parms_id_zero) {
-                throw std::logic_error("parms_id cannot be zero");
-            }
-        }
-
         scheme_type scheme_;
 
         mul_tech_type mul_tech_;
@@ -340,7 +242,5 @@ namespace phantom {
         std::vector<uint32_t> galois_elts_{};
 
         arith::Modulus plain_modulus_{};
-
-        parms_id_type parms_id_ = parms_id_zero;
     };
 }

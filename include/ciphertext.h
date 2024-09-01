@@ -11,33 +11,15 @@ class PhantomCiphertext {
 
 private:
 
-    phantom::parms_id_type parms_id_ = phantom::parms_id_zero;
-
-    // The index this ciphertext corresponding
-    std::size_t chain_index_ = 0;
-
-    // The number of poly in ciphertext
-    std::size_t size_ = 0;
-
-    // The poly degree
-    std::size_t poly_modulus_degree_ = 0;
-
-    // The coeff prime number
-    std::size_t coeff_modulus_size_ = 0;
-
-    // The scale this ciphertext corresponding to
-    double scale_ = 1.0;
-
-    // The correction factor for BGV decryption
-    std::uint64_t correction_factor_ = 1;
-
-    // the degree of the scaling factor for the encrypted message
-    size_t noiseScaleDeg_ = 1;
-
+    std::size_t chain_index_ = 0; // The index this ciphertext corresponding
+    std::size_t size_ = 0; // The number of poly in ciphertext
+    std::size_t poly_modulus_degree_ = 0; // The poly degree
+    std::size_t coeff_modulus_size_ = 0; // The coeff prime number
+    double scale_ = 1.0; // The scale this ciphertext corresponding to
+    std::uint64_t correction_factor_ = 1; // The correction factor for BGV decryption
+    size_t noiseScaleDeg_ = 1; // the degree of the scaling factor for the encrypted message
     bool is_ntt_form_ = true;
-
     bool is_asymmetric_ = false;
-
     phantom::util::cuda_auto_ptr<uint64_t> data_;
 
 public:
@@ -74,7 +56,8 @@ public:
 
         if (new_size != old_size) {
             auto prev_data(std::move(data_));
-            data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size * coeff_modulus_size * poly_modulus_degree, stream);
+            data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size * coeff_modulus_size * poly_modulus_degree,
+                                                                stream);
             size_t copy_size = std::min(old_size, new_size);
             cudaMemcpyAsync(data_.get(), prev_data.get(), copy_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
                             stream);
@@ -97,7 +80,8 @@ public:
 
         if (new_size != old_size) {
             auto prev_data(std::move(data_));
-            data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size * coeff_modulus_size * poly_modulus_degree, stream);
+            data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size * coeff_modulus_size * poly_modulus_degree,
+                                                                stream);
             size_t copy_size = std::min(old_size, new_size);
             cudaMemcpyAsync(data_.get(), prev_data.get(), copy_size * sizeof(uint64_t), cudaMemcpyDeviceToDevice,
                             stream);
@@ -152,10 +136,6 @@ public:
         return is_asymmetric_;
     }
 
-    [[nodiscard]] auto &parms_id() const noexcept {
-        return parms_id_;
-    }
-
     [[nodiscard]] auto &chain_index() const noexcept {
         return chain_index_;
     }
@@ -182,5 +162,47 @@ public:
 
     [[nodiscard]] auto &data_ptr() {
         return data_;
+    }
+
+    void save(std::ostream &stream) const {
+        stream.write(reinterpret_cast<const char *>(&chain_index_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&size_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&poly_modulus_degree_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&coeff_modulus_size_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&scale_), sizeof(double));
+        stream.write(reinterpret_cast<const char *>(&correction_factor_), sizeof(std::uint64_t));
+        stream.write(reinterpret_cast<const char *>(&noiseScaleDeg_), sizeof(size_t));
+        stream.write(reinterpret_cast<const char *>(&is_ntt_form_), sizeof(bool));
+        stream.write(reinterpret_cast<const char *>(&is_asymmetric_), sizeof(bool));
+
+        uint64_t *h_data;
+        cudaMallocHost(&h_data, size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        cudaMemcpy(h_data, data_.get(), size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                   cudaMemcpyDeviceToHost);
+        stream.write(reinterpret_cast<char *>(h_data),
+                     size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        cudaFreeHost(h_data);
+    }
+
+    void load(std::istream &stream) {
+        stream.read(reinterpret_cast<char *>(&chain_index_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&size_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&poly_modulus_degree_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&coeff_modulus_size_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&scale_), sizeof(double));
+        stream.read(reinterpret_cast<char *>(&correction_factor_), sizeof(std::uint64_t));
+        stream.read(reinterpret_cast<char *>(&noiseScaleDeg_), sizeof(size_t));
+        stream.read(reinterpret_cast<char *>(&is_ntt_form_), sizeof(bool));
+        stream.read(reinterpret_cast<char *>(&is_asymmetric_), sizeof(bool));
+
+        uint64_t *h_data;
+        cudaMallocHost(&h_data, size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        stream.read(reinterpret_cast<char *>(h_data),
+                    size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(size_ * coeff_modulus_size_ * poly_modulus_degree_,
+                                                            cudaStreamPerThread);
+        cudaMemcpyAsync(data_.get(), h_data, size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                        cudaMemcpyHostToDevice, cudaStreamPerThread);
+        cudaFreeHost(h_data);
     }
 };
