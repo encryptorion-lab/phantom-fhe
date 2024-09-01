@@ -20,6 +20,17 @@ void inline random_bytes(unsigned char *buf, size_t count, const cudaStream_t &s
     cudaMemcpyAsync(buf, temp.data(), count, cudaMemcpyHostToDevice, stream);
 }
 
+std::vector<uint8_t> inline random_bytes(size_t count) {
+    std::random_device rd;
+    std::uniform_int_distribution<unsigned short> dist(std::numeric_limits<unsigned char>::min(),
+                                                       std::numeric_limits<unsigned char>::max());
+    std::vector<uint8_t> temp(count);
+    for (auto &i: temp) {
+        i = dist(rd);
+    }
+    return temp;
+}
+
 __host__ __device__ inline uint32_t load_littleendian(const unsigned char *x) {
     return (uint32_t) (x[0]) | (((uint32_t) (x[1])) << 8) | (((uint32_t) (x[2])) << 16) | (((uint32_t) (x[3])) << 24);
 }
@@ -49,6 +60,9 @@ __global__ void sample_ternary_poly(uint64_t *out, const uint8_t *prng_seed, con
  */
 __global__ void sample_uniform_poly(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
                                     const uint64_t poly_degree, const uint64_t coeff_mod_size);
+
+void sample_uniform_poly_wrap(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
+                              const uint64_t poly_degree, const uint64_t coeff_mod_size, const cudaStream_t &stream);
 
 /** noise sampling has two methods:
  * 1. rounded Gaussian generation. supprots any std (max derivation = 6 * std), seal uses std::normal_distribution for processing.

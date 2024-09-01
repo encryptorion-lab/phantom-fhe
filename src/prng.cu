@@ -5,6 +5,7 @@
 #include "host/globals.h"
 
 using namespace phantom::arith;
+using namespace phantom::util;
 
 /** Generate Pseudo random number with provided key and nonce
  * @param[out] out The generated random number
@@ -13,10 +14,10 @@ using namespace phantom::arith;
  * @param[in] key The key (seed) used for PRNG
  * @param[in] keylen The length of PRNG key
  */
-void __device__ salsa20_gpu(uint8_t* out, const size_t outlen, const uint64_t nonce, const uint8_t* key,
+void __device__ salsa20_gpu(uint8_t *out, const size_t outlen, const uint64_t nonce, const uint8_t *key,
                             const size_t keylen) {
     int k;
-    uint32_t* mem;
+    uint32_t *mem;
     uint32_t x[16], j[16];
     uint64_t blockno = 0;
 
@@ -138,7 +139,7 @@ void __device__ salsa20_gpu(uint8_t* out, const size_t outlen, const uint64_t no
  * @param[in] poly_degree The degree of poly
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-__global__ void sample_ternary_poly(uint64_t* out, const uint8_t* prng_seed, const DModulus* modulus,
+__global__ void sample_ternary_poly(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
                                     const uint64_t poly_degree, const uint64_t coeff_mod_size) {
     uint8_t tmp[64];
     uint64_t flag;
@@ -170,10 +171,10 @@ __global__ void sample_ternary_poly(uint64_t* out, const uint8_t* prng_seed, con
  * @param[in] coeff_index The index of the coeff modulus
  * @param[in] coeff_mod The corresponding coeff modulus
  */
-__global__ void sample_uniform_poly(uint64_t* out, const uint8_t* prng_seed, const DModulus* modulus,
+__global__ void sample_uniform_poly(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
                                     const uint64_t poly_degree, const uint64_t coeff_mod_size) {
     uint8_t tmp[64];
-    uint64_t* rnd = (uint64_t *) tmp;
+    uint64_t *rnd = (uint64_t *) tmp;
     size_t index = 0;
     size_t tries = 0;
     constexpr uint64_t max_random = static_cast<uint64_t>(0xFFFFFFFFFFFFFFFFULL);
@@ -202,6 +203,12 @@ __global__ void sample_uniform_poly(uint64_t* out, const uint8_t* prng_seed, con
     }
 }
 
+void sample_uniform_poly_wrap(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
+                              const uint64_t poly_degree, const uint64_t coeff_mod_size, const cudaStream_t &stream) {
+    uint64_t gridDimGlb = poly_degree * coeff_mod_size / blockDimGlb.x;
+    sample_uniform_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(out, prng_seed, modulus, poly_degree, coeff_mod_size);
+}
+
 /** noise sampling has two methods:
  * 1. rounded Gaussian generation. supprots any std (max derivation = 6 * std), seal uses std::normal_distribution for processing.
  * 2. Centered Binomial Distribution. Only support std <= 3.2 (const global value). Seal defaults uses this.
@@ -212,7 +219,7 @@ __global__ void sample_uniform_poly(uint64_t* out, const uint8_t* prng_seed, con
  * @param[in] poly_degree The degree of poly
  * @param[in] coeff_mod_size The number of coeff modulus
  */
-__global__ void sample_error_poly(uint64_t* out, const uint8_t* prng_seed, const DModulus* modulus,
+__global__ void sample_error_poly(uint64_t *out, const uint8_t *prng_seed, const DModulus *modulus,
                                   const uint64_t poly_degree, const uint64_t coeff_mod_size) {
     uint8_t tmp[64];
     int32_t cbd;

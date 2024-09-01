@@ -260,6 +260,10 @@ void PhantomSecretKey::encrypt_zero_symmetric(const PhantomContext &context, Pha
             u.get(), prng_seed_error.get(), base_rns, poly_degree,
             coeff_mod_size);
 
+    // uniform random generator
+    sample_uniform_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
+            c1, prng_seed_a, base_rns, poly_degree, coeff_mod_size);
+
     if (is_ntt_form) {
         if (parms.scheme() == scheme_type::bgv) {
             // noise = te instead of e in BGV
@@ -269,24 +273,22 @@ void PhantomSecretKey::encrypt_zero_symmetric(const PhantomContext &context, Pha
         }
         // transform e into NTT, here coeff_mod_size corresponding to the chain index
         nwt_2d_radix8_forward_inplace(u.get(), context.gpu_rns_tables(), coeff_mod_size, 0, stream);
-        // uniform random generator
-        sample_uniform_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
-                c1, prng_seed_a, base_rns, poly_degree, coeff_mod_size);
+
         // c0 = -(as + e) or c0 = -(as + te), c1 = a
         multiply_and_add_negate_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 c1, secret_key_array(), u.get(), base_rns, c0, poly_degree, coeff_mod_size);
     } else {
-        // uniform random generator
-        sample_uniform_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
-                c1, prng_seed_a, base_rns, poly_degree, coeff_mod_size);
         // c0 = c1 * s
         multiply_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 c1, secret_key_array(), base_rns, c0, poly_degree, coeff_mod_size);
+
         // c0 backward, here coeff_mod_size corresponding to the chain index
         nwt_2d_radix8_backward_inplace(c0, context.gpu_rns_tables(), coeff_mod_size, 0, stream);
+
         // c0 = -(c0 + e)
         add_and_negate_rns_poly<<<gridDimGlb, blockDimGlb, 0, stream>>>(
                 c0, u.get(), base_rns, c0, poly_degree, coeff_mod_size);
+
         // c1 backward
         nwt_2d_radix8_backward_inplace(c1, context.gpu_rns_tables(), coeff_mod_size, 0, stream);
     }
@@ -468,22 +470,25 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
 
     const auto &s = cudaStreamPerThread;
 
-    auto prng_seed_a = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
-    random_bytes(prng_seed_a.get(), phantom::util::global_variables::prng_seed_byte_count, s);
+    auto &seed = cipher.seed_ptr();
+    seed = random_bytes(phantom::util::global_variables::prng_seed_byte_count);
+    auto d_seed = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
+    cudaMemcpyAsync(d_seed.get(), seed.data(), phantom::util::global_variables::prng_seed_byte_count,
+                    cudaMemcpyHostToDevice, s);
 
     cipher.scale_ = 1.0;
     cipher.correction_factor_ = 1;
     cipher.noiseScaleDeg_ = 1;
 
     if (scheme == phantom::scheme_type::bfv) {
-        encrypt_zero_symmetric(context, cipher, prng_seed_a.get(), context.get_first_index(), is_ntt_form, s);
+        encrypt_zero_symmetric(context, cipher, d_seed.get(), context.get_first_index(), is_ntt_form, s);
         // calculate [plain * coeff / plain-modulus].
         // return [plain * coeff / plain-modulus + c0, c1]
         multiply_add_plain_with_scaling_variant(context, plain, context.get_first_index(), cipher, s);
     } else if (scheme == phantom::scheme_type::ckks) {
         is_ntt_form = true;
         // [c0, c1] is the encrytion of 0, key idea is use the plain's chain_index to find corresponding data
-        encrypt_zero_symmetric(context, cipher, prng_seed_a.get(), plain.chain_index(), is_ntt_form, s);
+        encrypt_zero_symmetric(context, cipher, d_seed.get(), plain.chain_index(), is_ntt_form, s);
 
         // [c0 + plaintext, c1]
         auto &ckks_context_data = context.get_context_data(plain.chain_index());
@@ -501,7 +506,7 @@ void PhantomSecretKey::encrypt_symmetric(const PhantomContext &context, const Ph
     } else if (scheme == phantom::scheme_type::bgv) {
         is_ntt_form = true;
         // (c[0], c[1]) = ([-(as+te)]_q, a)
-        encrypt_zero_symmetric(context, cipher, prng_seed_a.get(), context.get_first_index(), is_ntt_form, s);
+        encrypt_zero_symmetric(context, cipher, d_seed.get(), context.get_first_index(), is_ntt_form, s);
 
         auto &bgv_context_data = context.get_context_data(context.get_first_index());
         auto &bgv_parms = bgv_context_data.parms();

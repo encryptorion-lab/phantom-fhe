@@ -2,6 +2,7 @@
 
 #include "context.cuh"
 #include "polymath.cuh"
+#include "prng.cuh"
 
 class PhantomCiphertext {
 
@@ -21,6 +22,7 @@ private:
     bool is_ntt_form_ = true;
     bool is_asymmetric_ = false;
     phantom::util::cuda_auto_ptr<uint64_t> data_;
+    std::vector<uint8_t> seed_; // only for symmetric encryption
 
 public:
 
@@ -164,6 +166,10 @@ public:
         return data_;
     }
 
+    [[nodiscard]] auto &seed_ptr() {
+        return seed_;
+    }
+
     void save(std::ostream &stream) const {
         stream.write(reinterpret_cast<const char *>(&chain_index_), sizeof(std::size_t));
         stream.write(reinterpret_cast<const char *>(&size_), sizeof(std::size_t));
@@ -204,5 +210,97 @@ public:
         cudaMemcpyAsync(data_.get(), h_data, size_ * coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, cudaStreamPerThread);
         cudaFreeHost(h_data);
+        cudaStreamSynchronize(cudaStreamPerThread);
+    }
+
+    void save_symmetric(std::ostream &stream) const {
+        if (is_asymmetric_)
+            throw std::runtime_error("Asymmetric ciphertext does not have seed.");
+
+        if (size_ != 2)
+            throw std::runtime_error("This method is only for 2-polynomial ciphertext.");
+
+        stream.write(reinterpret_cast<const char *>(&chain_index_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&size_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&poly_modulus_degree_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&coeff_modulus_size_), sizeof(std::size_t));
+        stream.write(reinterpret_cast<const char *>(&scale_), sizeof(double));
+        stream.write(reinterpret_cast<const char *>(&correction_factor_), sizeof(std::uint64_t));
+        stream.write(reinterpret_cast<const char *>(&noiseScaleDeg_), sizeof(size_t));
+        stream.write(reinterpret_cast<const char *>(&is_ntt_form_), sizeof(bool));
+        stream.write(reinterpret_cast<const char *>(&is_asymmetric_), sizeof(bool));
+
+        // Only save c0
+        uint64_t *h_c0;
+        cudaMallocHost(&h_c0, coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        cudaMemcpy(h_c0, data_.get(), coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                   cudaMemcpyDeviceToHost);
+        stream.write(reinterpret_cast<char *>(h_c0), coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        cudaFreeHost(h_c0);
+
+        // Save seed of a instead of c1
+        stream.write(reinterpret_cast<const char *>(seed_.data()),
+                     phantom::util::global_variables::prng_seed_byte_count);
+    }
+
+    void load_symmetric(const PhantomContext &context, std::istream &stream) {
+        stream.read(reinterpret_cast<char *>(&chain_index_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&size_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&poly_modulus_degree_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&coeff_modulus_size_), sizeof(std::size_t));
+        stream.read(reinterpret_cast<char *>(&scale_), sizeof(double));
+        stream.read(reinterpret_cast<char *>(&correction_factor_), sizeof(std::uint64_t));
+        stream.read(reinterpret_cast<char *>(&noiseScaleDeg_), sizeof(size_t));
+        stream.read(reinterpret_cast<char *>(&is_ntt_form_), sizeof(bool));
+        stream.read(reinterpret_cast<char *>(&is_asymmetric_), sizeof(bool));
+
+        if (is_asymmetric_)
+            throw std::runtime_error("Asymmetric ciphertext does not have seed.");
+
+        if (size_ != 2)
+            throw std::runtime_error("This method is only for 2-polynomial ciphertext.");
+
+        data_ = phantom::util::make_cuda_auto_ptr<uint64_t>(2 * coeff_modulus_size_ * poly_modulus_degree_,
+                                                            cudaStreamPerThread);
+        auto *d_c0 = data_.get();
+        auto *d_c1 = data_.get() + coeff_modulus_size_ * poly_modulus_degree_;
+
+        // Load c0 directly from stream
+        uint64_t *h_c0;
+        cudaMallocHost(&h_c0, coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        stream.read(reinterpret_cast<char *>(h_c0), coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
+        cudaMemcpyAsync(d_c0, h_c0, coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
+                        cudaMemcpyHostToDevice, cudaStreamPerThread);
+        cudaFreeHost(h_c0);
+
+        // Load c1 by generating from seed
+        seed_.resize(phantom::util::global_variables::prng_seed_byte_count);
+        stream.read(reinterpret_cast<char *>(seed_.data()), phantom::util::global_variables::prng_seed_byte_count);
+
+        auto d_seed = phantom::util::make_cuda_auto_ptr<uint8_t>(
+                phantom::util::global_variables::prng_seed_byte_count, cudaStreamPerThread);
+        cudaMemcpyAsync(d_seed.get(), seed_.data(), phantom::util::global_variables::prng_seed_byte_count,
+                        cudaMemcpyHostToDevice, cudaStreamPerThread);
+
+        // uniform random generator
+        auto &first_context_data = context.get_context_data(context.get_first_index());
+        auto &first_parms = first_context_data.parms();
+        auto &first_coeff_modulus = first_parms.coeff_modulus();
+        auto first_coeff_mod_size = first_coeff_modulus.size();
+
+        if (first_coeff_mod_size != coeff_modulus_size_) {
+            throw std::runtime_error("Only support ciphertext without modulus switching.");
+        }
+
+        auto base_rns = context.gpu_rns_tables().modulus();
+        sample_uniform_poly_wrap(
+                d_c1, d_seed.get(), base_rns, poly_modulus_degree_, coeff_modulus_size_, cudaStreamPerThread);
+
+        if (!is_ntt_form_) {
+            // Transform c1 to non-NTT form
+            nwt_2d_radix8_backward_inplace(d_c1, context.gpu_rns_tables(), coeff_modulus_size_, 0, cudaStreamPerThread);
+        }
+
+        cudaStreamSynchronize(cudaStreamPerThread);
     }
 };

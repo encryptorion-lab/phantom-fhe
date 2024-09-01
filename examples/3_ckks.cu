@@ -135,6 +135,29 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
         throw std::logic_error("Symmetric encryption error");
     result.clear();
 
+    /******************************** test symmetric ciphertext save/load *********************************************/
+    cout << "Save symmetric ciphertext to file." << endl;
+    ofstream outfile_sym("/tmp/x_symmetric_cipher_seed.txt", ofstream::binary);
+    x_symmetric_cipher.save_symmetric(outfile_sym);
+    outfile_sym.close();
+
+    cout << "Load symmetric ciphertext from file." << endl;
+    ifstream infile_sym("/tmp/x_symmetric_cipher_seed.txt", ifstream::binary);
+    PhantomCiphertext x_symmetric_cipher_load;
+    x_symmetric_cipher_load.load_symmetric(context, infile_sym);
+    infile_sym.close();
+
+    secret_key.decrypt(context, x_symmetric_cipher_load, x_symmetric_plain);
+    encoder.decode(context, x_symmetric_plain, result);
+    cout << "Decode the decrypted plaintext." << endl;
+    print_vector(result, 3, 7);
+    correctness = true;
+    for (size_t i = 0; i < slot_count; i++) {
+        correctness &= result[i] == input[i];
+    }
+    if (!correctness)
+        throw std::logic_error("save/load symmetric ciphertext error");
+
     // Asymmetric encryption check
     cout << "CKKS asymmetric test begin, encrypting ......" << endl;
     PhantomCiphertext x_asymmetric_cipher;
