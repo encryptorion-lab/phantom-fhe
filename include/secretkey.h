@@ -17,6 +17,7 @@ class PhantomGaloisKey;
 class PhantomPublicKey {
 
     friend class PhantomSecretKey;
+    friend class PhantomRelinKey;
 
 private:
 
@@ -72,6 +73,17 @@ public:
         encrypt_asymmetric(context, plain, cipher);
         return cipher;
     }
+
+    void save(std::ostream &stream) const {
+        if (!gen_flag_)
+            throw std::invalid_argument("PhantomPublicKey has not been generated");
+        pk_.save(stream);
+    }
+
+    void load(std::istream &stream) {
+        pk_.load(stream);
+        gen_flag_ = true;
+    }
 };
 
 /** PhantomRelinKey contains the relinear key in RNS and NTT form
@@ -84,7 +96,7 @@ class PhantomRelinKey {
 private:
 
     bool gen_flag_ = false;
-    std::vector<phantom::util::cuda_auto_ptr<uint64_t>> public_keys_;
+    std::vector<PhantomPublicKey> public_keys_;
     phantom::util::cuda_auto_ptr<uint64_t *> public_keys_ptr_;
 
 public:
@@ -103,6 +115,37 @@ public:
 
     [[nodiscard]] inline auto public_keys_ptr() const {
         return public_keys_ptr_.get();
+    }
+
+    void save(std::ostream &stream) const {
+        if (!gen_flag_)
+            throw std::invalid_argument("PhantomRelinKey has not been generated");
+
+        const size_t dnum = public_keys_.size();
+        stream.write(reinterpret_cast<const char *>(&dnum), sizeof(std::size_t));
+
+        for (const auto &pk: public_keys_) {
+            pk.save(stream);
+        }
+    }
+
+    void load(std::istream &stream) {
+        size_t dnum;
+        stream.read(reinterpret_cast<char *>(&dnum), sizeof(std::size_t));
+        public_keys_.resize(dnum);
+        for (auto &pk: public_keys_) {
+            pk.load(stream);
+        }
+
+        std::vector<uint64_t *> pk_ptr(dnum);
+        for (size_t i = 0; i < dnum; i++)
+            pk_ptr[i] = public_keys_[i].pk_.data();
+        public_keys_ptr_ = phantom::util::make_cuda_auto_ptr<uint64_t *>(dnum, cudaStreamPerThread);
+        cudaMemcpyAsync(public_keys_ptr_.get(), pk_ptr.data(), sizeof(uint64_t *) * dnum,
+                        cudaMemcpyHostToDevice, cudaStreamPerThread);
+        cudaStreamSynchronize(cudaStreamPerThread);
+
+        gen_flag_ = true;
     }
 };
 
@@ -134,6 +177,29 @@ public:
 
     [[nodiscard]] auto &get_relin_keys(size_t index) const {
         return relin_keys_.at(index);
+    }
+
+    void save(std::ostream &stream) const {
+        if (!gen_flag_)
+            throw std::invalid_argument("PhantomGaloisKey has not been generated");
+
+        const size_t rlk_num = relin_keys_.size();
+        stream.write(reinterpret_cast<const char *>(&rlk_num), sizeof(std::size_t));
+
+        for (const auto &rlk: relin_keys_) {
+            rlk.save(stream);
+        }
+    }
+
+    void load(std::istream &stream) {
+        size_t rlk_num;
+        stream.read(reinterpret_cast<char *>(&rlk_num), sizeof(std::size_t));
+        relin_keys_.resize(rlk_num);
+        for (auto &rlk: relin_keys_) {
+            rlk.load(stream);
+        }
+
+        gen_flag_ = true;
     }
 };
 

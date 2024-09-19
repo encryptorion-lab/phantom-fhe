@@ -519,28 +519,6 @@ void example_bfv_encrypt_decrypt() {
             correctness &= res[idx] == pod_matrix[idx];
         if (!correctness)
             throw std::logic_error("Error in encrypt_symmetric & decrypt");
-
-        /******************************** test symmetric ciphertext save/load *********************************************/
-        cout << "Save symmetric ciphertext to file." << endl;
-        ofstream outfile_sym("/tmp/x_symmetric_cipher_seed.txt", ofstream::binary);
-        cipher.save_symmetric(outfile_sym);
-        outfile_sym.close();
-
-        cout << "Load symmetric ciphertext from file." << endl;
-        ifstream infile_sym("/tmp/x_symmetric_cipher_seed.txt", ifstream::binary);
-        PhantomCiphertext cipher_load;
-        cipher_load.load_symmetric(context, infile_sym);
-        infile_sym.close();
-
-        secret_key.decrypt(context, cipher_load, plain);
-        batchEncoder.decode(context, plain, res);
-        cout << "Decode the decrypted plaintext." << endl;
-        correctness = true;
-        for (size_t i = 0; i < slot_count; i++) {
-            correctness &= res[i] == pod_matrix[i];
-        }
-        if (!correctness)
-            throw std::logic_error("save/load symmetric ciphertext error");
     }
 }
 

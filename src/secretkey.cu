@@ -319,16 +319,17 @@ void PhantomSecretKey::generate_one_kswitch_key(const PhantomContext &context, u
 
     // First initiate the pk_ = [-(as+e), a]
     for (size_t twr = 0; twr < dnum; twr++) {
-        auto prng_seed_a = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
-        random_bytes(prng_seed_a.get(), phantom::util::global_variables::prng_seed_byte_count, stream);
-        PhantomCiphertext pk;
-        encrypt_zero_symmetric(context, pk, prng_seed_a.get(), 0, true, stream);
-        relin_keys.public_keys_[twr] = std::move(pk.data_ptr());
+        PhantomPublicKey pk;
+        pk.prng_seed_a_ = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, stream);
+        random_bytes(pk.prng_seed_a_.get(), phantom::util::global_variables::prng_seed_byte_count, stream);
+        encrypt_zero_symmetric(context, pk.pk_, pk.prng_seed_a_.get(), 0, true, stream);
+        pk.gen_flag_ = true;
+        relin_keys.public_keys_[twr] = std::move(pk);
     }
 
     std::vector<uint64_t *> pk_ptr(dnum);
     for (size_t twr = 0; twr < dnum; twr++)
-        pk_ptr[twr] = relin_keys.public_keys_[twr].get();
+        pk_ptr[twr] = relin_keys.public_keys_[twr].pk_.data();
     cudaMemcpyAsync(relin_keys.public_keys_ptr_.get(), pk_ptr.data(), sizeof(uint64_t *) * dnum, cudaMemcpyHostToDevice,
                     stream);
 
@@ -454,6 +455,7 @@ PhantomGaloisKey PhantomSecretKey::create_galois_keys(const PhantomContext &cont
                                           s);
         PhantomRelinKey relin_key;
         generate_one_kswitch_key(context, rotated_secret_key.get(), relin_key, s);
+        relin_key.gen_flag_ = true;
         galois_keys.relin_keys_[galois_elt_idx] = std::move(relin_key);
     }
     galois_keys.gen_flag_ = true;
