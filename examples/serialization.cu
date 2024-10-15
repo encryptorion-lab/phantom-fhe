@@ -96,7 +96,7 @@ void example_ckks_enc(PhantomContext &context, const double &scale) {
         throw std::logic_error("encode/decode double vector error");
     result.clear();
 
-    /******************************* test ciphertext save/load **************************************************/
+    /************************************** test plaintext save/load **************************************************/
     cout << "Save plaintext to file." << endl;
     ofstream outfile_pt("/tmp/pt.txt", ofstream::binary);
     pt.save(outfile_pt);
@@ -281,7 +281,21 @@ void example_bfv_enc_asym() {
 
         PhantomSecretKey secret_key(context);
 
-        PhantomPublicKey public_key = secret_key.gen_publickey(context);
+        /******************************************* test secret key save/load ****************************************/
+        cout << "Save secret key to file." << endl;
+        ofstream outfile_secretkey("/tmp/secret_key.txt", ofstream::binary);
+        secret_key.save(outfile_secretkey);
+        outfile_secretkey.close();
+
+        cout << "Load secret key from file." << endl;
+        ifstream infile_secretkey("/tmp/secret_key.txt", ifstream::binary);
+        PhantomSecretKey secret_key_load;
+        secret_key_load.load(infile_secretkey);
+        infile_secretkey.close();
+
+        PhantomPublicKey public_key = secret_key_load.gen_publickey(context);
+
+        /******************************************* test public key save/load ****************************************/
         cout << "Save public key to file." << endl;
         ofstream outfile_pubkey("/tmp/public_key.txt", ofstream::binary);
         public_key.save(outfile_pubkey);
@@ -362,7 +376,7 @@ void example_bfv_mul() {
         PhantomPublicKey public_key = secret_key.gen_publickey(context);
         PhantomRelinKey relin_key = secret_key.gen_relinkey(context);
 
-        /******************************** test relin key save/load ****************************************/
+        /******************************************** test relin key save/load ****************************************/
         cout << "Save relin key to file." << endl;
         ofstream outfile_relinkey("/tmp/relin_key.txt", ofstream::binary);
         relin_key.save(outfile_relinkey);
@@ -414,7 +428,7 @@ void example_bfv_rotate() {
         PhantomPublicKey public_key = secret_key.gen_publickey(context);
         PhantomGaloisKey galois_key = secret_key.create_galois_keys(context);
 
-        /******************************** test galois key save/load ****************************************/
+        /******************************************* test galois key save/load ****************************************/
         cout << "Save galois key to file." << endl;
         ofstream outfile_galoiskey("/tmp/galois_key.txt", ofstream::binary);
         galois_key.save(outfile_galoiskey);

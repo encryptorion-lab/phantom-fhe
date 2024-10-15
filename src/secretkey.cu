@@ -359,8 +359,6 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context) {
 
     const auto &s = stream;
 
-    data_rns_ = phantom::util::make_cuda_auto_ptr<uint64_t>(poly_modulus_degree_ * coeff_modulus_size_, s);
-
     auto prng_seed_error = make_cuda_auto_ptr<uint8_t>(phantom::util::global_variables::prng_seed_byte_count, s);
     random_bytes(prng_seed_error.get(), phantom::util::global_variables::prng_seed_byte_count, s);
 
@@ -377,7 +375,6 @@ void PhantomSecretKey::gen_secretkey(const PhantomContext &context) {
     // save secret_key to the first coeff_mod_size * N elements of secret_key_array
     nwt_2d_radix8_forward_inplace(secret_key_array_.get(), context.gpu_rns_tables(), coeff_mod_size, 0, s);
 
-    chain_index_ = 0;
     sk_max_power_ = 1;
     gen_flag_ = true;
 }

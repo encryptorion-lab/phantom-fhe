@@ -17,6 +17,7 @@ class PhantomGaloisKey;
 class PhantomPublicKey {
 
     friend class PhantomSecretKey;
+
     friend class PhantomRelinKey;
 
 private:
@@ -71,6 +72,13 @@ public:
     inline PhantomCiphertext encrypt_asymmetric(const PhantomContext &context, const PhantomPlaintext &plain) {
         PhantomCiphertext cipher;
         encrypt_asymmetric(context, plain, cipher);
+        return cipher;
+    }
+
+    inline PhantomCiphertext encrypt_zero_asymmetric(const PhantomContext &context) {
+        const auto &s = cudaStreamPerThread;
+        PhantomCiphertext cipher;
+        encrypt_zero_asymmetric_internal(context, cipher, context.get_first_index(), s);
         return cipher;
     }
 
@@ -205,18 +213,17 @@ public:
 
 /** PhantomSecretKey contains the secret key in RNS and NTT form
  * gen_flag denotes whether the secret key has been generated.
+ * Always at chain index 0
  */
 class PhantomSecretKey {
 
 private:
 
     bool gen_flag_ = false;
-    uint64_t chain_index_ = 0;
-    uint64_t sk_max_power_ = 0; // the max power of secret key
-    uint64_t poly_modulus_degree_ = 0;
-    uint64_t coeff_modulus_size_ = 0;
+    size_t sk_max_power_ = 0; // the max power of secret key
+    size_t poly_modulus_degree_ = 0;
+    size_t coeff_modulus_size_ = 0;
 
-    phantom::util::cuda_auto_ptr<uint64_t> data_rns_;
     phantom::util::cuda_auto_ptr<uint64_t> secret_key_array_; // the powers of secret key
 
     /** Generate the powers of secret key
@@ -263,6 +270,8 @@ private:
                 const cudaStream_t &stream);
 
 public:
+
+    PhantomSecretKey() = default;
 
     explicit inline PhantomSecretKey(const PhantomContext &context) {
         gen_secretkey(context);
@@ -324,4 +333,41 @@ public:
     * @param[in] cipher The ciphertext to be decrypted
     */
     [[nodiscard]] int invariant_noise_budget(const PhantomContext &context, const PhantomCiphertext &cipher);
+
+    void save(std::ostream &stream) const {
+        if (!gen_flag_)
+            throw std::invalid_argument("PhantomSecretKey has not been generated");
+
+        stream.write(reinterpret_cast<const char *>(&sk_max_power_), sizeof(size_t));
+        stream.write(reinterpret_cast<const char *>(&poly_modulus_degree_), sizeof(size_t));
+        stream.write(reinterpret_cast<const char *>(&coeff_modulus_size_), sizeof(size_t));
+
+        uint64_t *h_data;
+        cudaMallocHost(&h_data, poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t));
+        cudaMemcpy(h_data, secret_key_array_.get(), poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t),
+                   cudaMemcpyDeviceToHost);
+        stream.write(reinterpret_cast<char *>(h_data), poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t));
+        cudaFreeHost(h_data);
+    }
+
+    void load(std::istream &stream) {
+        stream.read(reinterpret_cast<char *>(&sk_max_power_), sizeof(size_t));
+        stream.read(reinterpret_cast<char *>(&poly_modulus_degree_), sizeof(size_t));
+        stream.read(reinterpret_cast<char *>(&coeff_modulus_size_), sizeof(size_t));
+
+        uint64_t *h_data;
+        cudaMallocHost(&h_data, poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t));
+        stream.read(reinterpret_cast<char *>(h_data), poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t));
+        secret_key_array_ = phantom::util::make_cuda_auto_ptr<uint64_t>(poly_modulus_degree_ * coeff_modulus_size_,
+                                                                        cudaStreamPerThread);
+        cudaMemcpyAsync(secret_key_array_.get(), h_data, poly_modulus_degree_ * coeff_modulus_size_ * sizeof(uint64_t),
+                        cudaMemcpyHostToDevice, cudaStreamPerThread);
+
+        cudaStreamSynchronize(cudaStreamPerThread);
+
+        // cleanup h_data
+        cudaFreeHost(h_data);
+
+        gen_flag_ = true;
+    }
 };

@@ -12,12 +12,12 @@ class PhantomCiphertext {
 
 private:
 
-    std::size_t chain_index_ = 0; // The index this ciphertext corresponding
-    std::size_t size_ = 0; // The number of poly in ciphertext
-    std::size_t poly_modulus_degree_ = 0; // The poly degree
-    std::size_t coeff_modulus_size_ = 0; // The coeff prime number
+    size_t chain_index_ = 0; // The index this ciphertext corresponding
+    size_t size_ = 0; // The number of poly in ciphertext
+    size_t poly_modulus_degree_ = 0; // The poly degree
+    size_t coeff_modulus_size_ = 0; // The coeff prime number
     double scale_ = 1.0; // The scale this ciphertext corresponding to
-    std::uint64_t correction_factor_ = 1; // The correction factor for BGV decryption
+    uint64_t correction_factor_ = 1; // The correction factor for BGV decryption
     size_t noiseScaleDeg_ = 1; // the degree of the scaling factor for the encrypted message
     bool is_ntt_form_ = true;
     bool is_asymmetric_ = false;
@@ -271,7 +271,6 @@ public:
         stream.read(reinterpret_cast<char *>(h_c0), coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t));
         cudaMemcpyAsync(d_c0, h_c0, coeff_modulus_size_ * poly_modulus_degree_ * sizeof(uint64_t),
                         cudaMemcpyHostToDevice, cudaStreamPerThread);
-        cudaFreeHost(h_c0);
 
         // Load c1 by generating from seed
         seed_.resize(phantom::util::global_variables::prng_seed_byte_count);
@@ -302,5 +301,8 @@ public:
         }
 
         cudaStreamSynchronize(cudaStreamPerThread);
+
+        // cleanup h_c0
+        cudaFreeHost(h_c0);
     }
 };
