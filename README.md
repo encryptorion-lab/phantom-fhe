@@ -36,45 +36,40 @@ See [BSD 2-Clause License](https://github.com/openfheorg/openfhe-development/blo
 
 If you use Phantom in your research, please cite the following paper:
 
-Early access TDSC version ([IEEE Xplore](https://ieeexplore.ieee.org/document/10428046)):
-
 ```
-@article{10428046,
-         author={Yang, Hao and Shen, Shiyu and Dai, Wangchen and Zhou, Lu and Liu, Zhe and Zhao, Yunlei},
-         journal={IEEE Transactions on Dependable and Secure Computing}, 
-         title={Phantom: A CUDA-Accelerated Word-Wise Homomorphic Encryption Library}, 
-         year={2024},
-         volume={},
-         number={},
-         pages={1-12},
-         doi={10.1109/TDSC.2024.3363900}
-}
-```
-
-IACR ePrint version ([Cryptology ePrint Archive](https://ia.cr/2023/049)):
-
-```
-@misc{cryptoeprint:2023/049,
-      author = {Hao Yang and Shiyu Shen and Wangchen Dai and Lu Zhou and Zhe Liu and Yunlei Zhao},
-      title = {Phantom: A CUDA-Accelerated Word-Wise Homomorphic Encryption Library},
-      howpublished = {Cryptology ePrint Archive, Paper 2023/049},
-      year = {2023},
-      doi = {10.1109/TDSC.2024.3363900},
-      note = {\url{https://eprint.iacr.org/2023/049}},
-      url = {https://eprint.iacr.org/2023/049}
+@article{DBLP:journals/tdsc/YangSDZLZ24,
+  author       = {Hao Yang and
+                  Shiyu Shen and
+                  Wangchen Dai and
+                  Lu Zhou and
+                  Zhe Liu and
+                  Yunlei Zhao},
+  title        = {Phantom: {A} CUDA-Accelerated Word-Wise Homomorphic Encryption Library},
+  journal      = {{IEEE} Trans. Dependable Secur. Comput.},
+  volume       = {21},
+  number       = {5},
+  pages        = {4895--4906},
+  year         = {2024},
+  url          = {https://doi.org/10.1109/TDSC.2024.3363900},
+  doi          = {10.1109/TDSC.2024.3363900},
+  timestamp    = {Fri, 20 Sep 2024 14:01:59 +0200},
+  biburl       = {https://dblp.org/rec/journals/tdsc/YangSDZLZ24.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 ```
 
 If you are exploring BFV optimizations, please also cite the following paper:
 
 ```
-@misc{cryptoeprint:2023/1429,
-      author = {Shiyu Shen and Hao Yang and Wangchen Dai and Lu Zhou and Zhe Liu and Yunlei Zhao},
-      title = {Leveraging GPU in Homomorphic Encryption: Framework Design and Analysis of BFV Variants},
-      howpublished = {Cryptology ePrint Archive, Paper 2023/1429},
-      year = {2023},
-      note = {\url{https://eprint.iacr.org/2023/1429}},
-      url = {https://eprint.iacr.org/2023/1429}
+@article{PhantomFHE_BFV,
+    author={Shen, Shiyu and Yang, Hao and Dai, Wangchen and Zhou, Lu and Liu, Zhe and Zhao, Yunlei},
+    journal={IEEE Transactions on Computers},
+    title={Leveraging GPU in Homomorphic Encryption: Framework Design and Analysis of BFV Variants},
+    year={2024},
+    volume={73},
+    number={12},
+    pages={2817-2829},
+    doi={10.1109/TC.2024.3457733},
 }
 ```
 
