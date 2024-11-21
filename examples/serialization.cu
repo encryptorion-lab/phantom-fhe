@@ -222,15 +222,11 @@ void example_bfv_enc_sym() {
         for (size_t idx = 0; idx < slot_count; idx++)
             pod_matrix[idx] = idx;
 
-        PhantomPlaintext plain_matrix;
-        batchEncoder.encode(context, pod_matrix, plain_matrix);
+        PhantomPlaintext plain_matrix = batchEncoder.encode(context, pod_matrix);
 
         secret_key.encrypt_symmetric(context, plain_matrix, cipher);
-        auto noise_budget = secret_key.invariant_noise_budget(context, cipher);
-        cout << "cipher noise budget is: " << noise_budget << endl;
-        PhantomPlaintext plain;
 
-        secret_key.decrypt(context, cipher, plain);
+        PhantomPlaintext plain = secret_key.decrypt(context, cipher);
 
         std::vector<uint64_t> res;
         batchEncoder.decode(context, plain, res);
@@ -315,15 +311,11 @@ void example_bfv_enc_asym() {
         for (size_t idx = 0; idx < slot_count; idx++)
             pod_matrix[idx] = idx;
 
-        PhantomPlaintext plain_matrix;
-        batchEncoder.encode(context, pod_matrix, plain_matrix);
+        PhantomPlaintext plain_matrix = batchEncoder.encode(context, pod_matrix);
 
         public_key_load.encrypt_asymmetric(context, plain_matrix, cipher);
-        auto noise_budget = secret_key.invariant_noise_budget(context, cipher);
-        cout << "cipher noise budget is: " << noise_budget << endl;
-        PhantomPlaintext plain;
 
-        secret_key.decrypt(context, cipher, plain);
+        PhantomPlaintext plain = secret_key.decrypt(context, cipher);
 
         std::vector<uint64_t> res;
         batchEncoder.decode(context, plain, res);

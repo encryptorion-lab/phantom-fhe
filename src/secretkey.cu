@@ -749,8 +749,7 @@ static void poly_infinity_norm_coeffmod(const uint64_t *poly, size_t coeff_count
     }
 }
 
-int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context,
-                                             const PhantomCiphertext &cipher) {
+int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context, const PhantomCiphertext &cipher) {
     const auto &s = cudaStreamPerThread;
 
     auto chain_index = cipher.chain_index();
@@ -819,7 +818,7 @@ int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context,
     for (size_t idx{0}; idx < coeff_mod_size; idx++) {
         modulus.push_back(parms.coeff_modulus().at(idx).value());
     }
-    auto total_coeff_modulus = context_data.total_coeff_modulus();
+    const auto &total_coeff_modulus = context_data.total_coeff_modulus();
     poly_infinity_norm_coeffmod(host_noise_poly.data(), poly_degree, coeff_mod_size, total_coeff_modulus.data(),
                                 norm.data());
 

@@ -298,10 +298,8 @@ namespace phantom::arith {
                 multiply_many_uint64_except(rnsbase_values.data(), size_, i, prod_hat_.data() + i * size_);
             }
 
-            // Compute the full product, i.e., qiHat[0] * Q_[0]
-            auto temp_mpi = std::vector<uint64_t>(size_);
-            multiply_uint(prod_hat_.data(), size_, mod_[0].value(), size_, temp_mpi.data());
-            set_uint(temp_mpi.data(), size_, prod_mod_.data());
+            // Compute the full product
+            multiply_many_uint64(rnsbase_values.data(), size_, prod_mod_.data());
 
             // Compute inverses of punctured products mod primes
             for (size_t i = 0; i < size_; i++) {
