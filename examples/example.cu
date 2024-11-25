@@ -74,24 +74,24 @@ int main(int argc, char *argv[]) {
 
         switch (selection) {
             case 1:
-//                example_bfv_basics();
-//                example_bfv_batch_unbatch();
-//                example_bfv_encrypt_decrypt();
-//                example_bfv_encrypt_decrypt_asym();
-//                example_bfv_add();
-//                example_bfv_sub();
-//                example_bfv_mul();
-//                example_bfv_square();
-//                example_bfv_add_plain();
-//                example_bfv_sub_plain();
-//                example_bfv_mul_many_plain();
-//                example_bfv_mul_one_plain();
-//                example_bfv_rotate_column();
-//                example_bfv_rotate_row();
-//
-//                example_bfv_encrypt_decrypt_hps();
-//                example_bfv_encrypt_decrypt_hps_asym();
-//                example_bfv_hybrid_key_switching();
+                example_bfv_basics();
+                example_bfv_batch_unbatch();
+                example_bfv_encrypt_decrypt();
+                example_bfv_encrypt_decrypt_asym();
+                example_bfv_add();
+                example_bfv_sub();
+                example_bfv_mul();
+                example_bfv_square();
+                example_bfv_add_plain();
+                example_bfv_sub_plain();
+                example_bfv_mul_many_plain();
+                example_bfv_mul_one_plain();
+                example_bfv_rotate_column();
+                example_bfv_rotate_row();
+
+                example_bfv_encrypt_decrypt_hps();
+                example_bfv_encrypt_decrypt_hps_asym();
+                example_bfv_hybrid_key_switching();
                 example_bfv_multiply_correctness();
                 example_bfv_multiply_benchmark();
                 break;

@@ -1391,21 +1391,21 @@ void bfv_multiply_correctness(mul_tech_type mul_tech) {
     PhantomPublicKey public_key = secret_key.gen_publickey(context);
     public_key.encrypt_asymmetric(context, plain_matrix, asym_cipher);
     PhantomCiphertext asym_cipher_copy(asym_cipher);
-    cout << "Initial noise budget: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Initial noise budget: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
     multiply_and_relin_inplace(context, asym_cipher_copy, asym_cipher, relin_keys);
-    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher) << endl;
+    cout << "Noise budget after mult&relin: " << secret_key.invariant_noise_budget(context, asym_cipher_copy) << endl;
 
     secret_key.decrypt(context, asym_cipher_copy, dec_asym_plain);
 

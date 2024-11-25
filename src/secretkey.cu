@@ -756,11 +756,12 @@ int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context, cons
     auto &context_data = context.get_context_data(chain_index);
     auto &parms = context_data.parms();
     auto &plain_modulus = parms.plain_modulus();
-
+    auto scheme = parms.scheme();
     auto coeff_mod_size = cipher.coeff_modulus_size_;
     auto poly_degree = cipher.poly_modulus_degree_;
     auto base_rns = context.gpu_rns_tables().modulus();
     auto poly_num = cipher.size_;
+    auto is_ntt_form = cipher.is_ntt_form();
     auto needed_sk_power = poly_num - 1;
     if (needed_sk_power > sk_max_power_) {
         compute_secret_key_array(context, needed_sk_power, s);
@@ -777,7 +778,8 @@ int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context, cons
         uint64_t *ci = cipher_copy.data() + i * coeff_mod_size * poly_degree;
         uint64_t *si = secret_key_array() + (i - 1) * coeff_modulus_size_ * poly_degree;
         // Change ci to NTT form
-        nwt_2d_radix8_forward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0, s);
+        if (!is_ntt_form)
+            nwt_2d_radix8_forward_inplace(ci, context.gpu_rns_tables(), coeff_mod_size, 0, s);
         // ci * s^{i} in NTT form
         if (i == 1) {
             // c1 = c1 * s^1
@@ -791,14 +793,20 @@ int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context, cons
     }
 
     // change c_1 to normal form
-    nwt_2d_radix8_backward_inplace(c1, context.gpu_rns_tables(), coeff_mod_size, 0, s);
+    if (!is_ntt_form)
+        nwt_2d_radix8_backward_inplace(c1, context.gpu_rns_tables(), coeff_mod_size, 0, s);
     // finally, c_0 = c_0 + c_1
     add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
             c0, c1, base_rns, c0, poly_degree, coeff_mod_size);
 
-    // compute c0 * plain_modulus
-    multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
-            c0, plain_modulus.value(), base_rns, c0, poly_degree, coeff_mod_size);
+    if (scheme == scheme_type::bgv)
+        nwt_2d_radix8_backward_inplace(c0, context.gpu_rns_tables(), coeff_mod_size, 0, s);
+
+    // Multiply by plain_modulus and reduce mod coeff_modulus to get
+    // coeff_modulus()*noise.
+    if (scheme == scheme_type::bfv)
+        multiply_scalar_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
+                c0, plain_modulus.value(), base_rns, c0, poly_degree, coeff_mod_size);
 
     // Copy noise_poly to Host
     std::vector<uint64_t> host_noise_poly(coeff_mod_size * poly_degree);

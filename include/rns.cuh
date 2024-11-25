@@ -21,6 +21,7 @@ namespace phantom {
         std::size_t size_QP_ = 0;
 
         arith::RNSBase h_base_Ql_;
+        arith::RNSBase h_base_QlP_;
 
         arith::DRNSBase base_;
         arith::DRNSBase base_Q_;

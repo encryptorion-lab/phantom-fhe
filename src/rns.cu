@@ -57,6 +57,9 @@ namespace phantom {
             base_QlP_.init(base_QlP, stream);
         }
 
+        h_base_Ql_.init(base_Ql);
+        h_base_QlP_.init(base_QlP);
+
         size_t size_Ql = base_Ql.size();
         size_t size_QlP = size_Ql + size_P;
 
