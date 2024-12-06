@@ -229,10 +229,6 @@ Returns (f, e1, e2) such that
         auto poly_degree = parms.poly_modulus_degree();
         auto poly_num = encrypteds[0].size();
         auto base_rns = context.gpu_rns_tables().modulus();
-        // reduction_threshold = 2 ^ (64 - max modulus bits)
-        // max modulus bits = static_cast<uint64_t>(log2(coeff_modulus.front().value())) + 1
-        uint64_t reduction_threshold =
-                (1 << (bits_per_uint64 - static_cast<uint64_t>(log2(coeff_modulus.front().value())) - 1)) - 1;
 
         destination.resize(context, encrypteds[0].chain_index(), encrypteds[0].size(), s);
         destination.set_ntt_form(encrypteds[0].is_ntt_form());
@@ -259,8 +255,7 @@ Returns (f, e1, e2) such that
             for (size_t i = 0; i < poly_num; i++) {
                 add_many_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
                         enc_device_ptr.get(), encrypteds.size(), base_rns,
-                        destination.data(), i, poly_degree, coeff_mod_size,
-                        reduction_threshold);
+                        destination.data(), i, poly_degree, coeff_mod_size);
             }
         }
     }

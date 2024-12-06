@@ -128,8 +128,7 @@ __global__ void add_many_rns_poly(const uint64_t *const *operands,
                                   uint64_t *result,
                                   const uint32_t poly_index,
                                   const uint32_t poly_degree,
-                                  const uint32_t coeff_mod_size,
-                                  const uint64_t reduction_threshold) {
+                                  const uint32_t coeff_mod_size) {
     for (size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
          tid < poly_degree * coeff_mod_size;
          tid += blockDim.x * gridDim.x) {
@@ -137,15 +136,11 @@ __global__ void add_many_rns_poly(const uint64_t *const *operands,
         uint32_t rns_offset = poly_index * poly_degree * coeff_mod_size;
         DModulus mod = modulus[twr];
 
-        uint64_t temp = operands[0U][tid + rns_offset];
+        uint64_t temp = operands[0][tid + rns_offset];
         for (uint32_t i = 1; i < add_size; i++) {
-            if (i && reduction_threshold == 0) {
-                // in case of overflow
-                temp = barrett_reduce_uint64_uint64(temp, mod.value(), mod.const_ratio()[1]);
-            }
             temp += operands[i][tid + rns_offset];
+            temp = barrett_reduce_uint64_uint64(temp, mod.value(), mod.const_ratio()[1]);
         }
-        temp = barrett_reduce_uint64_uint64(temp, mod.value(), mod.const_ratio()[1]);
 
         result[tid + rns_offset] = temp;
     }

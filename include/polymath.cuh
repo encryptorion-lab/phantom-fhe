@@ -64,8 +64,7 @@ __global__ void add_many_rns_poly(const uint64_t* const * operands,
                                   uint64_t* result,
                                   uint32_t poly_index,
                                   uint32_t poly_degree,
-                                  uint32_t coeff_mod_size,
-                                  uint64_t reduction_threshold);
+                                  uint32_t coeff_mod_size);
 
 /**  res = operand1 * operand2 % coeff_mod
  * @param[in] operand1 Operand1
