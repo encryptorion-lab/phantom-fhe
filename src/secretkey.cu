@@ -403,7 +403,7 @@ PhantomRelinKey PhantomSecretKey::gen_relinkey(const PhantomContext &context) {
     auto &key_parms = key_context_data.parms();
     auto &key_modulus = key_parms.coeff_modulus();
     auto poly_degree = key_parms.poly_modulus_degree();
-    auto coeff_mod_size = key_modulus.size();
+    auto key_modulus_size = key_modulus.size();
 
     size_t max_power = 2;
     if (max_power > sk_max_power_) {
@@ -411,7 +411,7 @@ PhantomRelinKey PhantomSecretKey::gen_relinkey(const PhantomContext &context) {
     }
 
     // Make sure we have enough secret keys computed
-    uint64_t *sk_square = secret_key_array() + coeff_mod_size * poly_degree;
+    uint64_t *sk_square = secret_key_array() + key_modulus_size * poly_degree;
     generate_one_kswitch_key(context, sk_square, relin_key, s);
     relin_key.gen_flag_ = true;
 
@@ -774,7 +774,7 @@ int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context, cons
 
     // Compute c_0 + c_1 *s + ... + c_{count-1} * s^{count-1} mod q
     // First compute c_1 *s, ..., c_{count-1} * s^{count-1} mod q
-    for (size_t i = 1; i <= needed_sk_power; i++) {
+    for (size_t i = 1; i < poly_num; i++) {
         uint64_t *ci = cipher_copy.data() + i * coeff_mod_size * poly_degree;
         uint64_t *si = secret_key_array() + (i - 1) * coeff_modulus_size_ * poly_degree;
         // Change ci to NTT form
@@ -799,7 +799,7 @@ int PhantomSecretKey::invariant_noise_budget(const PhantomContext &context, cons
     add_rns_poly<<<gridDimGlb, blockDimGlb, 0, s>>>(
             c0, c1, base_rns, c0, poly_degree, coeff_mod_size);
 
-    if (scheme == scheme_type::bgv)
+    if (is_ntt_form)
         nwt_2d_radix8_backward_inplace(c0, context.gpu_rns_tables(), coeff_mod_size, 0, s);
 
     // Multiply by plain_modulus and reduce mod coeff_modulus to get
